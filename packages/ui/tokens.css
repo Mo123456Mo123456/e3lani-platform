@@ -1,0 +1,15 @@
+:root {
+  --e3-primary: #ffc400;
+  --e3-primary-dark: #e6ae00;
+  --e3-black: #111111;
+  --e3-charcoal: #252525;
+  --e3-gray: #777777;
+  --e3-border: #eeeeee;
+  --e3-surface: #f7f7f7;
+  --e3-white: #ffffff;
+  --e3-radius-sm: 10px;
+  --e3-radius-md: 16px;
+  --e3-radius-lg: 24px;
+  --e3-font-ar: "IBM Plex Sans Arabic", "Noto Sans Arabic", sans-serif;
+  --e3-font-en: "IBM Plex Sans", "Segoe UI", sans-serif;
+}

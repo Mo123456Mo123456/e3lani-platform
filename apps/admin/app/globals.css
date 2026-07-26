@@ -1,0 +1,81 @@
+@import '@e3lani/ui/tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f7f7f7;
+  color: #111;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.side {
+  background: #111;
+  color: #fff;
+  padding: 24px 18px;
+}
+
+.side h1 {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+}
+
+.side p {
+  margin: 0 0 24px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.9rem;
+}
+
+.side a {
+  display: block;
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.side a:hover {
+  background: rgba(255, 196, 0, 0.16);
+  color: #ffc400;
+}
+
+.content {
+  padding: 28px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.card strong {
+  display: block;
+  font-size: 1.6rem;
+  margin-bottom: 6px;
+}
+
+.card span {
+  color: #777;
+}
+
+@media (max-width: 800px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+}

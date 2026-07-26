@@ -1,33 +1,63 @@
 # إعلاني | E3lani
 
-منصة سعودية للإعلانات المرئية، مبنية كتطبيق جوال وموقع ويب ولوحة إدارة وواجهة API موحدة.
+منصة الإعلانات المرئية لكل شيء — Visual Advertising Platform for Everything.
 
-## الحالة الحالية
+> **جاهز تقنيًا للاختبار/Sandbox، وليس جاهزًا لتحصيل أموال حقيقية أو الإطلاق الإنتاجي.**
 
-تم إنشاء المستودع وربطه رسميًا بموصل ChatGPT Codex بتاريخ 26 يوليو 2026. هذا هو التأسيس الأول المحفوظ على GitHub، ولن تُعتبر أي مرحلة لاحقة مكتملة إلا بوجود Commit قابل للمراجعة واختبارات موثقة.
+## البنية
 
-## النطاق الأساسي
+```text
+e3lani-platform/
+├── apps/          # mobile (Expo) · web (Next.js) · admin (Next.js)
+├── services/      # api (NestJS) · media-worker
+├── packages/      # types · config · validation · auth · payments · i18n · ui
+├── infrastructure/docker
+├── docs/
+└── tests/
+```
 
-- تطبيق جوال عربي/إنجليزي بتمرير رأسي للإعلانات.
-- موقع ويب متوافق مع SEO.
-- لوحة إدارة للإعلانات والمستخدمين والمدفوعات والأقسام.
-- Backend موحد وقاعدة بيانات PostgreSQL.
-- رفع صور وفيديو، مراجعة محتوى، مدفوعات، إشعارات، وإحصاءات.
-- لا سلة شراء، لا بيع منتجات داخل المنصة، لا عمولة، ولا محادثة داخلية في النسخة الأولى.
+## التسعير الافتراضي (السعودية)
 
-## التسعير المبدئي
+| الخدمة | السعر |
+|---|---|
+| إعلان 30 يومًا | 59 ر.س |
+| إعادة نشر | 10 ر.س |
+| تمديد 15 يومًا | 29 ر.س |
+| إبراز 3 أيام | 15 ر.س |
+| إبراز 7 أيام | 29 ر.س |
+| أعلى القسم | 29 ر.س |
+| استهداف مدينة | 10 ر.س |
 
-- إعلان عادي: 19 ريالًا لمدة 30 يومًا.
-- إعادة نشر: 5 ريالات.
-- تمديد 15 يومًا: 5 ريالات.
-- إبراز 3 أيام: 10 ريالات.
-- إبراز 7 أيام: 20 ريالًا.
-- أعلى القسم: 15 ريالًا.
-- استهداف مدينة: 5 ريالات إضافية.
+الأسعار تُدار من الخادم عبر `PricingVersion` — لا تُثبَّت في العملاء.
 
-## منهج التسليم
+## التشغيل المحلي
 
-1. كل مرحلة على فرع مستقل.
-2. كل مرحلة تنتهي بـ Commit وPull Request.
-3. لا تُدمج أي مرحلة قبل نجاح الفحص والاختبارات.
-4. لا تُرفع أسرار أو مفاتيح دفع إلى المستودع.
+```bash
+pnpm install
+docker compose -f infrastructure/docker/docker-compose.yml up -d
+cp .env.example .env
+cp services/api/.env.example services/api/.env
+pnpm --filter @e3lani/api prisma:generate
+pnpm --filter @e3lani/api exec prisma migrate dev --name init
+pnpm db:seed
+pnpm dev
+```
+
+- API: `http://localhost:3001/api/v1` — Docs: `/api/docs`
+- Web: `http://localhost:3000`
+- Admin: `http://localhost:3002`
+- OTP Sandbox: `123456`
+
+## قواعد المنتج
+
+- ليست متجرًا: لا سلة ولا تحصيل لقيمة منتجات المعلنين.
+- المراجعة قبل الدفع دائمًا.
+- لا Mock نجاح في Production عند نقص المفاتيح.
+
+## الوثائق
+
+- [`docs/requirements/PRODUCT_SPEC_AR.md`](docs/requirements/PRODUCT_SPEC_AR.md)
+- [`docs/DELIVERY_STATUS.md`](docs/DELIVERY_STATUS.md)
+- [`docs/IMPLEMENTATION_MATRIX.md`](docs/IMPLEMENTATION_MATRIX.md)
+- [`docs/KEYS_AND_ACCOUNTS_AR.md`](docs/KEYS_AND_ACCOUNTS_AR.md)
+- [`docs/requirements/ADVERTISING_POLICY_AR.md`](docs/requirements/ADVERTISING_POLICY_AR.md)
