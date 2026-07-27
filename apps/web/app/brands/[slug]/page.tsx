@@ -22,7 +22,7 @@ export default function BrandPage() {
     return (
       <main className="container">
         <p className="error">{error}</p>
-        <p className="muted">أنشئ BrandProfile للمعلن لعرض صفحة البراند.</p>
+        <p className="muted">أنشئ ملف براند للمعلن لعرض هذه الصفحة.</p>
       </main>
     );
   }

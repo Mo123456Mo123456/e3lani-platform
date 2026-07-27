@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans_Arabic } from 'next/font/google';
 import { AppChrome } from '../components/AppChrome';
+import { LocaleProvider } from '../lib/locale';
 import './globals.css';
 
 const arabic = IBM_Plex_Sans_Arabic({
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ar" dir="rtl" className={arabic.variable}>
       <body>
-        <AppChrome>{children}</AppChrome>
+        <LocaleProvider>
+          <AppChrome>{children}</AppChrome>
+        </LocaleProvider>
       </body>
     </html>
   );

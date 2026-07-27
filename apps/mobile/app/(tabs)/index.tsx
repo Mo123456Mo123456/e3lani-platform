@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -26,6 +26,8 @@ export default function FeedScreen() {
   const [items, setItems] = useState<AdDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [chromeHidden, setChromeHidden] = useState(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,12 +46,34 @@ export default function FeedScreen() {
     void load();
   }, [load]);
 
+  function bumpChrome() {
+    setChromeHidden(false);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setChromeHidden(true), 2200);
+  }
+
+  useEffect(() => {
+    bumpChrome();
+    return () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, [items.length, tab]);
+
   return (
     <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 8, opacity: chromeHidden ? 0 : 1 },
+        ]}
+        pointerEvents={chromeHidden ? 'none' : 'auto'}
+      >
         <View style={styles.brandRow}>
           <LogoMark size={28} />
-          <Text style={styles.brand}>إعلاني</Text>
+          <View>
+            <Text style={styles.brand}>إعلاني | E3lani</Text>
+            <Text style={styles.tagline}>{t('ar', 'brand.tagline')}</Text>
+          </View>
         </View>
         <View style={styles.tabs}>
           {(
@@ -80,11 +104,12 @@ export default function FeedScreen() {
         showsVerticalScrollIndicator={false}
         snapToInterval={height}
         decelerationRate="fast"
+        onScrollBeginDrag={bumpChrome}
         renderItem={({ item }) => {
           const media = item.media?.[0]?.asset;
           const contact = item.currentRevision?.contactMethods;
           return (
-            <View style={[styles.slide, { height }]}>
+            <Pressable style={[styles.slide, { height }]} onPress={bumpChrome}>
               {media?.kind === 'VIDEO' ? (
                 <Video
                   style={StyleSheet.absoluteFill}
@@ -105,13 +130,26 @@ export default function FeedScreen() {
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: '#252525' }]} />
               )}
 
-              <View style={[styles.overlay, { paddingBottom: insets.bottom + 88 }]}>
+              <View
+                style={[
+                  styles.overlay,
+                  {
+                    paddingBottom: insets.bottom + 88,
+                    opacity: chromeHidden ? 0 : 1,
+                  },
+                ]}
+                pointerEvents={chromeHidden ? 'none' : 'auto'}
+              >
                 <Text style={styles.brandName}>
                   {item.owner?.brandProfile?.nameAr || item.owner?.displayName || 'معلن'}
                 </Text>
                 <Text style={styles.offerTitle}>{item.currentRevision?.title}</Text>
                 <Text style={styles.city}>{item.currentRevision?.city?.nameAr}</Text>
-                <Text style={styles.description}>{item.currentRevision?.description}</Text>
+                {item.currentRevision?.description ? (
+                  <Text style={styles.description} numberOfLines={2}>
+                    {item.currentRevision.description}
+                  </Text>
+                ) : null}
                 <Pressable
                   style={styles.cta}
                   onPress={() => {
@@ -123,7 +161,7 @@ export default function FeedScreen() {
                   <Text style={styles.ctaText}>{t('ar', 'feed.visitStore')}</Text>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
           );
         }}
       />
@@ -133,9 +171,16 @@ export default function FeedScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.black },
-  header: { position: 'absolute', zIndex: 20, left: 0, right: 0, paddingHorizontal: 16 },
+  header: {
+    position: 'absolute',
+    zIndex: 20,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+  },
   brandRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 10 },
-  brand: { color: colors.white, fontSize: 28, fontWeight: '800' },
+  brand: { color: colors.white, fontSize: 22, fontWeight: '800', textAlign: 'right' },
+  tagline: { color: 'rgba(255,255,255,0.7)', fontSize: 11, textAlign: 'right', marginTop: 2 },
   tabs: { flexDirection: 'row-reverse', gap: 18 },
   tabBtn: { alignItems: 'center' },
   tabText: { color: 'rgba(255,255,255,0.55)', fontSize: 15, fontWeight: '600' },
@@ -144,7 +189,7 @@ const styles = StyleSheet.create({
   slide: { width: '100%' },
   overlay: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 16 },
   brandName: { color: colors.primary, fontWeight: '700', textAlign: 'right' },
-  offerTitle: { color: colors.white, fontSize: 26, fontWeight: '800', textAlign: 'right', marginTop: 6 },
+  offerTitle: { color: colors.white, fontSize: 24, fontWeight: '800', textAlign: 'right', marginTop: 6 },
   city: { color: 'rgba(255,255,255,0.85)', marginTop: 4, textAlign: 'right' },
   description: { color: 'rgba(255,255,255,0.85)', marginTop: 8, lineHeight: 22, textAlign: 'right' },
   cta: {

@@ -1,14 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AdDetail } from '@e3lani/api-client';
 import { api } from '../../lib/api';
+import { useLocale } from '../../lib/locale';
 
 export default function BrowsePage() {
+  const { locale, tr } = useLocale();
   const [tab, setTab] = useState<'forYou' | 'latest' | 'nearby'>('forYou');
   const [items, setItems] = useState<AdDetail[]>([]);
   const [error, setError] = useState('');
+  const [chromeHidden, setChromeHidden] = useState(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -23,16 +27,29 @@ export default function BrowsePage() {
     };
   }, [tab]);
 
+  function bumpChrome() {
+    setChromeHidden(false);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setChromeHidden(true), 2200);
+  }
+
+  useEffect(() => {
+    bumpChrome();
+    return () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, [items.length, tab]);
+
   return (
-    <main className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>التصفح</h1>
+    <main className={`container feed-shell ${chromeHidden ? 'chrome-hidden' : ''}`}>
+      <div className="feed-toolbar" onMouseMove={bumpChrome} onTouchStart={bumpChrome}>
+        <h1 style={{ margin: 0 }}>{locale === 'ar' ? 'التصفح' : 'Browse'}</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           {(
             [
-              ['forYou', 'لك'],
-              ['nearby', 'قريب منك'],
-              ['latest', 'الأحدث'],
+              ['forYou', tr('feed.forYou')],
+              ['nearby', tr('feed.nearby')],
+              ['latest', tr('feed.latest')],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -46,8 +63,10 @@ export default function BrowsePage() {
         </div>
       </div>
       {error ? <p className="error">{error}</p> : null}
-      {!error && items.length === 0 ? <p className="muted">لا توجد إعلانات نشطة بعد.</p> : null}
-      <div className="feed-list" style={{ marginTop: 18 }}>
+      {!error && items.length === 0 ? (
+        <p className="muted">{locale === 'ar' ? 'لا توجد إعلانات نشطة بعد.' : 'No active ads yet.'}</p>
+      ) : null}
+      <div className="feed-list" style={{ marginTop: 18 }} onMouseMove={bumpChrome} onClick={bumpChrome}>
         {items.map((ad) => {
           const media = ad.media?.[0]?.asset;
           const isVideo = media?.kind === 'VIDEO';

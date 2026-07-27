@@ -11,7 +11,7 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:3000',
     trace: 'retain-on-failure',
     screenshot: 'on',
-    video: 'retain-on-failure',
+    video: 'on',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

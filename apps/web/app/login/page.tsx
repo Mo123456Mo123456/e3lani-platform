@@ -51,7 +51,7 @@ export default function LoginPage() {
     <main className="container">
       <div className="panel stack" style={{ maxWidth: 480, margin: '0 auto' }}>
         <h1 style={{ margin: 0 }}>دخول إعلاني</h1>
-        <p className="muted">OTP Sandbox — للمراجعة قبل الدفع.</p>
+        <p className="muted">دخول تجريبي بالرمز — المراجعة قبل الدفع.</p>
         {step === 'phone' ? (
           <>
             <label className="stack">
