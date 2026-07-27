@@ -37,7 +37,7 @@ Or copy `apps/mobile/android/keystore.properties.example` → a gitignored local
 cd apps/mobile
 # Ensure EXPO_PUBLIC_API_URL points at staging (see .env.staging.example)
 export ENV_FILE=.env.staging
-export APK_NAME=e3lani-staging-release-v7.apk
+export APK_NAME=e3lani-staging-release-v9.apk
 bash scripts/build-staging-release-apk.sh
 ```
 
@@ -67,7 +67,7 @@ cd apps/mobile/android
 ## Verify artifact
 
 ```bash
-sha256sum apps/mobile/dist/e3lani-staging-release-v7.apk
+sha256sum apps/mobile/dist/e3lani-staging-release-v9.apk
 # or
 sha256sum apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
 ```

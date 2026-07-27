@@ -42,9 +42,16 @@ export default function SavedScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: 20 },
-  title: { color: colors.black, fontSize: 28, fontWeight: '800' },
-  empty: { marginTop: 24, color: colors.gray, fontSize: 16 },
-  row: { marginTop: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 14 },
-  rowTitle: { fontWeight: '700' },
+  root: { flex: 1, backgroundColor: colors.black, paddingHorizontal: 20 },
+  title: { color: colors.white, fontSize: 28, fontWeight: '800' },
+  empty: { marginTop: 24, color: 'rgba(255,255,255,0.55)', fontSize: 16 },
+  row: {
+    marginTop: 12,
+    backgroundColor: colors.charcoal,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,196,0,0.14)',
+  },
+  rowTitle: { fontWeight: '700', color: colors.white },
 });
