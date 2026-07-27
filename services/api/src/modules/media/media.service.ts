@@ -317,7 +317,7 @@ export class MediaService implements OnModuleInit {
       );
     }
     throw new ServiceUnavailableException(
-      `STORAGE_NOT_CONFIGURED: missing ${status.missing.join(', ') || 'S3_ENDPOINT'}`,
+      `STORAGE_NOT_CONFIGURED: missing ${status.missing.join(', ') || 'R2_ENDPOINT'}`,
     );
   }
 }

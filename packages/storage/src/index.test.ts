@@ -27,53 +27,59 @@ describe('storage keys', () => {
 });
 
 describe('resolveStorageEnv', () => {
-  it('uses AWS-style key names for R2', () => {
+  it('reads R2_* names only and forces region=auto forcePathStyle=false', () => {
     const status = resolveStorageEnv({
       NODE_ENV: 'production',
       APP_ENV: 'staging',
       STORAGE_PROVIDER: 'r2',
-      S3_ENDPOINT: 'https://abc123.r2.cloudflarestorage.com',
-      S3_REGION: 'auto',
-      S3_BUCKET: 'e3lani-media',
-      S3_ACCESS_KEY_ID: 'key-id',
-      S3_SECRET_ACCESS_KEY: 'secret',
-      S3_FORCE_PATH_STYLE: 'false',
+      R2_ENDPOINT: 'https://abc123.r2.cloudflarestorage.com',
+      R2_BUCKET: 'e3lani-media',
+      R2_ACCESS_KEY_ID: 'key-id',
+      R2_SECRET_ACCESS_KEY: 'secret',
     } as NodeJS.ProcessEnv);
 
     expect(status.configured).toBe(true);
     expect(status.misconfigured).toBe(false);
     expect(status.provider).toBe('r2');
+    expect(status.config?.region).toBe('auto');
     expect(status.config?.forcePathStyle).toBe(false);
     expect(status.privateBucket).toBe(true);
     expect(status.config?.accessKeyId).toBe('key-id');
   });
 
-  it('accepts legacy S3_ACCESS_KEY / S3_SECRET_KEY', () => {
-    const status = resolveStorageEnv({
-      NODE_ENV: 'production',
-      S3_ENDPOINT: 'https://abc123.r2.cloudflarestorage.com',
-      S3_BUCKET: 'e3lani',
-      S3_ACCESS_KEY: 'legacy-key',
-      S3_SECRET_KEY: 'legacy-secret',
-      STORAGE_PROVIDER: 'r2',
-    } as NodeJS.ProcessEnv);
-    expect(status.configured).toBe(true);
-    expect(status.config?.accessKeyId).toBe('legacy-key');
-  });
-
-  it('marks partial staging config as misconfigured (never fake-success)', () => {
+  it('ignores legacy S3_* names', () => {
     const status = resolveStorageEnv({
       NODE_ENV: 'production',
       APP_ENV: 'staging',
       STORAGE_PROVIDER: 'r2',
       S3_ENDPOINT: 'https://abc123.r2.cloudflarestorage.com',
-      // missing keys + bucket
+      S3_BUCKET: 'e3lani',
+      S3_ACCESS_KEY_ID: 'legacy-key',
+      S3_SECRET_ACCESS_KEY: 'legacy-secret',
     } as NodeJS.ProcessEnv);
     expect(status.configured).toBe(false);
     expect(status.misconfigured).toBe(true);
-    expect(status.missing).toContain('S3_BUCKET');
-    expect(status.missing).toContain('S3_ACCESS_KEY_ID');
-    expect(status.missing).toContain('S3_SECRET_ACCESS_KEY');
+    expect(status.missing).toEqual([
+      'R2_ENDPOINT',
+      'R2_BUCKET',
+      'R2_ACCESS_KEY_ID',
+      'R2_SECRET_ACCESS_KEY',
+    ]);
+  });
+
+  it('marks partial staging config as misconfigured with R2_* missing names', () => {
+    const status = resolveStorageEnv({
+      NODE_ENV: 'production',
+      APP_ENV: 'staging',
+      STORAGE_PROVIDER: 'r2',
+      R2_ENDPOINT: 'https://abc123.r2.cloudflarestorage.com',
+    } as NodeJS.ProcessEnv);
+    expect(status.configured).toBe(false);
+    expect(status.misconfigured).toBe(true);
+    expect(status.missing).toContain('R2_BUCKET');
+    expect(status.missing).toContain('R2_ACCESS_KEY_ID');
+    expect(status.missing).toContain('R2_SECRET_ACCESS_KEY');
+    expect(status.missing).not.toContain('S3_BUCKET');
   });
 
   it('health summary never includes secrets', () => {
@@ -81,10 +87,10 @@ describe('resolveStorageEnv', () => {
       resolveStorageEnv({
         NODE_ENV: 'production',
         STORAGE_PROVIDER: 'r2',
-        S3_ENDPOINT: 'https://abc123.r2.cloudflarestorage.com',
-        S3_BUCKET: 'e3lani',
-        S3_ACCESS_KEY_ID: 'super-secret-key',
-        S3_SECRET_ACCESS_KEY: 'super-secret-value',
+        R2_ENDPOINT: 'https://abc123.r2.cloudflarestorage.com',
+        R2_BUCKET: 'e3lani',
+        R2_ACCESS_KEY_ID: 'super-secret-key',
+        R2_SECRET_ACCESS_KEY: 'super-secret-value',
       } as NodeJS.ProcessEnv),
     );
     const blob = JSON.stringify(summary);
@@ -92,7 +98,7 @@ describe('resolveStorageEnv', () => {
     expect(summary.endpointHost).toBe('abc123.r2.cloudflarestorage.com');
   });
 
-  it('createStorageClient respects forcePathStyle for R2', () => {
+  it('createStorageClient accepts R2 options', () => {
     const client = createStorageClient({
       endpoint: 'https://abc123.r2.cloudflarestorage.com',
       region: 'auto',

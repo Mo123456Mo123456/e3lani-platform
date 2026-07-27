@@ -28,27 +28,17 @@ export type StorageEnvStatus = {
   checkedAt: string;
 };
 
+/** Canonical env names for Cloudflare R2 (no legacy S3_* aliases). */
+export const R2_ENV_KEYS = [
+  'R2_ENDPOINT',
+  'R2_BUCKET',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+] as const;
+
 function trim(value: string | undefined): string | undefined {
   const v = value?.trim();
   return v ? v : undefined;
-}
-
-function parseBool(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined || value === '') return fallback;
-  const normalized = value.trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
-  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
-  return fallback;
-}
-
-function inferProvider(endpoint: string | undefined, explicit?: string): StorageProviderName {
-  const named = explicit?.trim().toLowerCase();
-  if (named === 'r2' || named === 'minio' || named === 's3') return named;
-  if (!endpoint) return 'unknown';
-  if (endpoint.includes('r2.cloudflarestorage.com') || endpoint.includes('.r2.dev')) return 'r2';
-  if (endpoint.includes('amazonaws.com')) return 's3';
-  if (/localhost|127\.0\.0\.1|:9000/.test(endpoint)) return 'minio';
-  return 'unknown';
 }
 
 function endpointHost(endpoint: string): string | undefined {
@@ -71,37 +61,44 @@ function withHost(status: StorageEnvStatus, host: string | undefined): StorageEn
 }
 
 /**
- * Resolve S3-compatible storage env (Cloudflare R2 / MinIO / S3).
- * Prefer AWS-style names; accept legacy S3_ACCESS_KEY / S3_SECRET_KEY.
+ * Resolve object-storage env using R2_* names only.
+ * AWS SDK settings for R2 are fixed: region=auto, forcePathStyle=false.
  * Never log secret values from this helper.
  */
 export function resolveStorageEnv(env: NodeJS.ProcessEnv = process.env): StorageEnvStatus {
   const checkedAt = new Date().toISOString();
-  const endpoint = trim(env.S3_ENDPOINT);
-  const bucket = trim(env.S3_BUCKET);
-  const region = trim(env.S3_REGION) ?? 'auto';
-  const accessKeyId = trim(env.S3_ACCESS_KEY_ID) ?? trim(env.S3_ACCESS_KEY);
-  const secretAccessKey = trim(env.S3_SECRET_ACCESS_KEY) ?? trim(env.S3_SECRET_KEY);
-  const publicBaseUrl = trim(env.S3_PUBLIC_BASE_URL);
-  const provider = inferProvider(endpoint, env.STORAGE_PROVIDER);
-  const forcePathStyle = parseBool(
-    env.S3_FORCE_PATH_STYLE,
-    provider === 'r2' ? false : true,
-  );
+  const endpoint = trim(env.R2_ENDPOINT);
+  const bucket = trim(env.R2_BUCKET);
+  const accessKeyId = trim(env.R2_ACCESS_KEY_ID);
+  const secretAccessKey = trim(env.R2_SECRET_ACCESS_KEY);
+  const providerHint = trim(env.STORAGE_PROVIDER)?.toLowerCase();
+  const provider: StorageProviderName =
+    providerHint === 'r2' || providerHint === 'minio' || providerHint === 's3'
+      ? providerHint
+      : endpoint?.includes('r2.cloudflarestorage.com') || endpoint?.includes('.r2.dev')
+        ? 'r2'
+        : endpoint && /localhost|127\.0\.0\.1|:9000/.test(endpoint)
+          ? 'minio'
+          : endpoint
+            ? 'unknown'
+            : 'unknown';
+
+  // R2 (and staging) always use these AWS SDK options internally.
+  const region = 'auto';
+  const forcePathStyle = false;
 
   const missing: string[] = [];
-  if (!endpoint) missing.push('S3_ENDPOINT');
-  if (!bucket) missing.push('S3_BUCKET');
-  if (!accessKeyId) missing.push('S3_ACCESS_KEY_ID');
-  if (!secretAccessKey) missing.push('S3_SECRET_ACCESS_KEY');
+  if (!endpoint) missing.push('R2_ENDPOINT');
+  if (!bucket) missing.push('R2_BUCKET');
+  if (!accessKeyId) missing.push('R2_ACCESS_KEY_ID');
+  if (!secretAccessKey) missing.push('R2_SECRET_ACCESS_KEY');
 
   const anyStorageHint = Boolean(
     endpoint ||
       bucket ||
       accessKeyId ||
       secretAccessKey ||
-      publicBaseUrl ||
-      trim(env.STORAGE_PROVIDER),
+      providerHint,
   );
 
   // Local DX: MinIO defaults only outside prod/staging and only when nothing is set.
@@ -139,8 +136,8 @@ export function resolveStorageEnv(env: NodeJS.ProcessEnv = process.env): Storage
       configured: false,
       misconfigured: anyStorageHint,
       missing,
-      provider,
-      privateBucket: !publicBaseUrl,
+      provider: providerHint === 'r2' || provider === 'r2' ? 'r2' : provider,
+      privateBucket: true,
       forcePathStyle,
       mode: anyStorageHint ? 'misconfigured' : 'unconfigured',
       checkedAt,
@@ -156,17 +153,16 @@ export function resolveStorageEnv(env: NodeJS.ProcessEnv = process.env): Storage
     accessKeyId: accessKeyId!,
     secretAccessKey: secretAccessKey!,
     forcePathStyle,
-    provider,
-    privateBucket: !publicBaseUrl,
+    provider: providerHint === 'r2' ? 'r2' : provider === 'unknown' ? 'r2' : provider,
+    privateBucket: true,
   };
-  if (publicBaseUrl) config.publicBaseUrl = publicBaseUrl;
 
   return withHost(
     {
       configured: true,
       misconfigured: false,
       missing: [],
-      provider,
+      provider: config.provider,
       bucket: config.bucket,
       privateBucket: config.privateBucket,
       forcePathStyle: config.forcePathStyle,

@@ -13,7 +13,7 @@ function defaultStorageBinding() {
 }
 
 export function publicObjectUrl(storageKey: string): string {
-  const base = (process.env.S3_PUBLIC_BASE_URL ?? 'http://127.0.0.1:9000/e3lani').replace(
+  const base = (process.env.R2_PUBLIC_BASE_URL ?? 'http://127.0.0.1:9000/e3lani').replace(
     /\/$/,
     '',
   );

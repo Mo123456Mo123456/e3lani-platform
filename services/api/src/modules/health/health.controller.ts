@@ -18,6 +18,8 @@ export class HealthController {
         misconfigured: storage.misconfigured,
         provider: storage.provider,
         mode: storage.mode,
+        missing: storage.missing,
+        bucket: storage.bucket,
         // Intentional: health stays up even when storage is missing.
         ready: storage.configured && !storage.misconfigured,
       },
@@ -45,6 +47,8 @@ export class HealthController {
           misconfigured: storage.misconfigured,
           provider: storage.provider,
           mode: storage.mode,
+          missing: storage.missing,
+          bucket: storage.bucket,
           ready: storage.configured && !storage.misconfigured,
         },
       };

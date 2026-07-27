@@ -137,16 +137,14 @@ async function main() {
   assert([200, 201].includes(complete.status), `complete upload failed: ${complete.status}`);
 
   const client = createStorageClient({
-    endpoint: process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000',
-    region: process.env.S3_REGION ?? 'us-east-1',
-    bucket: process.env.S3_BUCKET ?? 'e3lani',
-    accessKeyId:
-      process.env.S3_ACCESS_KEY_ID ?? process.env.S3_ACCESS_KEY ?? 'e3lani',
-    secretAccessKey:
-      process.env.S3_SECRET_ACCESS_KEY ?? process.env.S3_SECRET_KEY ?? 'e3lanisecret',
-    forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? 'true') !== 'false',
+    endpoint: process.env.R2_ENDPOINT ?? 'http://127.0.0.1:9000',
+    region: 'auto',
+    bucket: process.env.R2_BUCKET ?? 'e3lani',
+    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? 'e3lani',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? 'e3lanisecret',
+    forcePathStyle: false,
   });
-  const processed = await processMediaJob(client, process.env.S3_BUCKET ?? 'e3lani', {
+  const processed = await processMediaJob(client, process.env.R2_BUCKET ?? 'e3lani', {
     assetId: intent.data.assetId,
     storageKey: intent.data.assetKey,
     kind: 'image',
