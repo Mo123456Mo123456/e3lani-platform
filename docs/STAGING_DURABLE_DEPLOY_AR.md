@@ -28,20 +28,17 @@ Staging الدائم على Render **منشور**:
 
 https://dash.cloudflare.com/?to=/:account/r2
 
-### المتغيرات المطلوبة (API + media-worker)
+### المتغيرات المطلوبة (API)
 
 | Variable | Source |
 |---|---|
 | `STORAGE_PROVIDER` | ثابت: `r2` |
-| `S3_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
-| `S3_REGION` | `auto` |
-| `S3_BUCKET` | اسم الـBucket |
-| `S3_ACCESS_KEY_ID` | R2 → Manage R2 API Tokens → Access Key ID |
-| `S3_SECRET_ACCESS_KEY` | Secret Access Key (يُعرض مرة واحدة) |
-| `S3_PUBLIC_BASE_URL` | اتركه فارغًا للـBucket الخاص + Signed GET |
-| `S3_FORCE_PATH_STYLE` | `false` |
+| `R2_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (sync:false على Render) |
+| `R2_BUCKET` | مثل `e3lani-staging-media` |
+| `R2_ACCESS_KEY_ID` | R2 API Token → Access Key ID |
+| `R2_SECRET_ACCESS_KEY` | Secret Access Key (يُعرض مرة واحدة) |
 
-أسماء قديمة ما زالت مدعومة للتوافق: `S3_ACCESS_KEY` / `S3_SECRET_KEY`.
+AWS SDK داخليًا: `region=auto`, `forcePathStyle=false`. Health يعرض `storage.missing` بأسماء `R2_*` عند النقص.
 
 ### إعداد Bucket CORS (مطلوب للرفع من المتصفح/الجوال)
 
@@ -67,7 +64,7 @@ https://dash.cloudflare.com/?to=/:account/r2
 ### Bucket خاص + Signed URLs
 
 - لا تجعل كل الملفات عامة تلقائيًا.
-- اترك `S3_PUBLIC_BASE_URL` فارغًا → API يُصدر Signed GET عند الحاجة.
+- Bucket خاص + Signed GET افتراضيًا (بدون عنوان عام).
 - الرفع: Signed PUT من `/media/upload-intent`.
 
 ### بعد ضبط المتغيرات على Render

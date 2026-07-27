@@ -27,15 +27,12 @@
 | Variable | مثال / مصدر | سري؟ |
 |---|---|---|
 | `STORAGE_PROVIDER` | `r2` | لا |
-| `S3_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` | لا (معرّف الحساب) |
-| `S3_REGION` | `auto` | لا |
-| `S3_BUCKET` | اسم الـBucket | لا |
-| `S3_ACCESS_KEY_ID` | R2 API Token → Access Key ID | نعم |
-| `S3_SECRET_ACCESS_KEY` | R2 API Token → Secret | نعم |
-| `S3_PUBLIC_BASE_URL` | فارغ للـprivate + Signed GET؛ أو نطاق عام اختياري | لا |
-| `S3_FORCE_PATH_STYLE` | `false` لـR2 | لا |
+| `R2_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` | لا (معرّف الحساب) |
+| `R2_BUCKET` | اسم الـBucket | لا |
+| `R2_ACCESS_KEY_ID` | R2 API Token → Access Key ID | نعم |
+| `R2_SECRET_ACCESS_KEY` | R2 API Token → Secret | نعم |
 
-توافق خلفي: `S3_ACCESS_KEY` / `S3_SECRET_KEY` ما زالا يُقرآن إن لم تُضبط الأسماء الجديدة.
+AWS SDK داخليًا: `region=auto`, `forcePathStyle=false`. لا تُستخدم أسماء `S3_*` بعد الآن.
 
 ### صلاحيات توكن R2
 
@@ -51,6 +48,6 @@
 
 - `PAYMENT_MODE=sandbox` و `OTP_MODE=sandbox` للتطوير المحلي فقط.
 - Sandbox OTP المعلن: `123456`.
-- Production/Staging: Fail Closed للوسائط — لا نجاح وهمي عند نقص `S3_*`.
+- Production/Staging: Fail Closed للوسائط — لا نجاح وهمي عند نقص `R2_*`.
 - Health العام يبقى `ok` حتى لو التخزين غير مضبوط؛ الرفع يعيد `503 STORAGE_NOT_CONFIGURED` أو `STORAGE_MISCONFIGURED`.
 - Webhooks تتطلب تحقق التوقيع وIdempotency عبر `eventId` فريد.
