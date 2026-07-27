@@ -1,16 +1,16 @@
 @import '@e3lani/ui/tokens.css';
 * { box-sizing: border-box; }
-body { margin: 0; background: #f7f7f7; color: #111; font-family: var(--font-e3lani), sans-serif; }
+body { margin: 0; background: #F7F7F7; color: #111111; font-family: var(--font-e3lani), sans-serif; }
 .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
-.side { background: #111; color: #fff; padding: 24px 18px; }
+.side { background: #111111; color: #fff; padding: 24px 18px; }
 .side h1 { margin: 0 0 8px; font-size: 1.3rem; }
 .side a { display: block; color: rgba(255,255,255,.85); text-decoration: none; padding: 10px 12px; border-radius: 10px; margin-bottom: 6px; font-weight: 600; }
-.side a:hover, .side a.active { background: rgba(255,196,0,.16); color: #ffc400; }
+.side a:hover, .side a.active { background: rgba(255,196,0,.16); color: #FFC400; }
 .content { padding: 28px; }
 .panel { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 12px; }
 .btn { border: 0; border-radius: 12px; min-height: 40px; padding: 0 14px; font-weight: 800; cursor: pointer; }
-.btn-primary { background: #ffc400; }
-.btn-dark { background: #111; color: #fff; }
+.btn-primary { background: #FFC400; color: #111111; }
+.btn-dark { background: #111111; color: #fff; }
 .btn-ghost { background: #f0f0f0; }
 .stack { display: grid; gap: 10px; }
 .muted { color: #777; }

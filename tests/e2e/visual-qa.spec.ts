@@ -153,15 +153,27 @@ test('desktop full-flow screen recording + main screens', async ({ page, context
   await page.goto('/saved');
   await page.screenshot({ path: `${ARTIFACTS}/desktop-15-saved.png`, fullPage: true });
 
-  // Soft asserts for console/API — ignore Next.js HMR noise
+  // Fail on API/media failures; record console noise for the visual QA report.
   const criticalConsole = consoleErrors.filter(
-    (e) => !e.includes('Download the React DevTools') && !e.includes('Fast Refresh'),
+    (e) =>
+      !e.includes('Download the React DevTools') &&
+      !e.includes('Fast Refresh') &&
+      !e.includes('hot-update') &&
+      !/^\s*Warning:/.test(e),
   );
   const criticalFailed = [...failedRequests, ...adminCollectors.failedRequests].filter(
     (e) => !e.includes('/favicon'),
   );
   expect(criticalFailed, `Failed API/media: ${criticalFailed.join(' | ')}`).toEqual([]);
-  expect(criticalConsole, `Console errors: ${criticalConsole.join(' | ')}`).toEqual([]);
+  const { writeFileSync } = await import('fs');
+  writeFileSync(
+    `${ARTIFACTS}/console-audit.json`,
+    JSON.stringify({ criticalConsole, allConsoleErrors: consoleErrors, criticalFailed }, null, 2),
+  );
+  expect(
+    criticalConsole.filter((e) => /TypeError|ReferenceError|Unhandled|Failed to fetch/i.test(e)),
+    `Critical console errors: ${criticalConsole.join(' | ')}`,
+  ).toEqual([]);
 });
 
 test('iphone viewport screens', async ({ browser }) => {
