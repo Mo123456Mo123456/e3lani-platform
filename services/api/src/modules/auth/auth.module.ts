@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { RateLimitMiddleware } from '../../common/rate-limit.middleware';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
@@ -12,7 +13,14 @@ import { AuthService } from './auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService, RateLimitMiddleware],
   exports: [AuthService],
 })
-export class AuthModule {}
+export class AuthModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RateLimitMiddleware).forRoutes(
+      { path: 'auth/request-otp', method: RequestMethod.POST },
+      { path: 'auth/verify-otp', method: RequestMethod.POST },
+    );
+  }
+}

@@ -4,18 +4,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MEDIA_LIMITS } from '@e3lani/config';
+import { AD_POLICY, MEDIA_LIMITS } from '@e3lani/config';
 import { createAdDraftSchema } from '@e3lani/validation';
-import { MediaKind } from '@prisma/client';
+import { AdStatus, MediaKind } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdStateService } from '../../common/ad-state.service';
 import { decorateAdMedia } from '../../common/media-urls';
+import { AuditService } from '../../common/audit.service';
 
 @Injectable()
 export class AdsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly adState: AdStateService,
+    private readonly audit: AuditService,
   ) {}
 
   async listMine(ownerId: string) {
@@ -179,5 +181,253 @@ export class AdsService {
     });
 
     return updated;
+  }
+
+  async pause(adId: string, ownerId: string) {
+    const ad = await this.getOwnedAd(adId, ownerId);
+    if (ad.status !== 'ACTIVE') throw new BadRequestException('AD_NOT_ACTIVE');
+
+    const updated = await this.adState.transition({
+      adId,
+      to: 'PAUSED',
+      actorId: ownerId,
+      reason: 'Paused by owner',
+    });
+    await this.auditAdChange(ownerId, 'ads.pause', adId, ad.status, updated.status);
+    await this.notifyAdOwner(ownerId, 'ad.paused', adId, 'Ad paused', 'Your ad was paused');
+    return updated;
+  }
+
+  async resume(adId: string, ownerId: string) {
+    const ad = await this.getOwnedAd(adId, ownerId);
+    if (ad.status !== 'PAUSED') throw new BadRequestException('AD_NOT_PAUSED');
+    if (ad.expiresAt && ad.expiresAt <= new Date()) {
+      throw new BadRequestException('AD_EXPIRED');
+    }
+
+    const updated = await this.adState.transition({
+      adId,
+      to: 'ACTIVE',
+      actorId: ownerId,
+      reason: 'Resumed by owner',
+    });
+    await this.auditAdChange(ownerId, 'ads.resume', adId, ad.status, updated.status);
+    await this.notifyAdOwner(ownerId, 'ad.resumed', adId, 'Ad resumed', 'Your ad is active again');
+    return updated;
+  }
+
+  async schedule(adId: string, ownerId: string, scheduledAt: Date) {
+    if (scheduledAt <= new Date()) throw new BadRequestException('SCHEDULED_AT_MUST_BE_FUTURE');
+    const ad = await this.getOwnedAd(adId, ownerId);
+    if (!['APPROVED_AWAITING_PAYMENT', 'APPROVED', 'ACTIVE'].includes(ad.status)) {
+      throw new BadRequestException('AD_NOT_SCHEDULABLE');
+    }
+
+    if (ad.status === 'APPROVED_AWAITING_PAYMENT') {
+      const updated = await this.prisma.ad.update({
+        where: { id: adId },
+        data: { scheduledAt },
+      });
+      await this.auditAdChange(ownerId, 'ads.schedule', adId, ad.status, updated.status, {
+        scheduledAt: scheduledAt.toISOString(),
+      });
+      return updated;
+    }
+
+    await this.prisma.ad.update({
+      where: { id: adId },
+      data: { scheduledAt },
+    });
+    const updated = await this.adState.transition({
+      adId,
+      to: 'SCHEDULED',
+      actorId: ownerId,
+      reason: `Scheduled for ${scheduledAt.toISOString()}`,
+    });
+    await this.auditAdChange(ownerId, 'ads.schedule', adId, ad.status, updated.status, {
+      scheduledAt: scheduledAt.toISOString(),
+    });
+    return updated;
+  }
+
+  async expireDueAds() {
+    const now = new Date();
+    const due = await this.prisma.ad.findMany({
+      where: {
+        status: { in: ['ACTIVE', 'PAUSED'] },
+        expiresAt: { lt: now },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    for (const ad of due) {
+      await this.adState.transition({
+        adId: ad.id,
+        to: 'EXPIRED',
+        reason: 'Expired by lifecycle job',
+      });
+    }
+
+    return { ok: true, count: due.length };
+  }
+
+  async activateScheduled() {
+    const now = new Date();
+    const scheduled = await this.prisma.ad.findMany({
+      where: {
+        status: 'SCHEDULED',
+        scheduledAt: { lte: now },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        currentRevisionId: true,
+        approvedRevisionId: true,
+        activeRevisionId: true,
+        publishedAt: true,
+        expiresAt: true,
+      },
+    });
+
+    for (const ad of scheduled) {
+      const publishedAt = ad.publishedAt ?? now;
+      await this.prisma.ad.update({
+        where: { id: ad.id },
+        data: {
+          activeRevisionId: ad.activeRevisionId ?? ad.approvedRevisionId ?? ad.currentRevisionId,
+          publishedAt,
+          expiresAt:
+            ad.expiresAt ??
+            new Date(publishedAt.getTime() + AD_POLICY.defaultDurationDays * 24 * 60 * 60 * 1000),
+        },
+      });
+      await this.adState.transition({
+        adId: ad.id,
+        to: 'ACTIVE',
+        reason: 'Activated by lifecycle job',
+      });
+    }
+
+    return { ok: true, count: scheduled.length };
+  }
+
+  async republish(adId: string, ownerId: string) {
+    const ad = await this.getOwnedAd(adId, ownerId);
+    if (ad.status !== 'EXPIRED') throw new BadRequestException('AD_NOT_EXPIRED');
+    const target: AdStatus =
+      ad.approvedRevisionId && ad.approvedRevisionId === ad.currentRevisionId
+        ? 'APPROVED_AWAITING_PAYMENT'
+        : 'DRAFT';
+
+    await this.prisma.ad.update({
+      where: { id: adId },
+      data: { scheduledAt: null, publishedAt: null, expiresAt: null },
+    });
+    const updated = await this.adState.transition({
+      adId,
+      to: target,
+      actorId: ownerId,
+      reason:
+        target === 'APPROVED_AWAITING_PAYMENT'
+          ? 'Republished expired approved ad; payment required'
+          : 'Republished expired ad as draft; review required',
+    });
+    await this.auditAdChange(ownerId, 'ads.republish', adId, ad.status, updated.status);
+    await this.notifyAdOwner(
+      ownerId,
+      'ad.republished',
+      adId,
+      'Ad republished',
+      'Your expired ad is ready for the next step',
+    );
+    return updated;
+  }
+
+  async extend(adId: string, ownerId: string) {
+    const ad = await this.getOwnedAd(adId, ownerId);
+    if (!['ACTIVE', 'PAUSED'].includes(ad.status)) throw new BadRequestException('AD_NOT_EXTENDABLE');
+
+    const base = ad.expiresAt && ad.expiresAt > new Date() ? ad.expiresAt : new Date();
+    const expiresAt = new Date(base.getTime() + AD_POLICY.extendDays * 24 * 60 * 60 * 1000);
+    const updated = await this.prisma.ad.update({
+      where: { id: adId },
+      data: { expiresAt },
+    });
+    await this.audit.write({
+      actorId: ownerId,
+      action: 'ads.extend',
+      entityType: 'ad',
+      entityId: adId,
+      before: { status: ad.status, expiresAt: ad.expiresAt?.toISOString() ?? null },
+      after: { status: updated.status, expiresAt: expiresAt.toISOString() },
+      reason: 'Sandbox/staging direct extension; production should attach a paid order',
+    });
+    return updated;
+  }
+
+  async share(adId: string, userId?: string, channel?: string) {
+    const ad = await this.prisma.ad.findUnique({ where: { id: adId } });
+    if (!ad || ad.deletedAt) throw new NotFoundException('AD_NOT_FOUND');
+
+    await this.prisma.analyticsEvent.create({
+      data: {
+        name: 'ad.share',
+        adId,
+        userId,
+        platform: channel,
+      },
+    });
+
+    const baseUrl = (process.env.PUBLIC_WEB_URL ?? process.env.APP_URL ?? 'https://e3lani.com').replace(
+      /\/$/,
+      '',
+    );
+    return { ok: true, shareUrl: `${baseUrl}/ads/${adId}` };
+  }
+
+  private async getOwnedAd(adId: string, ownerId: string) {
+    const ad = await this.prisma.ad.findUnique({ where: { id: adId } });
+    if (!ad || ad.deletedAt) throw new NotFoundException('AD_NOT_FOUND');
+    if (ad.ownerId !== ownerId) throw new ForbiddenException();
+    return ad;
+  }
+
+  private auditAdChange(
+    actorId: string,
+    action: string,
+    adId: string,
+    beforeStatus: AdStatus,
+    afterStatus: AdStatus,
+    afterExtra?: Record<string, string>,
+  ) {
+    return this.audit.write({
+      actorId,
+      action,
+      entityType: 'ad',
+      entityId: adId,
+      before: { status: beforeStatus },
+      after: { status: afterStatus, ...(afterExtra ?? {}) },
+    });
+  }
+
+  private notifyAdOwner(
+    userId: string,
+    type: string,
+    adId: string,
+    titleEn: string,
+    bodyEn: string,
+  ) {
+    return this.prisma.notification.create({
+      data: {
+        userId,
+        type,
+        titleAr: titleEn,
+        titleEn,
+        bodyAr: bodyEn,
+        bodyEn,
+        payload: { adId },
+      },
+    });
   }
 }

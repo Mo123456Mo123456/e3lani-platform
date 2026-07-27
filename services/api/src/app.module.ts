@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommonModule } from './common/common.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -15,11 +16,17 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { PaymentsProviderModule } from './modules/payments/payments-provider.module';
 import { SavedModule } from './modules/saved/saved.module';
 import { BrandsModule } from './modules/brands/brands.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { AppealsModule } from './modules/appeals/appeals.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { CampaignsModule } from './modules/campaigns/campaigns.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    CommonModule,
     PaymentsProviderModule,
     HealthModule,
     AuthModule,
@@ -34,6 +41,11 @@ import { BrandsModule } from './modules/brands/brands.module';
     WebhooksModule,
     SavedModule,
     BrandsModule,
+    ReportsModule,
+    AppealsModule,
+    NotificationsModule,
+    AnalyticsModule,
+    CampaignsModule,
   ],
 })
 export class AppModule {}

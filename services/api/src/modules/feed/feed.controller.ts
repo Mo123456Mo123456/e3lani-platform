@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { feedSearchSchema } from '@e3lani/validation';
 import { FeedService } from './feed.service';
 
 @ApiTags('feed')
@@ -17,9 +18,19 @@ export class FeedController {
     return this.feed.latest(cursor, take ? Number(take) : 10);
   }
 
+  @Get('search')
+  search(@Query() query: unknown) {
+    const filters = feedSearchSchema.parse(query);
+    return this.feed.search(filters);
+  }
+
   @Get('nearby')
-  nearby(@Query('cursor') cursor?: string) {
-    // Nearby requires location permission + geohash; falls back to for-you until coords provided.
-    return this.feed.forYou(cursor, 10);
+  nearby(
+    @Query('cursor') cursor?: string,
+    @Query('take') take?: string,
+    @Query('cityId') cityId?: string,
+  ) {
+    // Nearby requires location permission + geohash; city filtering is the current coarse fallback.
+    return this.feed.nearby(cursor, take ? Number(take) : 10, cityId);
   }
 }

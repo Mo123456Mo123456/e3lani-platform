@@ -129,29 +129,56 @@ export class WebhooksService {
       });
     });
 
-    const publishedAt = new Date();
-    const expiresAt = new Date(
-      publishedAt.getTime() + AD_POLICY.defaultDurationDays * 24 * 60 * 60 * 1000,
-    );
+    const now = new Date();
+    const shouldSchedule = order.ad.scheduledAt && order.ad.scheduledAt > now;
+    if (shouldSchedule) {
+      await this.prisma.ad.update({
+        where: { id: order.adId },
+        data: { activeRevisionId: order.revisionId },
+      });
+      await this.adState.transition({
+        adId: order.adId,
+        to: 'SCHEDULED',
+        reason: `Scheduled via verified ${providerName} webhook ${event.eventId}`,
+      });
+    } else {
+      const publishedAt = now;
+      const expiresAt = new Date(
+        publishedAt.getTime() + AD_POLICY.defaultDurationDays * 24 * 60 * 60 * 1000,
+      );
 
-    await this.prisma.ad.update({
-      where: { id: order.adId },
+      await this.prisma.ad.update({
+        where: { id: order.adId },
+        data: {
+          activeRevisionId: order.revisionId,
+          publishedAt,
+          expiresAt,
+        },
+      });
+
+      await this.adState.transition({
+        adId: order.adId,
+        to: 'ACTIVE',
+        reason: `Activated via verified ${providerName} webhook ${event.eventId}`,
+      });
+    }
+
+    await this.prisma.notification.create({
       data: {
-        activeRevisionId: order.revisionId,
-        publishedAt,
-        expiresAt,
+        userId: order.userId,
+        type: shouldSchedule ? 'ad.scheduled' : 'ad.activated',
+        titleAr: shouldSchedule ? 'Ad scheduled' : 'Ad activated',
+        titleEn: shouldSchedule ? 'Ad scheduled' : 'Ad activated',
+        bodyAr: shouldSchedule ? 'Your ad will publish at its scheduled time' : 'Your ad is live',
+        bodyEn: shouldSchedule ? 'Your ad will publish at its scheduled time' : 'Your ad is live',
+        payload: { adId: order.adId, orderId: order.id },
       },
-    });
-
-    await this.adState.transition({
-      adId: order.adId,
-      to: 'ACTIVE',
-      reason: `Activated via verified ${providerName} webhook ${event.eventId}`,
     });
 
     return {
       ok: true,
-      activated: true,
+      activated: !shouldSchedule,
+      scheduled: Boolean(shouldSchedule),
       adId: order.adId,
       orderId: order.id,
       eventId: event.eventId,

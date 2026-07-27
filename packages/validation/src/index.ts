@@ -47,6 +47,103 @@ export const mediaUploadIntentSchema = z.object({
   fileName: z.string().max(255).optional(),
 });
 
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(20),
+});
+
+export const logoutSchema = z.object({
+  refreshToken: z.string().min(20).optional(),
+  allDevices: z.boolean().optional(),
+});
+
+export const updateProfileSchema = z.object({
+  displayName: z.string().trim().min(1).max(120).optional(),
+  email: z.string().trim().email().optional(),
+  locale: z.enum(['ar', 'en']).optional(),
+  cityId: z.string().uuid().optional(),
+  avatarUrl: z.string().url().optional(),
+});
+
+export const reportAdSchema = z.object({
+  reason: z.enum(['spam', 'fraud', 'inappropriate', 'misleading', 'other']),
+  details: z.string().trim().max(2000).optional(),
+});
+
+export const createAppealSchema = z.object({
+  adId: z.string().uuid(),
+  reportId: z.string().uuid().optional(),
+  reason: z.string().trim().min(5),
+  details: z.string().trim().max(2000).optional(),
+});
+
+const analyticsPayloadSchema = z
+  .record(z.unknown())
+  .or(z.array(z.unknown()))
+  .or(z.string())
+  .or(z.number())
+  .or(z.boolean())
+  .or(z.null());
+
+export const analyticsEventsSchema = z.object({
+  events: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1),
+        adId: z.string().uuid().optional(),
+        sessionId: z.string().trim().min(1).max(200).optional(),
+        platform: z.string().trim().min(1).max(50).optional(),
+        locale: z.string().trim().min(1).max(10).optional(),
+        payload: analyticsPayloadSchema.optional(),
+      }),
+    )
+    .max(50),
+});
+
+const optionalBooleanQuery = z.preprocess((value) => {
+  if (value === undefined || value === '') return undefined;
+  if (value === true || value === 'true' || value === '1') return true;
+  if (value === false || value === 'false' || value === '0') return false;
+  return value;
+}, z.boolean().optional());
+
+const optionalTakeQuery = z.preprocess((value) => {
+  if (value === undefined || value === '') return undefined;
+  if (typeof value === 'string') return Number(value);
+  return value;
+}, z.number().int().min(1).max(50).optional());
+
+export const feedSearchSchema = z.object({
+  q: z.string().trim().min(1).max(120).optional(),
+  cityId: z.string().uuid().optional(),
+  categoryId: z.string().uuid().optional(),
+  kind: z.enum(['image', 'video']).optional(),
+  sort: z.enum(['latest', 'views', 'featured']).optional(),
+  verified: optionalBooleanQuery,
+  featured: optionalBooleanQuery,
+  cursor: z.string().uuid().optional(),
+  take: optionalTakeQuery,
+});
+
+export const createCampaignSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  objective: z.string().trim().min(1).max(500),
+  budgetTotal: z.number().positive(),
+  currency: z.string().trim().length(3).default('SAR'),
+  startsAt: z.string().datetime().optional(),
+  endsAt: z.string().datetime().optional(),
+  targeting: z.record(z.unknown()).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  adIds: z.array(z.string().uuid()).optional(),
+});
+
+export const scheduleAdSchema = z.object({
+  scheduledAt: z.string().datetime(),
+});
+
+export const shareAdSchema = z.object({
+  channel: z.string().trim().min(1).max(80).optional(),
+});
+
 export function validateMediaIntent(input: z.infer<typeof mediaUploadIntentSchema>): {
   kind: 'image' | 'video';
   mimeType: string;
@@ -93,3 +190,13 @@ export function validateMediaIntent(input: z.infer<typeof mediaUploadIntentSchem
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type CreateAdDraftInput = z.infer<typeof createAdDraftSchema>;
+export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
+export type LogoutInput = z.infer<typeof logoutSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type ReportAdInput = z.infer<typeof reportAdSchema>;
+export type CreateAppealInput = z.infer<typeof createAppealSchema>;
+export type AnalyticsEventsInput = z.infer<typeof analyticsEventsSchema>;
+export type FeedSearchInput = z.infer<typeof feedSearchSchema>;
+export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
+export type ScheduleAdInput = z.infer<typeof scheduleAdSchema>;
+export type ShareAdInput = z.infer<typeof shareAdSchema>;

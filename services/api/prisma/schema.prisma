@@ -74,11 +74,34 @@ enum VerificationStatus {
   EXPIRED
 }
 
+enum AdCoverage {
+  CITY
+  NATIONWIDE
+}
+
+enum CampaignStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum AppealStatus {
+  OPEN
+  UNDER_REVIEW
+  UPHELD
+  OVERTURNED
+  CLOSED
+}
+
 model User {
   id             String               @id @default(uuid()) @db.Uuid
   phone          String               @unique
   email          String?              @unique
   displayName    String?
+  avatarUrl      String?
   locale         String               @default("ar")
   countryCode    String               @default("SA")
   cityId         String?              @db.Uuid
@@ -95,10 +118,12 @@ model User {
   ads            Ad[]
   savedAds       SavedAd[]
   reports        Report[]
+  appeals        Appeal[]
   notifications  Notification[]
   orders         Order[]
   consents       UserConsent[]
   auditLogs      AuditLog[]           @relation("AuditActor")
+  campaigns      Campaign[]
 }
 
 model UserSession {
@@ -214,6 +239,9 @@ model Ad {
   activeRevisionId   String?           @db.Uuid
   isFeatured         Boolean           @default(false)
   isSponsored        Boolean           @default(false)
+  coverage           AdCoverage        @default(CITY)
+  scheduledAt        DateTime?
+  featuredUntil      DateTime?
   publishedAt        DateTime?
   expiresAt          DateTime?
   deletedAt          DateTime?
@@ -227,9 +255,12 @@ model Ad {
   savedBy            SavedAd[]
   orders             Order[]
   reports            Report[]
+  appeals            Appeal[]
+  campaignAds        CampaignAd[]
 
   @@index([ownerId, status])
   @@index([status, publishedAt])
+  @@index([status, expiresAt])
 }
 
 model AdRevision {
@@ -333,16 +364,76 @@ model SavedAd {
 }
 
 model Report {
+  id           String   @id @default(uuid()) @db.Uuid
+  reporterId   String   @db.Uuid
+  adId         String   @db.Uuid
+  reason       String
+  details      String?
+  status       String   @default("OPEN")
+  resolution   String?
+  resolvedAt   DateTime?
+  resolvedById String?  @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  reporter     User     @relation(fields: [reporterId], references: [id])
+  ad           Ad       @relation(fields: [adId], references: [id])
+  appeals      Appeal[]
+
+  @@index([adId, status])
+  @@index([status, createdAt])
+}
+
+model Appeal {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @db.Uuid
+  adId         String       @db.Uuid
+  reportId     String?      @db.Uuid
+  reason       String
+  details      String?
+  status       AppealStatus @default(OPEN)
+  decisionNote String?
+  decidedAt    DateTime?
+  decidedById  String?      @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  user         User         @relation(fields: [userId], references: [id])
+  ad           Ad           @relation(fields: [adId], references: [id])
+  report       Report?      @relation(fields: [reportId], references: [id])
+
+  @@index([userId, status])
+  @@index([adId, status])
+}
+
+model Campaign {
+  id          String         @id @default(uuid()) @db.Uuid
+  ownerId     String         @db.Uuid
+  name        String
+  objective   String
+  status      CampaignStatus @default(DRAFT)
+  budgetTotal Decimal        @db.Decimal(12, 2)
+  currency    String         @default("SAR")
+  startsAt    DateTime?
+  endsAt      DateTime?
+  targeting   Json?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  owner       User           @relation(fields: [ownerId], references: [id])
+  ads         CampaignAd[]
+
+  @@index([ownerId, status])
+}
+
+model CampaignAd {
   id         String   @id @default(uuid()) @db.Uuid
-  reporterId String   @db.Uuid
+  campaignId String   @db.Uuid
   adId       String   @db.Uuid
-  reason     String
-  details    String?
-  status     String   @default("OPEN")
+  sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  reporter   User     @relation(fields: [reporterId], references: [id])
-  ad         Ad       @relation(fields: [adId], references: [id])
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ad         Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, adId])
 }
 
 model Notification {
