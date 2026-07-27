@@ -14,6 +14,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { Image } from 'react-native';
 import type { AdDetail } from '@e3lani/api-client';
 import { t } from '@e3lani/i18n';
+import { ConnectionError } from '../../src/components/ConnectionError';
 import { LogoMark } from '../../src/components/LogoMark';
 import { api } from '../../src/lib/api';
 import { colors } from '../../src/theme';
@@ -92,7 +93,7 @@ export default function FeedScreen() {
       </View>
 
       {loading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 120 }} /> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <ConnectionError message={error} onRetry={() => void load()} dark /> : null}
       {!loading && !error && items.length === 0 ? (
         <Text style={styles.empty}>لا توجد إعلانات نشطة بعد.</Text>
       ) : null}
@@ -201,6 +202,5 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   ctaText: { color: colors.black, fontSize: 17, fontWeight: '800' },
-  error: { color: '#ff8a80', textAlign: 'center', marginTop: 120, paddingHorizontal: 20 },
   empty: { color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: 120 },
 });

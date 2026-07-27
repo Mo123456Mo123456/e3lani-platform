@@ -1,3 +1,11 @@
+
+## Android Staging Release v4
+
+- APK: https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/visual-qa-phase3/e3lani-staging-release-v4.apk
+- Report: [`ANDROID_STAGING_RELEASE_V4_REPORT.md`](./ANDROID_STAGING_RELEASE_V4_REPORT.md)
+- Health: https://loud-evening-insert-satellite.trycloudflare.com/api/v1/health
+- versionName `0.1.4-staging` / versionCode `4`
+
 # Visual Evidence — إعلاني | E3lani
 
 Compressed screenshots from the visual QA pass. Large media is **not** stored here.

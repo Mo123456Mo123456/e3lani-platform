@@ -20,14 +20,32 @@ set -a
 source "$ENV_FILE"
 set +a
 
-if [[ -z "${EXPO_PUBLIC_API_BASE_URL:-}" ]]; then
-  echo "EXPO_PUBLIC_API_BASE_URL must be set in $ENV_FILE" >&2
+# Prefer EXPO_PUBLIC_API_URL; fall back to EXPO_PUBLIC_API_BASE_URL.
+if [[ -z "${EXPO_PUBLIC_API_URL:-}" && -n "${EXPO_PUBLIC_API_BASE_URL:-}" ]]; then
+  export EXPO_PUBLIC_API_URL="$EXPO_PUBLIC_API_BASE_URL"
+fi
+if [[ -z "${EXPO_PUBLIC_API_BASE_URL:-}" && -n "${EXPO_PUBLIC_API_URL:-}" ]]; then
+  export EXPO_PUBLIC_API_BASE_URL="$EXPO_PUBLIC_API_URL"
+fi
+
+if [[ -z "${EXPO_PUBLIC_API_URL:-}" ]]; then
+  echo "EXPO_PUBLIC_API_URL must be set in $ENV_FILE" >&2
   exit 1
 fi
-if [[ "$EXPO_PUBLIC_API_BASE_URL" =~ localhost|127\.0\.0\.1 ]]; then
-  echo "Refuse to bake localhost into release APK: $EXPO_PUBLIC_API_BASE_URL" >&2
+if [[ "$EXPO_PUBLIC_API_URL" =~ localhost|127\.0\.0\.1|10\.0\.2\.2 ]]; then
+  echo "Refuse to bake localhost into release APK: $EXPO_PUBLIC_API_URL" >&2
   exit 1
 fi
+  exit 1
+fi
+
+# Preflight: public health must be reachable before packaging.
+HEALTH_URL="$EXPO_PUBLIC_API_URL"
+[[ "$HEALTH_URL" =~ /api/v1$ ]] || HEALTH_URL="${HEALTH_URL%/}/api/v1"
+HEALTH_URL="${HEALTH_URL%/}/health"
+echo "==> Preflight health: $HEALTH_URL"
+curl -fsS -m 20 "$HEALTH_URL" | tee /tmp/staging-health-preflight.json
+echo
 
 mkdir -p "$ASSETS_DIR" "$DIST_DIR" "$ANDROID_DIR/app/src/main/res"
 
@@ -65,7 +83,6 @@ if [[ ! -s "$ASSETS_DIR/index.android.bundle" ]]; then
   exit 1
 fi
 
-if ! rg -q 'guru-beverly|trycloudflare|EXPO_PUBLIC_API|https://' "$ASSETS_DIR/index.android.bundle"; then
   echo "WARN: could not spot staging host pattern in bundle; verify manually." >&2
 fi
 if rg -q 'http://127\.0\.0\.1:3001' "$ASSETS_DIR/index.android.bundle"; then
@@ -78,7 +95,7 @@ echo "==> Gradle clean + assembleRelease"
 ./gradlew clean assembleRelease --no-daemon
 
 APK_SRC="$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"
-APK_OUT="$DIST_DIR/e3lani-staging-release.apk"
+APK_OUT="$DIST_DIR/e3lani-staging-release-v4.apk"
 cp "$APK_SRC" "$APK_OUT"
 
 echo "==> Verifying APK"

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ConnectionError } from '../src/components/ConnectionError';
 import { api, setToken } from '../src/lib/api';
 import { colors } from '../src/theme';
 
@@ -49,7 +50,11 @@ export default function LoginScreen() {
             style={styles.btn}
             onPress={async () => {
               try {
-                const res = await api.verifyOtp({ phone, code });
+                const res = await api.verifyOtp({
+                  phone,
+                  code,
+                  deviceId: 'e3lani-android',
+                });
                 setToken(res.accessToken);
                 router.replace('/account');
               } catch (e) {
@@ -61,7 +66,13 @@ export default function LoginScreen() {
           </Pressable>
         </>
       )}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <ConnectionError
+          message={error}
+          onRetry={() => setError('')}
+          dark={false}
+        />
+      ) : null}
     </View>
   );
 }
@@ -87,5 +98,4 @@ const styles = StyleSheet.create({
   },
   btnText: { fontWeight: '800', fontSize: 16 },
   hint: { color: '#0a7a32', marginBottom: 10, textAlign: 'right' },
-  error: { color: '#b00020', marginTop: 12, textAlign: 'right' },
 });

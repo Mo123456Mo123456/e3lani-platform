@@ -1,6 +1,8 @@
 export type ApiClientOptions = {
   baseUrl: string;
   getToken?: () => string | null | undefined | Promise<string | null | undefined>;
+  /** Request timeout in ms. Defaults to 20000. */
+  timeoutMs?: number;
 };
 
 export class ApiError extends Error {
@@ -14,7 +16,45 @@ export class ApiError extends Error {
   }
 }
 
+export class NetworkRequestError extends Error {
+  constructor(
+    message: string,
+    readonly causeMessage?: string,
+    readonly code: 'TIMEOUT' | 'NETWORK' | 'UNKNOWN' = 'NETWORK',
+  ) {
+    super(message);
+    this.name = 'NetworkRequestError';
+  }
+}
+
+function describeNetworkFailure(err: unknown, timeoutMs: number): NetworkRequestError {
+  const raw = err instanceof Error ? err.message : String(err ?? '');
+  const lower = raw.toLowerCase();
+  if (err instanceof Error && err.name === 'AbortError') {
+    return new NetworkRequestError(
+      `انتهت مهلة الاتصال بالخادم (${Math.round(timeoutMs / 1000)} ث). تحقق من الإنترنت وحاول مجددًا.`,
+      raw,
+      'TIMEOUT',
+    );
+  }
+  if (lower.includes('network request failed') || lower.includes('failed to fetch')) {
+    return new NetworkRequestError(
+      'تعذّر الوصول إلى خادم إعلاني. تأكد من اتصال الإنترنت وأن بيئة Staging تعمل، ثم أعد المحاولة.',
+      raw,
+      'NETWORK',
+    );
+  }
+  return new NetworkRequestError(
+    'حدث خطأ في الاتصال بالخادم. حاول مجددًا بعد لحظات.',
+    raw,
+    'UNKNOWN',
+  );
+}
+
 export function createApiClient(options: ApiClientOptions) {
+  const timeoutMs = options.timeoutMs ?? 20_000;
+  const baseUrl = options.baseUrl.replace(/\/$/, '');
+
   async function request<T>(
     method: string,
     path: string,
@@ -24,16 +64,31 @@ export function createApiClient(options: ApiClientOptions) {
       ...(init?.headers ?? {}),
     };
     if (init?.body !== undefined) headers['content-type'] = 'application/json';
+    // localtunnel may show an interstitial in browsers; bypass for API clients.
+    if (baseUrl.includes('loca.lt')) {
+      headers['bypass-tunnel-reminder'] = 'true';
+      headers['User-Agent'] = headers['User-Agent'] ?? 'E3laniMobile/1.0';
+    }
     if (init?.auth !== false) {
       const token = options.getToken ? await options.getToken() : null;
       if (token) headers.authorization = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${options.baseUrl.replace(/\/$/, '')}${path}`, {
-      method,
-      headers,
-      ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let res: Response;
+    try {
+      res = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers,
+        signal: controller.signal,
+        ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      });
+    } catch (err) {
+      throw describeNetworkFailure(err, timeoutMs);
+    } finally {
+      clearTimeout(timer);
+    }
 
     const text = await res.text();
     let data: unknown = null;
