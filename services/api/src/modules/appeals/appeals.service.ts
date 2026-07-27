@@ -51,6 +51,18 @@ export class AppealsService {
     });
   }
 
+  listAdmin() {
+    return this.prisma.appeal.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        user: { select: { id: true, phone: true, displayName: true } },
+        ad: { select: { id: true, status: true, currentRevision: { select: { title: true } } } },
+        report: { select: { id: true, status: true, reason: true } },
+      },
+    });
+  }
+
   async decide(id: string, actorId: string, input: { status: AppealStatus; decisionNote?: string }) {
     const before = await this.prisma.appeal.findUnique({ where: { id } });
     if (!before) throw new NotFoundException('APPEAL_NOT_FOUND');

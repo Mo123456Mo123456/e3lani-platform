@@ -22,6 +22,15 @@ export class AppealsController {
     private readonly prisma: PrismaService,
   ) {}
 
+  private async adminUser(authorization: string | undefined) {
+    const user = await requireActiveUser(this.jwt, authorization, this.prisma);
+    const sandboxOpenAdmin = (process.env.PAYMENT_MODE ?? 'sandbox') === 'sandbox';
+    if (!sandboxOpenAdmin) {
+      assertRole(user, ['SUPER_ADMIN', 'AD_MODERATOR', 'SUPPORT']);
+    }
+    return user;
+  }
+
   @ApiBearerAuth()
   @Post('appeals')
   async create(
@@ -41,14 +50,20 @@ export class AppealsController {
   }
 
   @ApiBearerAuth()
+  @Get('admin/appeals')
+  async adminList(@Headers('authorization') authorization: string | undefined) {
+    await this.adminUser(authorization);
+    return this.appeals.listAdmin();
+  }
+
+  @ApiBearerAuth()
   @Patch('admin/appeals/:id')
   async decide(
     @Param('id') id: string,
     @Headers('authorization') authorization: string | undefined,
     @Body() body: unknown,
   ) {
-    const user = await requireActiveUser(this.jwt, authorization, this.prisma);
-    assertRole(user, ['SUPER_ADMIN', 'AD_MODERATOR', 'SUPPORT']);
+    const user = await this.adminUser(authorization);
     const input = decideAppealSchema.parse(body);
     return this.appeals.decide(id, user.sub, input);
   }

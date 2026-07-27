@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { CampaignStatus, Prisma, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdStateService } from '../../common/ad-state.service';
 import { decorateAdMedia } from '../../common/media-urls';
@@ -118,6 +119,260 @@ export class AdminService {
             ad: { select: { id: true, status: true } },
           },
         },
+      },
+    });
+  }
+
+  listUsers() {
+    return this.prisma.user.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        displayName: true,
+        roles: true,
+        isSuspended: true,
+        createdAt: true,
+        city: { select: { id: true, nameAr: true, nameEn: true } },
+        verification: true,
+        brandProfile: { select: { slug: true, nameAr: true, isVerified: true } },
+      },
+    });
+  }
+
+  listVerificationQueue() {
+    return this.prisma.userVerification.findMany({
+      where: { status: 'PENDING' },
+      orderBy: { updatedAt: 'asc' },
+      take: 100,
+      include: {
+        user: {
+          select: {
+            id: true,
+            phone: true,
+            email: true,
+            displayName: true,
+            roles: true,
+            brandProfile: { select: { slug: true, nameAr: true } },
+          },
+        },
+      },
+    });
+  }
+
+  async decideVerification(
+    id: string,
+    actorId: string,
+    input: { status: VerificationStatus; notes?: string },
+  ) {
+    const before = await this.prisma.userVerification.findUnique({ where: { id } });
+    if (!before) throw new NotFoundException('VERIFICATION_NOT_FOUND');
+
+    const updated = await this.prisma.userVerification.update({
+      where: { id },
+      data: {
+        status: input.status,
+        notes: input.notes,
+        reviewedAt: input.status === 'PENDING' ? before.reviewedAt : new Date(),
+      },
+      include: {
+        user: { select: { id: true, phone: true, displayName: true } },
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorId,
+        action: 'verification.decide',
+        entityType: 'user_verification',
+        entityId: id,
+        before: { status: before.status, notes: before.notes },
+        after: { status: updated.status, notes: updated.notes },
+      },
+    });
+
+    return updated;
+  }
+
+  listCategoriesAdmin() {
+    return this.prisma.category.findMany({
+      orderBy: [{ parentId: 'asc' }, { sortOrder: 'asc' }, { nameAr: 'asc' }],
+      include: {
+        parent: { select: { id: true, nameAr: true, nameEn: true, slug: true } },
+        children: { orderBy: { sortOrder: 'asc' } },
+      },
+    });
+  }
+
+  createCategory(input: {
+    slug?: string;
+    nameAr?: string;
+    nameEn?: string;
+    iconKey?: string;
+    sortOrder?: number;
+    isActive?: boolean;
+    countryCode?: string;
+    parentId?: string | null;
+  }) {
+    if (!input.slug?.trim() || !input.nameAr?.trim() || !input.nameEn?.trim()) {
+      throw new BadRequestException('CATEGORY_REQUIRED_FIELDS');
+    }
+
+    return this.prisma.category.create({
+      data: {
+        slug: input.slug.trim(),
+        nameAr: input.nameAr.trim(),
+        nameEn: input.nameEn.trim(),
+        iconKey: input.iconKey?.trim() || undefined,
+        sortOrder: input.sortOrder ?? 0,
+        isActive: input.isActive ?? true,
+        countryCode: input.countryCode ?? 'SA',
+        parentId: input.parentId ?? undefined,
+      },
+    });
+  }
+
+  updateCategory(
+    id: string,
+    input: {
+      slug?: string;
+      nameAr?: string;
+      nameEn?: string;
+      iconKey?: string | null;
+      sortOrder?: number;
+      isActive?: boolean;
+      countryCode?: string | null;
+      parentId?: string | null;
+    },
+  ) {
+    return this.prisma.category.update({
+      where: { id },
+      data: {
+        slug: input.slug?.trim(),
+        nameAr: input.nameAr?.trim(),
+        nameEn: input.nameEn?.trim(),
+        iconKey: input.iconKey === null ? null : input.iconKey?.trim(),
+        sortOrder: input.sortOrder,
+        isActive: input.isActive,
+        countryCode: input.countryCode,
+        parentId: input.parentId,
+      },
+    });
+  }
+
+  async toggleCategory(id: string, actorId: string) {
+    const before = await this.prisma.category.findUnique({ where: { id } });
+    if (!before) throw new NotFoundException('CATEGORY_NOT_FOUND');
+
+    const updated = await this.prisma.category.update({
+      where: { id },
+      data: { isActive: !before.isActive },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorId,
+        action: 'categories.toggle_active',
+        entityType: 'category',
+        entityId: id,
+        before: { isActive: before.isActive },
+        after: { isActive: updated.isActive },
+      },
+    });
+
+    return updated;
+  }
+
+  listPricing() {
+    return this.prisma.pricingVersion.findMany({
+      orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
+      include: {
+        items: { orderBy: [{ countryCode: 'asc' }, { sku: 'asc' }] },
+      },
+    });
+  }
+
+  listRefundOrders() {
+    return this.prisma.order.findMany({
+      where: {
+        status: { in: ['PAID', 'REFUND_PENDING', 'REFUNDED', 'PARTIALLY_REFUNDED'] },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+      include: {
+        items: true,
+        transactions: { orderBy: { createdAt: 'desc' } },
+        user: { select: { id: true, phone: true, displayName: true } },
+        ad: { select: { id: true, status: true, currentRevision: { select: { title: true } } } },
+      },
+    });
+  }
+
+  listCampaignsAdmin() {
+    return this.prisma.campaign.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+      include: {
+        owner: { select: { id: true, phone: true, displayName: true } },
+        ads: {
+          include: {
+            ad: { select: { id: true, status: true, currentRevision: { select: { title: true } } } },
+          },
+        },
+      },
+    });
+  }
+
+  async updateCampaignStatus(id: string, actorId: string, status: CampaignStatus) {
+    const before = await this.prisma.campaign.findUnique({ where: { id } });
+    if (!before) throw new NotFoundException('CAMPAIGN_NOT_FOUND');
+
+    const updated = await this.prisma.campaign.update({
+      where: { id },
+      data: { status },
+      include: {
+        owner: { select: { id: true, phone: true, displayName: true } },
+        ads: true,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorId,
+        action: 'campaigns.admin_status_update',
+        entityType: 'campaign',
+        entityId: id,
+        before: { status: before.status },
+        after: { status: updated.status },
+      },
+    });
+
+    return updated;
+  }
+
+  async getSetting(key: string, fallback: Prisma.InputJsonValue) {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key } });
+    return setting ?? { key, value: fallback, updatedAt: null };
+  }
+
+  async updateSetting(key: string, value: Prisma.InputJsonValue) {
+    return this.prisma.systemSetting.upsert({
+      where: { key },
+      create: { key, value },
+      update: { value },
+    });
+  }
+
+  listAudit() {
+    return this.prisma.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        actor: { select: { id: true, phone: true, displayName: true, roles: true } },
       },
     });
   }

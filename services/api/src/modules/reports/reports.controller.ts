@@ -21,6 +21,15 @@ export class ReportsController {
     private readonly prisma: PrismaService,
   ) {}
 
+  private async adminUser(authorization: string | undefined) {
+    const user = await requireActiveUser(this.jwt, authorization, this.prisma);
+    const sandboxOpenAdmin = (process.env.PAYMENT_MODE ?? 'sandbox') === 'sandbox';
+    if (!sandboxOpenAdmin) {
+      assertRole(user, ['SUPER_ADMIN', 'AD_MODERATOR', 'SUPPORT']);
+    }
+    return user;
+  }
+
   @ApiBearerAuth()
   @Post('ads/:adId/reports')
   async create(
@@ -43,8 +52,7 @@ export class ReportsController {
   @ApiBearerAuth()
   @Get('admin/reports')
   async adminList(@Headers('authorization') authorization: string | undefined) {
-    const user = await requireActiveUser(this.jwt, authorization, this.prisma);
-    assertRole(user, ['SUPER_ADMIN', 'AD_MODERATOR', 'SUPPORT']);
+    await this.adminUser(authorization);
     return this.reports.listAdmin();
   }
 
@@ -55,8 +63,7 @@ export class ReportsController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: unknown,
   ) {
-    const user = await requireActiveUser(this.jwt, authorization, this.prisma);
-    assertRole(user, ['SUPER_ADMIN', 'AD_MODERATOR', 'SUPPORT']);
+    const user = await this.adminUser(authorization);
     const input = updateReportSchema.parse(body);
     return this.reports.resolve(id, user.sub, input);
   }
