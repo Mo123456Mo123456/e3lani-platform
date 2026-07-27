@@ -34,6 +34,13 @@ bash scripts/deploy-staging-render.sh
 
 أو من واجهة Render: **New → Blueprint** → اختر المستودع والفرع `cursor/phase-1-foundation-b0e4` → طبّق `render.yaml`.
 
+### إصلاح EROFS / corepack (مهم)
+
+لا تستخدم `corepack enable` على Render Node — يفشل بـ `EROFS: unlink '/usr/bin/pnpm'`.
+`render.yaml` يثبّت `pnpm@9.15.4` تحت `$HOME/.local` ويشغّل Node/Prisma/Next مباشرة بدون pnpm في `startCommand`.
+
+بعد دفع التعديل: من Blueprint اضغط **Manual Sync** ثم أعد البناء.
+
 4. بعد ظهور الخدمات، عيّن:
 
 - `API_PUBLIC_URL=https://e3lani-api-staging.onrender.com`

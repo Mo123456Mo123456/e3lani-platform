@@ -1,17 +1,33 @@
 # Render Blueprint — durable free-tier staging for E3lani
 # Docs: https://render.com/docs/blueprint-spec
+#
+# IMPORTANT: Do NOT use `corepack enable` on Render Node runtimes.
+# It tries to unlink /usr/bin/pnpm on a read-only filesystem (EROFS).
+# Install pnpm into $HOME/.local instead (writable).
+#
+# Also: NODE_ENV=production would skip devDependencies (prisma, typescript).
+# Always pass --prod=false during build install.
 previewsEnabled: false
 
 services:
   - type: web
     name: e3lani-api-staging
-    runtime: docker
+    runtime: node
     plan: free
     region: frankfurt
-    dockerfilePath: infrastructure/docker/Dockerfile.api
-    dockerContext: .
+    rootDir: .
     healthCheckPath: /api/v1/health
     autoDeploy: true
+    buildCommand: |
+      npm install --global pnpm@9.15.4 --prefix "$HOME/.local" &&
+      export PATH="$HOME/.local/bin:$PATH" &&
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter @e3lani/api exec prisma generate &&
+      pnpm --filter @e3lani/api... build
+    startCommand: |
+      cd services/api &&
+      ./node_modules/.bin/prisma migrate deploy &&
+      node dist/main.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -60,9 +76,15 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    rootDir: apps/web
-    buildCommand: cd ../.. && corepack enable && pnpm install --frozen-lockfile && pnpm --filter @e3lani/web... build
-    startCommand: pnpm --filter @e3lani/web start
+    rootDir: .
+    buildCommand: |
+      npm install --global pnpm@9.15.4 --prefix "$HOME/.local" &&
+      export PATH="$HOME/.local/bin:$PATH" &&
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter @e3lani/web... build
+    startCommand: |
+      cd apps/web &&
+      node ./node_modules/next/dist/bin/next start -p ${PORT:-3000}
     envVars:
       - key: NODE_ENV
         value: production
@@ -74,9 +96,15 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    rootDir: apps/admin
-    buildCommand: cd ../.. && corepack enable && pnpm install --frozen-lockfile && pnpm --filter @e3lani/admin... build
-    startCommand: pnpm --filter @e3lani/admin start
+    rootDir: .
+    buildCommand: |
+      npm install --global pnpm@9.15.4 --prefix "$HOME/.local" &&
+      export PATH="$HOME/.local/bin:$PATH" &&
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter @e3lani/admin... build
+    startCommand: |
+      cd apps/admin &&
+      node ./node_modules/next/dist/bin/next start -p ${PORT:-3002}
     envVars:
       - key: NODE_ENV
         value: production
