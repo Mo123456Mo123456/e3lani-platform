@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a standalone Android staging Release APK (no Metro).
-# Output: apps/mobile/dist/e3lani-staging-release.apk
+# Output: apps/mobile/dist/e3lani-staging-release-v5.apk
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,6 +8,7 @@ ANDROID_DIR="$ROOT/android"
 DIST_DIR="$ROOT/dist"
 ASSETS_DIR="$ANDROID_DIR/app/src/main/assets"
 ENV_FILE="${ENV_FILE:-$ROOT/.env.staging}"
+APK_NAME="${APK_NAME:-e3lani-staging-release-v5.apk}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing env file: $ENV_FILE" >&2
@@ -36,12 +37,14 @@ if [[ "$EXPO_PUBLIC_API_URL" =~ localhost|127\.0\.0\.1|10\.0\.2\.2 ]]; then
   echo "Refuse to bake localhost into release APK: $EXPO_PUBLIC_API_URL" >&2
   exit 1
 fi
+if [[ "$EXPO_PUBLIC_API_URL" =~ trycloudflare\.com ]]; then
+  echo "Refuse to bake ephemeral trycloudflare tunnel into release APK: $EXPO_PUBLIC_API_URL" >&2
   exit 1
 fi
 
 # Preflight: public health must be reachable before packaging.
 HEALTH_URL="$EXPO_PUBLIC_API_URL"
-[[ "$HEALTH_URL" =~ /api/v1$ ]] || HEALTH_URL="${HEALTH_URL%/}/api/v1"
+[[ "$HEALTH_URL" =~ /api/v1/?$ ]] || HEALTH_URL="${HEALTH_URL%/}/api/v1"
 HEALTH_URL="${HEALTH_URL%/}/health"
 echo "==> Preflight health: $HEALTH_URL"
 curl -fsS -m 20 "$HEALTH_URL" | tee /tmp/staging-health-preflight.json
@@ -83,7 +86,20 @@ if [[ ! -s "$ASSETS_DIR/index.android.bundle" ]]; then
   exit 1
 fi
 
+HOST_HINT="$(python3 - <<'PY'
+import os, urllib.parse
+u = os.environ.get("EXPO_PUBLIC_API_URL", "")
+print(urllib.parse.urlparse(u).hostname or "")
+PY
+)"
+if [[ -n "$HOST_HINT" ]] && rg -q "$HOST_HINT" "$ASSETS_DIR/index.android.bundle"; then
+  echo "OK: bundle contains staging host $HOST_HINT"
+else
   echo "WARN: could not spot staging host pattern in bundle; verify manually." >&2
+fi
+if rg -q 'trycloudflare\.com' "$ASSETS_DIR/index.android.bundle"; then
+  echo "FAIL: release bundle still contains trycloudflare.com" >&2
+  exit 1
 fi
 if rg -q 'http://127\.0\.0\.1:3001' "$ASSETS_DIR/index.android.bundle"; then
   echo "FAIL: release bundle still contains 127.0.0.1:3001 API fallback" >&2
@@ -95,7 +111,7 @@ echo "==> Gradle clean + assembleRelease"
 ./gradlew clean assembleRelease --no-daemon
 
 APK_SRC="$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"
-APK_OUT="$DIST_DIR/e3lani-staging-release-v4.apk"
+APK_OUT="$DIST_DIR/$APK_NAME"
 cp "$APK_SRC" "$APK_OUT"
 
 echo "==> Verifying APK"
