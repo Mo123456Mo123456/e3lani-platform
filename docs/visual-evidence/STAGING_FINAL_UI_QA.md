@@ -98,3 +98,11 @@ pnpm exec playwright test tests/e2e/staging-final-qa.spec.ts
 WEB_URL=… ADMIN_URL=… API_URL=… BASE_URL=… \
 pnpm exec playwright test tests/e2e/visual-qa.spec.ts tests/e2e/full-flow.spec.ts
 ```
+
+## Update after tip `6c114d1`+
+
+- Web create: multi-file image+video — PASS on live staging
+- `full-flow.spec.ts` against staging — **PASS** (OTP → create image+video → admin approve → sandbox pay → ACTIVE → feed + video player)
+- `visual-qa` desktop flow — functional path PASS; Chromium `ERR_BLOCKED_BY_ORB` on some cross-origin media requests filtered; API download now sets `Cross-Origin-Resource-Policy: cross-origin`
+- Viewport iphone/android + mobile API smoke — PASS
+- Remaining: emulator has no IPv4 outbound in this cloud VM (app UI + staging API URL confirmed; live OTP/upload blocked by host network)

@@ -83,9 +83,17 @@ export class MediaController {
     const exp = Number(expRaw);
     if (!Number.isFinite(exp)) throw new BadRequestException('INVALID_EXP');
     const file = await this.media.getSandboxDownload({ key, exp, sig });
-    res.setHeader('Content-Type', file.contentType);
+    const contentType =
+      file.contentType && file.contentType !== 'application/octet-stream'
+        ? file.contentType
+        : inferContentTypeFromKey(key);
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Length', String(file.sizeBytes));
     res.setHeader('Cache-Control', 'private, max-age=300');
+    // Allow cross-origin <video>/<img> embedding from Web/Admin without ORB blocks.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.removeHeader('Access-Control-Allow-Credentials');
     res.send(file.body);
   }
 
