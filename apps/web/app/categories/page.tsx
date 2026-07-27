@@ -15,6 +15,7 @@ export default function CategoriesPage() {
 
   return (
     <main className="container">
+      <div className="brand-section-banner" aria-hidden />
       <h1>الأقسام</h1>
       <div className="grid-2">
         {categories.map((c) => (

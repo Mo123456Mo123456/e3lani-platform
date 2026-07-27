@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Category } from '@e3lani/api-client';
+import { BrandAtmosphere } from '../../src/components/BrandBackground';
 import { BrandHeader } from '../../src/components/BrandHeader';
 import { api } from '../../src/lib/api';
 import { useLocale } from '../../src/lib/locale';
@@ -34,11 +35,13 @@ export default function CategoriesScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 100 }}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={styles.root}>
+      <BrandAtmosphere variant="header" overlay="soft" height={insets.top + 150} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 100 }}
+        keyboardShouldPersistTaps="handled"
+      >
       <View style={styles.pad}>
         <BrandHeader title={t('categories.title')} markSize={48} />
         <Pressable
@@ -78,12 +81,14 @@ export default function CategoriesScreen() {
           </Pressable>
         ))}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.black },
+  scroll: { flex: 1, backgroundColor: 'transparent' },
   pad: { paddingHorizontal: 16 },
   searchBar: {
     alignItems: 'center',

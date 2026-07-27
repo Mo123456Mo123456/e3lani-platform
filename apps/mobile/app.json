@@ -2,11 +2,16 @@
   "expo": {
     "name": "إعلاني",
     "slug": "e3lani",
-    "version": "0.1.9-staging",
+    "version": "0.1.10-staging",
     "orientation": "portrait",
     "scheme": "e3lani",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/branding/splash-brand.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#111111"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "sa.e3lani.app",

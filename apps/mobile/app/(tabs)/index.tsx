@@ -17,6 +17,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { Image } from 'react-native';
 import type { AdDetail } from '@e3lani/api-client';
 import { ConnectionError } from '../../src/components/ConnectionError';
+import { BrandAtmosphere, BrandBackground } from '../../src/components/BrandBackground';
 import { LogoMark } from '../../src/components/LogoMark';
 import { api } from '../../src/lib/api';
 import { useLocale } from '../../src/lib/locale';
@@ -79,6 +80,7 @@ export default function FeedScreen() {
 
   return (
     <View style={styles.root}>
+      <BrandAtmosphere variant="header" overlay="soft" height={insets.top + 168} />
       <View
         style={[
           styles.header,
@@ -121,6 +123,7 @@ export default function FeedScreen() {
       {error && items.length === 0 ? <ConnectionError message={error} onRetry={() => void load()} dark /> : null}
       {!loading && !error && items.length === 0 ? (
         <View style={styles.emptyState}>
+          <BrandBackground variant="empty" overlay="dark" height={220} style={styles.emptyBrand} />
           <Text style={styles.emptyTitle}>{t('feed.emptyTitle')}</Text>
           <Text style={styles.empty}>{t('feed.emptyBody')}</Text>
           <Pressable style={styles.emptyButton} onPress={() => void load()}>
@@ -296,7 +299,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaText: { color: colors.black, fontSize: 17, fontWeight: '800' },
-  emptyState: { marginTop: 120, paddingHorizontal: 24, alignItems: 'center', gap: 10 },
+  emptyState: {
+    marginTop: 108,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 2,
+  },
+  emptyBrand: { width: '100%', borderRadius: 20, marginBottom: 8, overflow: 'hidden' },
   emptyTitle: { color: colors.white, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   empty: { color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 21 },
   emptyButton: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },

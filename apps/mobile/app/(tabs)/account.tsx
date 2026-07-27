@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AdDetail } from '@e3lani/api-client';
+import { BrandAtmosphere } from '../../src/components/BrandBackground';
 import { BrandHeader } from '../../src/components/BrandHeader';
 import { LogoMark } from '../../src/components/LogoMark';
 import { api, getToken, setAuthTokens } from '../../src/lib/api';
@@ -109,10 +110,12 @@ export default function AccountScreen() {
   ];
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 }}
-    >
+    <View style={styles.root}>
+      <BrandAtmosphere variant="header" overlay="soft" height={insets.top + 170} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100, paddingHorizontal: 20 }}
+      >
       <BrandHeader title={t('account.title')} subtitle={phone || t('account.loginPrompt')} markSize={48} />
 
       <View style={[styles.profile, { flexDirection: rowDirection }]}>
@@ -191,7 +194,8 @@ export default function AccountScreen() {
           </View>
         </>
       ) : null}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -221,7 +225,8 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.black, paddingHorizontal: 20 },
+  root: { flex: 1, backgroundColor: colors.black },
+  scroll: { flex: 1, backgroundColor: 'transparent' },
   profile: { alignItems: 'center', gap: 12, marginBottom: 16 },
   avatar: {
     width: 72,
