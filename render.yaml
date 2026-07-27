@@ -10,6 +10,10 @@
 #
 # Object storage (Cloudflare R2): set sync:false secrets in the dashboard.
 # Never commit real Access Key / Secret values.
+#
+# NOTE: Render Free does not support Background Workers. Media processing runs
+# inline inside e3lani-api-staging (MEDIA_PROCESSING_MODE=inline). The
+# services/media-worker codebase remains for paid-plan / self-host later.
 previewsEnabled: false
 
 services:
@@ -44,6 +48,8 @@ services:
         value: sandbox
       - key: PAYMENT_MODE
         value: sandbox
+      - key: MEDIA_PROCESSING_MODE
+        value: inline
       - key: SANDBOX_PAYMENT_WEBHOOK_SECRET
         generateValue: true
       - key: JWT_ACCESS_SECRET
@@ -64,45 +70,6 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
-      - key: STORAGE_PROVIDER
-        value: r2
-      - key: S3_ENDPOINT
-        sync: false
-      - key: S3_REGION
-        value: auto
-      - key: S3_BUCKET
-        sync: false
-      - key: S3_ACCESS_KEY_ID
-        sync: false
-      - key: S3_SECRET_ACCESS_KEY
-        sync: false
-      - key: S3_PUBLIC_BASE_URL
-        sync: false
-      - key: S3_FORCE_PATH_STYLE
-        value: "false"
-
-  - type: worker
-    name: e3lani-media-worker-staging
-    runtime: docker
-    plan: free
-    region: frankfurt
-    dockerfilePath: infrastructure/docker/Dockerfile.media-worker
-    dockerContext: .
-    autoDeploy: true
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: APP_ENV
-        value: staging
-      - key: DATABASE_URL
-        fromDatabase:
-          name: e3lani-pg-staging
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          name: e3lani-redis-staging
-          type: keyvalue
-          property: connectionString
       - key: STORAGE_PROVIDER
         value: r2
       - key: S3_ENDPOINT

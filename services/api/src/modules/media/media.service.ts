@@ -25,6 +25,7 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { decorateAsset } from '../../common/media-urls';
+import { processMediaInline, shouldProcessMediaInline } from './inline-processor';
 
 /** MediaAsset.status lifecycle used by API + worker. */
 export const MEDIA_STATUSES = [
@@ -43,10 +44,12 @@ export class MediaService implements OnModuleInit {
   private config: StorageConfig | null = null;
   private redis: Redis | null = null;
   private lastHealth: StorageHealthResult | null = null;
+  private inlineProcessing = shouldProcessMediaInline();
 
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
+    this.inlineProcessing = shouldProcessMediaInline();
     const resolved = createStorageClientFromEnv();
     if (resolved) {
       this.client = resolved.client;
@@ -58,12 +61,11 @@ export class MediaService implements OnModuleInit {
           this.config.provider,
         );
         this.log.log(
-          `Storage ready provider=${this.config.provider} bucket=${this.config.bucket} private=${this.config.privateBucket}`,
+          `Storage ready provider=${this.config.provider} bucket=${this.config.bucket} private=${this.config.privateBucket} mediaMode=${this.inlineProcessing ? 'inline' : 'queue'}`,
         );
       } catch (error) {
         const name = error instanceof Error ? error.message : 'unknown';
         this.log.warn(`Storage bucket check failed (${name}) — uploads will report unhealthy`);
-        // Keep client; health endpoint will surface HeadBucket failure. Never fake success.
       }
     } else {
       const status = resolveStorageEnv();
@@ -125,7 +127,6 @@ export class MediaService implements OnModuleInit {
       throw new BadRequestException((error as Error).message);
     }
 
-    // Never use client fileName for keys — buildObjectKey is server-side only.
     const key = buildObjectKey({
       ownerId,
       kind: normalized.kind,
@@ -242,6 +243,11 @@ export class MediaService implements OnModuleInit {
     storageKey: string,
     kind: 'image' | 'video',
   ) {
+    if (this.inlineProcessing) {
+      await this.processInline(assetId, storageKey, kind);
+      return;
+    }
+
     if (!this.redis) {
       await this.prisma.mediaAsset.update({
         where: { id: assetId },
@@ -262,6 +268,42 @@ export class MediaService implements OnModuleInit {
       where: { id: assetId },
       data: { status: 'QUEUED' },
     });
+  }
+
+  private async processInline(
+    assetId: string,
+    storageKey: string,
+    kind: 'image' | 'video',
+  ) {
+    try {
+      await this.prisma.mediaAsset.update({
+        where: { id: assetId },
+        data: { status: 'PROCESSING' },
+      });
+      const result = await processMediaInline(this.client!, this.config!.bucket, {
+        assetId,
+        storageKey,
+        kind,
+      });
+      await this.prisma.mediaAsset.update({
+        where: { id: assetId },
+        data: {
+          status: 'READY',
+          posterKey: result.posterKey,
+          ...(result.width !== undefined ? { width: result.width } : {}),
+          ...(result.height !== undefined ? { height: result.height } : {}),
+        },
+      });
+      this.log.log(`Inline media ${assetId} → READY (${result.mode})`);
+    } catch (error) {
+      this.log.error(
+        `Inline media failed ${assetId}: ${error instanceof Error ? error.message : error}`,
+      );
+      await this.prisma.mediaAsset.update({
+        where: { id: assetId },
+        data: { status: 'FAILED' },
+      });
+    }
   }
 
   requireStorageConfigured() {

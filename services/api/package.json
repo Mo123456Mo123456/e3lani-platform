@@ -36,10 +36,10 @@
     "@e3lani/storage": "workspace:*",
     "@aws-sdk/client-s3": "^3.758.0",
     "@aws-sdk/s3-request-presigner": "^3.758.0",
-    "ioredis": "^5.4.2"
+    "ioredis": "^5.4.2",
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1095.0",
     "@nestjs/cli": "^10.4.9",
     "@nestjs/schematics": "^10.2.3",
     "@types/express": "^5.0.0",
@@ -50,8 +50,7 @@
     "vitest": "^2.1.8",
     "supertest": "^7.0.0",
     "@types/supertest": "^6.0.2",
-    "@nestjs/testing": "^10.4.15",
-    "sharp": "^0.33.5"
+    "@nestjs/testing": "^10.4.15"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
