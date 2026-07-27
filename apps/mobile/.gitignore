@@ -1,0 +1,7 @@
+# @generated expo-cli
+expo-env.d.ts
+# Native project is tracked (see root .gitignore exceptions).
+# Still ignore local build outputs & packages.
+*.apk
+*.aab
+dist/

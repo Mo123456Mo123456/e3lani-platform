@@ -1,0 +1,126 @@
+# Render Blueprint — durable free-tier staging for E3lani
+# Staging intentionally uses the sandbox storage adapter so development and QA
+# do not depend on production Cloudflare R2 credentials. Production remains
+# configured separately with the real R2 provider and secrets.
+previewsEnabled: false
+
+services:
+  - type: web
+    name: e3lani-api-staging
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: .
+    autoDeploy: true
+    buildCommand: |
+      npm install --global pnpm@9.15.4 --prefix "$HOME/.local" &&
+      export PATH="$HOME/.local/bin:$PATH" &&
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter @e3lani/api exec prisma generate &&
+      pnpm --filter @e3lani/api... build
+    startCommand: |
+      cd services/api &&
+      ./node_modules/.bin/prisma migrate deploy &&
+      exec node dist/main.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: staging
+      - key: PORT
+        value: "3001"
+      - key: OTP_MODE
+        value: sandbox
+      - key: OTP_PROVIDER
+        value: sandbox
+      - key: PAYMENT_MODE
+        value: sandbox
+      - key: MEDIA_PROCESSING_MODE
+        value: inline
+      # Staging-only known secret so smoke can sign webhooks. Never reuse in production.
+      - key: SANDBOX_PAYMENT_WEBHOOK_SECRET
+        value: e3lani-staging-sandbox-webhook-secret
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: e3lani-pg-staging
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: e3lani-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: API_PUBLIC_URL
+        value: https://e3lani-api-staging.onrender.com
+      - key: CORS_ORIGINS
+        value: https://e3lani-web-staging.onrender.com,https://e3lani-admin-staging.onrender.com
+      - key: STORAGE_PROVIDER
+        value: sandbox
+      - key: STORAGE_MODE
+        value: sandbox
+      - key: SANDBOX_STORAGE_ENABLED
+        value: "true"
+      # If R2 secrets are present in the dashboard, set STORAGE_PROVIDER=r2 there to override.
+      # Sandbox is the Blueprint default so Free staging never depends on missing R2 keys.
+
+  - type: web
+    name: e3lani-web-staging
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: .
+    autoDeploy: true
+    buildCommand: |
+      npm install --global pnpm@9.15.4 --prefix "$HOME/.local" &&
+      export PATH="$HOME/.local/bin:$PATH" &&
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter @e3lani/web... build
+    startCommand: |
+      cd apps/web &&
+      node ./node_modules/next/dist/bin/next start -p ${PORT:-3000}
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        value: https://e3lani-api-staging.onrender.com/api/v1
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://e3lani-api-staging.onrender.com/api/v1
+
+  - type: web
+    name: e3lani-admin-staging
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: .
+    autoDeploy: true
+    buildCommand: |
+      npm install --global pnpm@9.15.4 --prefix "$HOME/.local" &&
+      export PATH="$HOME/.local/bin:$PATH" &&
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter @e3lani/admin... build
+    startCommand: |
+      cd apps/admin &&
+      node ./node_modules/next/dist/bin/next start -p ${PORT:-3002}
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        value: https://e3lani-api-staging.onrender.com/api/v1
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://e3lani-api-staging.onrender.com/api/v1
+
+  - type: keyvalue
+    name: e3lani-redis-staging
+    plan: free
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: e3lani-pg-staging
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"

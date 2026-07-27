@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: e3lani
+      POSTGRES_PASSWORD: e3lani
+      POSTGRES_DB: e3lani
+    ports:
+      - "5432:5432"
+    volumes:
+      - e3lani_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U e3lani -d e3lani"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: e3lani
+      MINIO_ROOT_PASSWORD: e3lanisecret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - e3lani_minio:/data
+
+volumes:
+  e3lani_pg:
+  e3lani_minio:

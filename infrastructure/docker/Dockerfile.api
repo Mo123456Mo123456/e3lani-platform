@@ -1,0 +1,39 @@
+# Durable staging API image for E3lani (NestJS monorepo slice).
+# Avoid `corepack enable` — it can fail on read-only /usr/bin (e.g. some PaaS images).
+FROM node:20-bookworm-slim AS base
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl ca-certificates python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+ENV PNPM_HOME=/opt/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN npm install --global pnpm@9.15.4 --prefix /opt/pnpm \
+  && ln -sf /opt/pnpm/lib/node_modules/pnpm/bin/pnpm.cjs /opt/pnpm/pnpm \
+  && ln -sf /opt/pnpm/lib/node_modules/pnpm/bin/pnpx.cjs /opt/pnpm/pnpx
+
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
+COPY packages ./packages
+COPY services/api ./services/api
+# Only install what API needs (workspace links)
+RUN pnpm install --frozen-lockfile --filter @e3lani/api...
+
+FROM deps AS build
+RUN pnpm --filter @e3lani/api exec prisma generate
+RUN pnpm --filter @e3lani/api build \
+ && pnpm --filter @e3lani/auth build \
+ && pnpm --filter @e3lani/config build \
+ && pnpm --filter @e3lani/payments build \
+ && pnpm --filter @e3lani/types build \
+ && pnpm --filter @e3lani/validation build \
+ && pnpm --filter @e3lani/storage build
+
+FROM base AS runner
+ENV NODE_ENV=production
+ENV PORT=3001
+WORKDIR /app
+COPY --from=build /app /app
+WORKDIR /app/services/api
+EXPOSE 3001
+# Prefer node + local prisma binary (no corepack / global pnpm at runtime).
+CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && node dist/main.js"]

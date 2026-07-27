@@ -1,0 +1,34 @@
+# Media worker — FFmpeg + Sharp + S3-compatible (Cloudflare R2) processing.
+# Avoid `corepack enable` on read-only PaaS images.
+FROM node:20-bookworm-slim AS base
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl ca-certificates python3 make g++ ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+ENV PNPM_HOME=/opt/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN npm install --global pnpm@9.15.4 --prefix /opt/pnpm \
+  && ln -sf /opt/pnpm/lib/node_modules/pnpm/bin/pnpm.cjs /opt/pnpm/pnpm \
+  && ln -sf /opt/pnpm/lib/node_modules/pnpm/bin/pnpx.cjs /opt/pnpm/pnpx
+
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
+COPY packages ./packages
+COPY services/api ./services/api
+COPY services/media-worker ./services/media-worker
+RUN pnpm install --frozen-lockfile --filter @e3lani/media-worker... --filter @e3lani/api...
+
+FROM deps AS build
+WORKDIR /app/services/api
+RUN pnpm exec prisma generate
+WORKDIR /app
+RUN pnpm --filter @e3lani/storage build \
+ && pnpm --filter @e3lani/config build \
+ && pnpm --filter @e3lani/media-worker build
+
+FROM base AS runner
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /app /app
+WORKDIR /app/services/media-worker
+CMD ["node", "dist/index.js"]

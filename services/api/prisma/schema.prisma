@@ -1,0 +1,628 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  VISITOR
+  USER
+  ADVERTISER
+  BRAND
+  ENTERPRISE
+  AD_MODERATOR
+  SUPPORT
+  CAMPAIGN_MANAGER
+  FINANCE
+  SUPER_ADMIN
+}
+
+enum AdStatus {
+  DRAFT
+  PENDING_REVIEW
+  NEEDS_CHANGES
+  APPROVED_AWAITING_PAYMENT
+  PAYMENT_PENDING
+  PAYMENT_FAILED
+  APPROVED
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  REJECTED
+  EXPIRED
+  REMOVED
+  REFUNDED
+}
+
+enum ModerationStatus {
+  NOT_SUBMITTED
+  QUEUED
+  AUTO_APPROVED
+  NEEDS_HUMAN
+  APPROVED
+  REJECTED
+  NEEDS_CHANGES
+}
+
+enum OrderStatus {
+  CREATED
+  PENDING_PAYMENT
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+  EXPIRED
+  REFUND_PENDING
+  REFUNDED
+  PARTIALLY_REFUNDED
+  DISPUTED
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
+enum VerificationStatus {
+  NOT_REQUESTED
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum AdCoverage {
+  CITY
+  NATIONWIDE
+}
+
+enum CampaignStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum AppealStatus {
+  OPEN
+  UNDER_REVIEW
+  UPHELD
+  OVERTURNED
+  CLOSED
+}
+
+model User {
+  id             String               @id @default(uuid()) @db.Uuid
+  phone          String               @unique
+  email          String?              @unique
+  displayName    String?
+  avatarUrl      String?
+  locale         String               @default("ar")
+  countryCode    String               @default("SA")
+  cityId         String?              @db.Uuid
+  roles          Role[]               @default([USER])
+  isSuspended    Boolean              @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  city           City?                @relation(fields: [cityId], references: [id])
+  sessions       UserSession[]
+  devices        UserDevice[]
+  verification   UserVerification?
+  brandProfile   BrandProfile?
+  ads            Ad[]
+  savedAds       SavedAd[]
+  reports        Report[]
+  appeals        Appeal[]
+  notifications  Notification[]
+  orders         Order[]
+  consents       UserConsent[]
+  auditLogs      AuditLog[]           @relation("AuditActor")
+  campaigns      Campaign[]
+}
+
+model UserSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  refreshTokenHash String
+  deviceId         String?
+  ip               String?
+  userAgent        String?
+  revokedAt        DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserDevice {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  platform  String
+  pushToken String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserVerification {
+  id         String             @id @default(uuid()) @db.Uuid
+  userId     String             @unique @db.Uuid
+  status     VerificationStatus @default(NOT_REQUESTED)
+  kind       String?
+  notes      String?
+  reviewedAt DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Country {
+  code       String     @id
+  nameAr     String
+  nameEn     String
+  currency   String
+  isActive   Boolean    @default(true)
+  sortOrder  Int        @default(0)
+  cities     City[]
+  categories Category[]
+}
+
+model City {
+  id          String  @id @default(uuid()) @db.Uuid
+  countryCode String
+  nameAr      String
+  nameEn      String
+  slug        String
+  isActive    Boolean @default(true)
+  latitude    Float?
+  longitude   Float?
+  geohash     String?
+  country     Country @relation(fields: [countryCode], references: [code])
+  users       User[]
+  ads         AdRevision[]
+
+  @@unique([countryCode, slug])
+  @@index([countryCode])
+}
+
+model Category {
+  id            String        @id @default(uuid()) @db.Uuid
+  slug          String        @unique
+  nameAr        String
+  nameEn        String
+  iconKey       String?
+  sortOrder     Int           @default(0)
+  isActive      Boolean       @default(true)
+  countryCode   String? 
+  parentId      String?       @db.Uuid
+  country       Country?      @relation(fields: [countryCode], references: [code])
+  parent        Category?     @relation("CategoryTree", fields: [parentId], references: [id])
+  children      Category[]    @relation("CategoryTree")
+  revisions     AdRevision[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model BrandProfile {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @db.Uuid
+  slug         String   @unique
+  nameAr       String
+  nameEn       String?
+  bio          String?
+  logoUrl      String?
+  coverUrl     String?
+  websiteUrl   String?
+  whatsapp     String?
+  phone        String?
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Ad {
+  id                 String            @id @default(uuid()) @db.Uuid
+  ownerId            String            @db.Uuid
+  status             AdStatus          @default(DRAFT)
+  currentRevisionId  String?           @unique @db.Uuid
+  approvedRevisionId String?           @db.Uuid
+  activeRevisionId   String?           @db.Uuid
+  isFeatured         Boolean           @default(false)
+  isSponsored        Boolean           @default(false)
+  coverage           AdCoverage        @default(CITY)
+  scheduledAt        DateTime?
+  featuredUntil      DateTime?
+  publishedAt        DateTime?
+  expiresAt          DateTime?
+  deletedAt          DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  owner              User              @relation(fields: [ownerId], references: [id])
+  currentRevision    AdRevision?       @relation("CurrentRevision", fields: [currentRevisionId], references: [id])
+  revisions          AdRevision[]      @relation("AdRevisions")
+  statusHistory      AdStatusHistory[]
+  media              AdMedia[]
+  savedBy            SavedAd[]
+  orders             Order[]
+  reports            Report[]
+  appeals            Appeal[]
+  campaignAds        CampaignAd[]
+
+  @@index([ownerId, status])
+  @@index([status, publishedAt])
+  @@index([status, expiresAt])
+}
+
+model AdRevision {
+  id               String           @id @default(uuid()) @db.Uuid
+  adId             String           @db.Uuid
+  version          Int
+  title            String
+  description      String?
+  categoryId       String           @db.Uuid
+  countryCode      String
+  cityId           String           @db.Uuid
+  contactMethods   Json
+  mediaSnapshot    Json?
+  moderationStatus ModerationStatus @default(NOT_SUBMITTED)
+  moderationNotes  String?
+  createdAt        DateTime         @default(now())
+  ad               Ad               @relation("AdRevisions", fields: [adId], references: [id], onDelete: Cascade)
+  currentFor       Ad?              @relation("CurrentRevision")
+  category         Category         @relation(fields: [categoryId], references: [id])
+  city             City             @relation(fields: [cityId], references: [id])
+  reviews          ModerationReview[]
+
+  @@unique([adId, version])
+  @@index([categoryId, cityId])
+}
+
+model AdMedia {
+  id           String    @id @default(uuid()) @db.Uuid
+  adId         String    @db.Uuid
+  assetId      String    @db.Uuid
+  sortOrder    Int       @default(0)
+  kind         MediaKind
+  createdAt    DateTime  @default(now())
+  ad           Ad        @relation(fields: [adId], references: [id], onDelete: Cascade)
+  asset        MediaAsset @relation(fields: [assetId], references: [id])
+
+  @@index([adId])
+}
+
+model MediaAsset {
+  id            String    @id @default(uuid()) @db.Uuid
+  ownerId       String    @db.Uuid
+  kind          MediaKind
+  mimeType      String
+  sizeBytes     Int
+  durationSec   Float?
+  storageKey    String
+  posterKey     String?
+  width         Int?
+  height        Int?
+  status        String    @default("UPLOADING")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  adMedia       AdMedia[]
+}
+
+model ModerationReview {
+  id          String           @id @default(uuid()) @db.Uuid
+  revisionId  String           @db.Uuid
+  reviewerId  String?          @db.Uuid
+  status      ModerationStatus
+  riskScore   Float?
+  notes       String?
+  createdAt   DateTime         @default(now())
+  revision    AdRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  findings    ModerationFinding[]
+}
+
+model ModerationFinding {
+  id         String           @id @default(uuid()) @db.Uuid
+  reviewId   String           @db.Uuid
+  code       String
+  severity   String
+  detail     String?
+  createdAt  DateTime         @default(now())
+  review     ModerationReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
+
+model AdStatusHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  adId       String   @db.Uuid
+  fromStatus AdStatus?
+  toStatus   AdStatus
+  reason     String?
+  actorId    String?  @db.Uuid
+  createdAt  DateTime @default(now())
+  ad         Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([adId, createdAt])
+}
+
+model SavedAd {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  adId      String   @db.Uuid
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, adId])
+}
+
+model Report {
+  id           String   @id @default(uuid()) @db.Uuid
+  reporterId   String   @db.Uuid
+  adId         String   @db.Uuid
+  reason       String
+  details      String?
+  status       String   @default("OPEN")
+  resolution   String?
+  resolvedAt   DateTime?
+  resolvedById String?  @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  reporter     User     @relation(fields: [reporterId], references: [id])
+  ad           Ad       @relation(fields: [adId], references: [id])
+  appeals      Appeal[]
+
+  @@index([adId, status])
+  @@index([status, createdAt])
+}
+
+model Appeal {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @db.Uuid
+  adId         String       @db.Uuid
+  reportId     String?      @db.Uuid
+  reason       String
+  details      String?
+  status       AppealStatus @default(OPEN)
+  decisionNote String?
+  decidedAt    DateTime?
+  decidedById  String?      @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  user         User         @relation(fields: [userId], references: [id])
+  ad           Ad           @relation(fields: [adId], references: [id])
+  report       Report?      @relation(fields: [reportId], references: [id])
+
+  @@index([userId, status])
+  @@index([adId, status])
+}
+
+model Campaign {
+  id          String         @id @default(uuid()) @db.Uuid
+  ownerId     String         @db.Uuid
+  name        String
+  objective   String
+  status      CampaignStatus @default(DRAFT)
+  budgetTotal Decimal        @db.Decimal(12, 2)
+  currency    String         @default("SAR")
+  startsAt    DateTime?
+  endsAt      DateTime?
+  targeting   Json?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  owner       User           @relation(fields: [ownerId], references: [id])
+  ads         CampaignAd[]
+
+  @@index([ownerId, status])
+}
+
+model CampaignAd {
+  id         String   @id @default(uuid()) @db.Uuid
+  campaignId String   @db.Uuid
+  adId       String   @db.Uuid
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ad         Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, adId])
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  type      String
+  titleAr   String
+  titleEn   String
+  bodyAr    String
+  bodyEn    String
+  payload   Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model PricingVersion {
+  id        String         @id @default(uuid()) @db.Uuid
+  code      String         @unique
+  isActive  Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  items     PricingItem[]
+  orders    Order[]
+}
+
+model PricingItem {
+  id               String         @id @default(uuid()) @db.Uuid
+  pricingVersionId String         @db.Uuid
+  sku              String
+  countryCode      String
+  currency         String
+  amount           Decimal        @db.Decimal(12, 2)
+  durationDays     Int?
+  labelAr          String
+  labelEn          String
+  pricingVersion   PricingVersion @relation(fields: [pricingVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([pricingVersionId, sku, countryCode])
+}
+
+model Order {
+  id               String        @id @default(uuid()) @db.Uuid
+  userId           String        @db.Uuid
+  adId             String        @db.Uuid
+  revisionId       String        @db.Uuid
+  pricingVersionId String        @db.Uuid
+  status           OrderStatus   @default(CREATED)
+  currency         String
+  countryCode      String
+  subtotal         Decimal       @db.Decimal(12, 2)
+  taxAmount        Decimal       @db.Decimal(12, 2) @default(0)
+  total            Decimal       @db.Decimal(12, 2)
+  idempotencyKey   String        @unique
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  user             User          @relation(fields: [userId], references: [id])
+  ad               Ad            @relation(fields: [adId], references: [id])
+  pricingVersion   PricingVersion @relation(fields: [pricingVersionId], references: [id])
+  items            OrderItem[]
+  attempts         PaymentAttempt[]
+  transactions     PaymentTransaction[]
+
+  @@index([adId, revisionId])
+  @@index([userId, status])
+}
+
+model OrderItem {
+  id       String  @id @default(uuid()) @db.Uuid
+  orderId  String  @db.Uuid
+  sku      String
+  labelAr  String
+  labelEn  String
+  quantity Int     @default(1)
+  amount   Decimal @db.Decimal(12, 2)
+  order    Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model PaymentAttempt {
+  id                String   @id @default(uuid()) @db.Uuid
+  orderId           String   @db.Uuid
+  provider          String
+  channel           String
+  providerReference String?
+  status            String
+  idempotencyKey    String   @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model PaymentTransaction {
+  id                String   @id @default(uuid()) @db.Uuid
+  orderId           String   @db.Uuid
+  provider          String
+  providerReference String
+  amount            Decimal  @db.Decimal(12, 2)
+  currency          String
+  status            String
+  rawPayload        Json?
+  createdAt         DateTime @default(now())
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerReference])
+}
+
+model PaymentWebhookEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  provider   String
+  eventId    String
+  payload    Json
+  processed  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@unique([provider, eventId])
+}
+
+model PaymentProviderConfig {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @unique
+  enabled    Boolean  @default(false)
+  mode       String   @default("sandbox")
+  priority   Int      @default(100)
+  countries  String[]
+  currencies String[]
+  channels   String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  reason     String?
+  ip         String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  adId      String?  @db.Uuid
+  userId    String?  @db.Uuid
+  sessionId String?
+  platform  String?
+  locale    String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([adId, name])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model LegalDocument {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String
+  locale    String
+  version   String
+  title     String
+  body      String
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([slug, locale, version])
+}
+
+model UserConsent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  document  String
+  version   String
+  accepted  Boolean
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
