@@ -19,3 +19,4 @@ web-build
 .vercel
 *.pem
 service-account*.json
+dump.rdb

@@ -3,12 +3,14 @@ import { quoteSaudiSkus, routePayment, DEFAULT_PROVIDER_CATALOG } from '@e3lani/
 import type { PlatformChannel } from '@e3lani/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdStateService } from '../../common/ad-state.service';
+import { PaymentsProviderService } from '../payments/payments-provider.service';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly adState: AdStateService,
+    private readonly payments: PaymentsProviderService,
   ) {}
 
   async paymentOptions(adId: string, platform: PlatformChannel = 'web') {
@@ -22,6 +24,8 @@ export class OrdersService {
     }
 
     const quote = quoteSaudiSkus(['AD_PUBLISH_30D']);
+    expectQuoteIsApprovedPricing(quote.total);
+
     const providers = await this.prisma.paymentProviderConfig.findMany();
     const catalog =
       providers.length > 0
@@ -54,18 +58,22 @@ export class OrdersService {
     };
   }
 
-  async createOrder(input: {
+  async createCheckout(input: {
     userId: string;
     adId: string;
     idempotencyKey: string;
+    successUrl: string;
+    cancelUrl: string;
+    platform?: PlatformChannel;
   }) {
-    const options = await this.paymentOptions(input.adId, 'web');
+    const options = await this.paymentOptions(input.adId, input.platform ?? 'web');
     if (!options.routing.ok) {
       throw new BadRequestException(options.messageAr ?? 'NO_PAYMENT_PROVIDER');
     }
 
     const existing = await this.prisma.order.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
+      include: { items: true, attempts: true },
     });
     if (existing) return existing;
 
@@ -107,6 +115,61 @@ export class OrdersService {
       reason: 'Checkout started',
     });
 
-    return order;
+    const provider = this.payments.getProvider(options.routing.provider.name);
+    const checkout = await provider.createCheckout({
+      orderId: order.id,
+      amount: Number(order.total),
+      currency: order.currency as 'SAR',
+      countryCode: order.countryCode,
+      channel: options.routing.channel,
+      successUrl: input.successUrl,
+      cancelUrl: input.cancelUrl,
+      metadata: {
+        adId: input.adId,
+        revisionId: options.revisionId!,
+      },
+      idempotencyKey: input.idempotencyKey,
+    });
+
+    await this.prisma.paymentAttempt.create({
+      data: {
+        orderId: order.id,
+        provider: checkout.provider,
+        channel: options.routing.channel,
+        providerReference: checkout.providerReference,
+        status: 'checkout_created',
+        idempotencyKey: `${input.idempotencyKey}:attempt`,
+      },
+    });
+
+    return {
+      order,
+      checkout,
+      activationPolicy:
+        'Ad is NOT activated by redirect/success URL. Only verified provider webhook activates the ad.',
+    };
+  }
+
+  /**
+   * Explicitly rejected path: browser success redirect must never publish.
+   */
+  async rejectRedirectActivation(orderId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('ORDER_NOT_FOUND');
+    return {
+      activated: false,
+      orderId,
+      adStatusUnchanged: true,
+      message:
+        'Redirect/success pages do not activate ads. Wait for a verified payment webhook.',
+    };
+  }
+}
+
+function expectQuoteIsApprovedPricing(total: number) {
+  if (total !== 59) {
+    throw new BadRequestException(
+      `Unexpected publish price ${total}. Approved SA publish price is 59 SAR.`,
+    );
   }
 }

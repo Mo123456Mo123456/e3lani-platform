@@ -3,12 +3,26 @@ import { DEFAULT_PROVIDER_CATALOG, routePayment } from './routing';
 import { quoteSaudiSkus } from './pricing-engine';
 
 describe('payment routing', () => {
-  it('returns clear failure when no provider enabled', () => {
+  it('routes SA web checkout to sandbox when enabled', () => {
     const result = routePayment({
       countryCode: 'SA',
       currency: 'SAR',
       platform: 'web',
       providers: DEFAULT_PROVIDER_CATALOG,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.provider.name).toBe('sandbox');
+      expect(result.channel).toBe('hosted_checkout');
+    }
+  });
+
+  it('returns clear failure when no provider enabled', () => {
+    const result = routePayment({
+      countryCode: 'SA',
+      currency: 'SAR',
+      platform: 'web',
+      providers: DEFAULT_PROVIDER_CATALOG.map((p) => ({ ...p, enabled: false })),
     });
     expect(result.ok).toBe(false);
   });

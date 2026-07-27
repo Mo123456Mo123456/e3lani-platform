@@ -8,12 +8,12 @@
 | Users / Sessions | Partial | JWT + refresh hash؛ دوران كامل لاحقًا |
 | Countries / Cities / Categories | Done | Seed SA + 21 قسمًا |
 | Ads / Revisions | Partial | إنشاء، إرسال مراجعة، نسخة جديدة تلغي الدفع |
-| Media upload / FFmpeg | Scaffold | media-worker فقط |
-| Moderation | Scaffold | نموذج بيانات + سياسة |
+| Media upload / FFmpeg | Partial | Signed URLs + sharp/ffmpeg worker |
+| Moderation | Partial | Admin approve / needs-changes / reject |
 | Pricing engine | Done | 59/10/29/15/29/29/10 SAR |
-| Orders / Idempotency | Partial | إنشاء طلب + خيارات دفع |
-| Payment providers | Scaffold | Adapters غير مفعّلة بدون مفاتيح |
-| Webhooks | Pending | مخطط جدول الأحداث موجود |
+| Orders / Idempotency | Partial | Checkout + idempotency + redirect block |
+| Payment providers | Partial | Sandbox HMAC webhook enabled; real providers disabled |
+| Webhooks | Partial | Sandbox signed webhook activates ads only |
 | Mobile Feed UI | Partial | Demo data + RTL shells |
 | Web SEO pages | Partial | Home/Browse/Pricing |
 | Admin review console | Scaffold | هيكل تنقل |

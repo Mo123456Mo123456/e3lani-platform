@@ -9,11 +9,16 @@ import { GeoModule } from './modules/geo/geo.module';
 import { AdsModule } from './modules/ads/ads.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { MediaModule } from './modules/media/media.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { PaymentsProviderModule } from './modules/payments/payments-provider.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    PaymentsProviderModule,
     HealthModule,
     AuthModule,
     UsersModule,
@@ -22,6 +27,9 @@ import { OrdersModule } from './modules/orders/orders.module';
     AdsModule,
     FeedModule,
     OrdersModule,
+    MediaModule,
+    AdminModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}

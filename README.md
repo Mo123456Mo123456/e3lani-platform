@@ -38,15 +38,25 @@ docker compose -f infrastructure/docker/docker-compose.yml up -d
 cp .env.example .env
 cp services/api/.env.example services/api/.env
 pnpm --filter @e3lani/api prisma:generate
-pnpm --filter @e3lani/api exec prisma migrate dev --name init
+pnpm --filter @e3lani/api exec prisma migrate deploy
 pnpm db:seed
-pnpm dev
+pnpm --filter @e3lani/api build && pnpm --filter @e3lani/api start
+# optional media worker
+pnpm --filter @e3lani/media-worker build && pnpm --filter @e3lani/media-worker start
 ```
 
 - API: `http://localhost:3001/api/v1` — Docs: `/api/docs`
 - Web: `http://localhost:3000`
 - Admin: `http://localhost:3002`
 - OTP Sandbox: `123456`
+- Payment Sandbox webhook secret: `SANDBOX_PAYMENT_WEBHOOK_SECRET`
+
+### اختبار التكامل (Phase 2)
+
+```bash
+pnpm test:integration
+# expect: PHASE2_INTEGRATION_OK
+```
 
 ## قواعد المنتج
 

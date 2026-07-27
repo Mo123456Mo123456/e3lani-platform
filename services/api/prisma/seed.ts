@@ -103,14 +103,23 @@ async function main() {
     });
   }
 
-  // Providers disabled until real merchant keys exist (fail-closed).
+  // Sandbox provider enabled for local/testing. Real providers stay disabled (fail-closed).
   const providers = [
+    {
+      name: 'sandbox',
+      countries: ['SA', '*'],
+      currencies: ['SAR', 'AED', 'USD'],
+      channels: ['hosted_checkout'],
+      priority: 1,
+      enabled: true,
+    },
     {
       name: 'moyasar',
       countries: ['SA'],
       currencies: ['SAR'],
       channels: ['hosted_checkout'],
       priority: 10,
+      enabled: false,
     },
     {
       name: 'myfatoorah',
@@ -118,18 +127,34 @@ async function main() {
       currencies: ['SAR', 'AED', 'KWD', 'BHD', 'QAR', 'OMR'],
       channels: ['hosted_checkout'],
       priority: 20,
+      enabled: false,
     },
   ];
 
   for (const provider of providers) {
     await prisma.paymentProviderConfig.upsert({
       where: { name: provider.name },
-      create: { ...provider, enabled: false, mode: 'sandbox' },
-      update: { countries: provider.countries, currencies: provider.currencies },
+      create: {
+        name: provider.name,
+        countries: provider.countries,
+        currencies: provider.currencies,
+        channels: provider.channels,
+        priority: provider.priority,
+        enabled: provider.enabled,
+        mode: 'sandbox',
+      },
+      update: {
+        countries: provider.countries,
+        currencies: provider.currencies,
+        enabled: provider.enabled,
+        priority: provider.priority,
+      },
     });
   }
 
-  console.log('Seed completed: SA geo, 21 categories, pricing 59 SAR, disabled payment providers');
+  console.log(
+    'Seed completed: SA geo, 21 categories, pricing 59 SAR, sandbox payment provider enabled',
+  );
 }
 
 main()

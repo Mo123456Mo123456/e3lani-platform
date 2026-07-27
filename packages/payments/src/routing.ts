@@ -43,6 +43,15 @@ export function routePayment(input: RoutePaymentInput): RoutePaymentResult {
 /** Regional defaults for Gulf web checkout routing (adapters not activated without keys). */
 export const DEFAULT_PROVIDER_CATALOG: readonly ProviderConfig[] = [
   {
+    name: 'sandbox',
+    enabled: true,
+    mode: 'sandbox',
+    priority: 1,
+    countries: ['SA', '*'],
+    currencies: ['SAR', 'AED', 'USD'],
+    channels: ['hosted_checkout'],
+  },
+  {
     name: 'moyasar',
     enabled: false,
     mode: 'sandbox',
