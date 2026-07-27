@@ -4,8 +4,11 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { AdDetail } from '@e3lani/api-client';
+import { DEFAULT_SA_PRICING } from '@e3lani/types';
 import { api } from '../../../../lib/api';
 import { statusLabel } from '../../../../lib/status';
+
+const publishPrice = DEFAULT_SA_PRICING.AD_PUBLISH_30D;
 
 export default function AdStatusPage() {
   const params = useParams<{ id: string }>();
@@ -40,7 +43,7 @@ export default function AdStatusPage() {
           </Link>
           {canPay ? (
             <Link className="btn btn-primary" href={`/ads/${ad.id}/pay`}>
-              الدفع (19 ر.س)
+              الدفع ({publishPrice.amount} {publishPrice.currency})
             </Link>
           ) : null}
           {ad.status === 'ACTIVE' ? (

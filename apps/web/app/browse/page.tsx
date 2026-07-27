@@ -60,6 +60,9 @@ export default function BrowsePage() {
               {label}
             </button>
           ))}
+          <Link className="btn btn-ghost" href="/search">
+            {locale === 'ar' ? 'فلاتر' : 'Filters'}
+          </Link>
         </div>
       </div>
       {error ? <p className="error">{error}</p> : null}

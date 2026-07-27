@@ -1,6 +1,9 @@
 export type ApiClientOptions = {
   baseUrl: string;
   getToken?: () => string | null | undefined | Promise<string | null | undefined>;
+  getRefreshToken?: () => string | null | undefined | Promise<string | null | undefined>;
+  setTokens?: (tokens: { accessToken: string; refreshToken: string }) => void | Promise<void>;
+  onAuthExpired?: () => void | Promise<void>;
   /** Request timeout in ms. Defaults to 20000. */
   timeoutMs?: number;
 };
@@ -51,14 +54,56 @@ function describeNetworkFailure(err: unknown, timeoutMs: number): NetworkRequest
   );
 }
 
+function queryString(params: Record<string, string | number | boolean | undefined>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  }
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : '';
+}
+
 export function createApiClient(options: ApiClientOptions) {
   const timeoutMs = options.timeoutMs ?? 20_000;
   const baseUrl = options.baseUrl.replace(/\/$/, '');
+
+  async function refreshAccessToken() {
+    const refreshToken = options.getRefreshToken ? await options.getRefreshToken() : null;
+    if (!refreshToken || !options.setTokens) return false;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${baseUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({ refreshToken }),
+      });
+      const text = await res.text();
+      const data = text ? (JSON.parse(text) as AuthTokens) : null;
+      if (!res.ok || !data?.accessToken || !data?.refreshToken) {
+        await options.onAuthExpired?.();
+        return false;
+      }
+      await options.setTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      });
+      return true;
+    } catch {
+      await options.onAuthExpired?.();
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   async function request<T>(
     method: string,
     path: string,
     init?: { body?: unknown; headers?: Record<string, string>; auth?: boolean },
+    retryOnUnauthorized = true,
   ): Promise<T> {
     const headers: Record<string, string> = {
       ...(init?.headers ?? {}),
@@ -96,6 +141,10 @@ export function createApiClient(options: ApiClientOptions) {
       data = text ? JSON.parse(text) : null;
     } catch {
       data = text;
+    }
+    if (res.status === 401 && retryOnUnauthorized && init?.auth !== false) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) return request<T>(method, path, init, false);
     }
     if (!res.ok) {
       throw new ApiError(
@@ -140,12 +189,22 @@ export function createApiClient(options: ApiClientOptions) {
       const q = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
       return request<FeedPage>('GET', `${path}${q}`, { auth: false });
     },
+    searchFeed: (filters: FeedSearchFilters = {}) =>
+      request<FeedPage>('GET', `/feed/search${queryString(filters)}`, { auth: false }),
     getAd: (id: string) => request<AdDetail>('GET', `/ads/${id}`, { auth: false }),
     myAds: () => request<AdDetail[]>('GET', '/ads/mine'),
     createAd: (body: CreateAdBody) => request<AdDetail>('POST', '/ads', { body }),
     reviseAd: (id: string, body: CreateAdBody) =>
       request<AdDetail>('POST', `/ads/${id}/revisions`, { body }),
     submitReview: (id: string) => request<AdDetail>('POST', `/ads/${id}/submit-review`),
+    pauseAd: (id: string) => request<AdDetail>('POST', `/ads/${id}/pause`),
+    resumeAd: (id: string) => request<AdDetail>('POST', `/ads/${id}/resume`),
+    republishAd: (id: string) => request<AdDetail>('POST', `/ads/${id}/republish`),
+    extendAd: (id: string) => request<AdDetail>('POST', `/ads/${id}/extend`),
+    shareAd: (id: string, channel?: string) =>
+      request<{ ok: boolean; shareUrl: string }>('POST', `/ads/${id}/share`, {
+        body: channel ? { channel } : {},
+      }),
     uploadIntent: (body: {
       kind: 'image' | 'video';
       mimeType: string;
@@ -182,7 +241,13 @@ export function createApiClient(options: ApiClientOptions) {
     saved: () => request<Array<{ ad: AdDetail }>>('GET', '/saved'),
     saveAd: (id: string) => request('POST', `/ads/${id}/save`),
     unsaveAd: (id: string) => request('DELETE', `/ads/${id}/save`),
+    notifications: () => request<NotificationItem[]>('GET', '/notifications'),
+    markNotificationRead: (id: string) => request<{ ok: true }>('POST', `/notifications/${id}/read`),
+    markAllNotificationsRead: () =>
+      request<{ ok: true; count: number }>('POST', '/notifications/read-all'),
     brand: (slug: string) => request<BrandProfile>('GET', `/brands/${slug}`, { auth: false }),
+    myCampaigns: () => request<Campaign[]>('GET', '/campaigns/mine'),
+    createCampaign: (body: CreateCampaignBody) => request<Campaign>('POST', '/campaigns', { body }),
     adminReviewQueue: () => request<AdDetail[]>('GET', '/admin/ads/review'),
     adminApprove: (id: string, notes?: string) =>
       request('POST', `/admin/ads/${id}/approve`, { body: { notes } }),
@@ -196,6 +261,12 @@ export function createApiClient(options: ApiClientOptions) {
 }
 
 export type E3laniApi = ReturnType<typeof createApiClient>;
+
+export type AuthTokens = {
+  accessToken: string;
+  refreshToken: string;
+  user: { id: string; phone: string; displayName?: string | null; roles: string[] };
+};
 
 export type Category = {
   id: string;
@@ -263,6 +334,18 @@ export type FeedPage = {
   hasMore: boolean;
 };
 
+export type FeedSearchFilters = {
+  q?: string;
+  cityId?: string;
+  categoryId?: string;
+  kind?: 'image' | 'video';
+  sort?: 'latest' | 'views' | 'featured';
+  verified?: boolean;
+  featured?: boolean;
+  cursor?: string;
+  take?: number;
+};
+
 export type CreateAdBody = {
   title: string;
   description?: string;
@@ -292,6 +375,46 @@ export type BrandProfile = {
   logoUrl?: string | null;
   isVerified: boolean;
   ads: AdDetail[];
+};
+
+export type NotificationItem = {
+  id: string;
+  type: string;
+  titleAr: string;
+  titleEn: string;
+  bodyAr: string;
+  bodyEn: string;
+  payload?: unknown;
+  readAt?: string | null;
+  createdAt: string;
+};
+
+export type Campaign = {
+  id: string;
+  name: string;
+  objective: string;
+  status: string;
+  budgetTotal: string | number;
+  currency: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  targeting?: unknown;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  ads?: Array<{ adId: string; ad?: { id: string; status: string } }>;
+};
+
+export type CreateCampaignBody = {
+  name: string;
+  objective: string;
+  budgetTotal: number;
+  currency?: string;
+  startsAt?: string;
+  endsAt?: string;
+  targeting?: Record<string, unknown>;
+  notes?: string;
+  adIds?: string[];
 };
 
 export async function uploadFileToSignedUrl(

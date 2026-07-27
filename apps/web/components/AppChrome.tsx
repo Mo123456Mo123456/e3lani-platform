@@ -28,10 +28,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
         <nav className="nav-links" aria-label={locale === 'ar' ? 'التنقل الرئيسي' : 'Primary'}>
           <Link href="/browse">{tr('nav.home')}</Link>
+          <Link href="/search">{locale === 'ar' ? 'بحث' : 'Search'}</Link>
           <Link href="/categories">{tr('nav.categories')}</Link>
+          <Link href="/cities">{locale === 'ar' ? 'المدن' : 'Cities'}</Link>
           <Link href="/saved">{tr('nav.saved')}</Link>
           <Link href="/account">{tr('nav.account')}</Link>
           <Link href="/pricing">{locale === 'ar' ? 'الأسعار' : 'Pricing'}</Link>
+          <Link href="/enterprise">{locale === 'ar' ? 'للشركات' : 'Enterprise'}</Link>
           {!authed ? <Link href="/login">{locale === 'ar' ? 'دخول' : 'Login'}</Link> : null}
           <button
             type="button"

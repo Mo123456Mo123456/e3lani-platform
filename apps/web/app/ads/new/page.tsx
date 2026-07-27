@@ -4,9 +4,11 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import type { Category, City } from '@e3lani/api-client';
 import { pollMediaReady, uploadFileToSignedUrl } from '@e3lani/api-client';
+import { DEFAULT_SA_PRICING } from '@e3lani/types';
 import { api, getToken } from '../../../lib/api';
 
 const steps = ['الوسائط', 'العنوان', 'القسم', 'المدينة', 'التواصل', 'معاينة'];
+const publishPrice = DEFAULT_SA_PRICING.AD_PUBLISH_30D;
 
 export default function CreateAdPage() {
   const router = useRouter();
@@ -147,7 +149,9 @@ export default function CreateAdPage() {
           <div className="stack">
             <strong>{title || 'بدون عنوان'}</strong>
             <span className="muted">{description || 'بدون وصف'}</span>
-            <span>المراجعة مجانية. الدفع يظهر بعد القبول فقط (19 ر.س).</span>
+            <span>
+              المراجعة مجانية. الدفع يظهر بعد القبول فقط ({publishPrice.amount} {publishPrice.currency}).
+            </span>
           </div>
         ) : null}
 

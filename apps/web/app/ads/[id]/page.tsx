@@ -11,6 +11,7 @@ export default function AdPage() {
   const params = useParams<{ id: string }>();
   const [ad, setAd] = useState<AdDetail | null>(null);
   const [error, setError] = useState('');
+  const [shareStatus, setShareStatus] = useState('');
   const [watching, setWatching] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -33,6 +34,30 @@ export default function AdPage() {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
   }, [ad?.id]);
+
+  async function shareAd() {
+    if (!ad) return;
+    setShareStatus('');
+    try {
+      const result = await api.shareAd(ad.id, 'web');
+      const shareUrl = result.shareUrl || window.location.href;
+      if (navigator.share) {
+        await navigator.share({
+          title: ad.currentRevision?.title ?? 'إعلاني | E3lani',
+          text: ad.currentRevision?.description ?? 'منصة الإعلانات المرئية لكل شيء',
+          url: shareUrl,
+        });
+        setShareStatus('تم فتح المشاركة');
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareStatus('تم نسخ الرابط');
+      } else {
+        setShareStatus(shareUrl);
+      }
+    } catch (e) {
+      setShareStatus((e as Error).message);
+    }
+  }
 
   if (error) return <main className="container"><p className="error">{error}</p></main>;
   if (!ad) return <main className="container"><p className="muted">جاري التحميل...</p></main>;
@@ -80,7 +105,11 @@ export default function AdPage() {
           <Link className="btn btn-ghost" href={`/ads/${ad.id}/status`}>
             حالة الإعلان
           </Link>
+          <button className="btn btn-primary" type="button" onClick={shareAd}>
+            مشاركة
+          </button>
         </div>
+        {shareStatus ? <p className="muted">{shareStatus}</p> : null}
       </div>
     </main>
   );
