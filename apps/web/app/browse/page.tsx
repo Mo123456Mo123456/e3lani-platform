@@ -71,7 +71,9 @@ export default function BrowsePage() {
       ) : null}
       <div className="feed-list" style={{ marginTop: 18 }} onMouseMove={bumpChrome} onClick={bumpChrome}>
         {items.map((ad) => {
-          const media = ad.media?.[0]?.asset;
+          const media =
+            ad.media?.find((row) => row.asset?.kind === 'VIDEO')?.asset ??
+            ad.media?.[0]?.asset;
           const isVideo = media?.kind === 'VIDEO';
           return (
             <Link key={ad.id} href={`/ads/${ad.id}`} className="feed-card">

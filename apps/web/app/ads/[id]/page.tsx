@@ -62,7 +62,9 @@ export default function AdPage() {
   if (error) return <main className="container"><p className="error">{error}</p></main>;
   if (!ad) return <main className="container"><p className="muted">جاري التحميل...</p></main>;
 
-  const media = ad.media?.[0]?.asset;
+  const media =
+    ad.media?.find((row) => row.asset?.kind === 'VIDEO')?.asset ??
+    ad.media?.[0]?.asset;
   const contact = ad.currentRevision?.contactMethods;
 
   return (
