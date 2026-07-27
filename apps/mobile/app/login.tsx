@@ -78,7 +78,7 @@ export default function LoginScreen() {
         <ConnectionError
           message={error}
           onRetry={() => setError('')}
-          dark={false}
+          dark
         />
       ) : null}
     </View>
@@ -86,17 +86,18 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: 20 },
+  root: { flex: 1, backgroundColor: colors.black, paddingHorizontal: 20 },
   header: { alignItems: 'center', marginBottom: 20 },
-  title: { flex: 1, fontSize: 28, fontWeight: '800' },
+  title: { flex: 1, fontSize: 28, fontWeight: '800', color: colors.white },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: 14,
     minHeight: 52,
     paddingHorizontal: 14,
     marginBottom: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.charcoal,
+    color: colors.white,
   },
   btn: {
     backgroundColor: colors.primary,
@@ -105,6 +106,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnText: { fontWeight: '800', fontSize: 16 },
-  hint: { color: '#0a7a32', marginBottom: 10, textAlign: 'right' },
+  btnText: { fontWeight: '800', fontSize: 16, color: colors.black },
+  hint: { color: colors.primary, marginBottom: 10, textAlign: 'right' },
 });

@@ -11,13 +11,13 @@ type Props = {
   markSize?: number;
 };
 
-/** Black/yellow brand row with the dual yellow arrows — used on Categories & Account. */
-export function BrandHeader({ title, subtitle, trailing, markSize = 34 }: Props) {
+/** Black/yellow brand row with framed dual yellow arrows — Categories & Account. */
+export function BrandHeader({ title, subtitle, trailing, markSize = 44 }: Props) {
   const { rowDirection, textAlign } = useLocale();
 
   return (
     <View style={[styles.row, { flexDirection: rowDirection }]}>
-      <LogoMark size={markSize} />
+      <LogoMark size={markSize} framed />
       <View style={styles.textCol}>
         <Text style={[styles.brand, { textAlign }]}>إعلاني | E3lani</Text>
         <Text style={[styles.title, { textAlign }]}>{title}</Text>
@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   row: {
     alignItems: 'center',
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 18,
     paddingHorizontal: 4,
   },
   textCol: { flex: 1, minWidth: 0 },

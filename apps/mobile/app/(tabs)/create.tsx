@@ -80,6 +80,7 @@ export default function CreateAdScreen() {
   const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [mediaKind, setMediaKind] = useState<'image' | 'video'>('image');
 
   useEffect(() => {
     if (!getToken()) {
@@ -96,7 +97,7 @@ export default function CreateAdScreen() {
 
   async function pickMedia() {
     const result = await DocumentPicker.getDocumentAsync({
-      type: ['image/*', 'video/mp4', 'video/quicktime'],
+      type: mediaKind === 'video' ? ['video/mp4', 'video/quicktime'] : ['image/*'],
       copyToCacheDirectory: true,
     });
     if (result.canceled || !result.assets?.[0]) return;
@@ -182,27 +183,47 @@ export default function CreateAdScreen() {
       </Text>
 
       {step === 0 ? (
-        <Pressable style={styles.upload} onPress={pickMedia}>
-          <Text style={[styles.uploadTitle, { textAlign }]}>{file ? file.name : t('create.pickMedia')}</Text>
-          <Text style={styles.uploadHint}>{file ? `${file.mimeType} ${formatBytes(file.size)}` : t('create.mediaHint')}</Text>
-          {uploadPhase !== 'idle' ? (
-            <View style={styles.uploadProgressWrap}>
-              <View style={styles.uploadProgressTrack}>
-                <View style={[styles.uploadProgressFill, { width: `${Math.round(uploadProgress * 100)}%` }]} />
-              </View>
-              <Text style={styles.status}>
-                {uploadPhase === 'preparing'
-                  ? t('create.uploadPreparing')
-                  : uploadPhase === 'uploading'
-                    ? t('create.uploading')
-                    : uploadPhase === 'processing'
-                      ? t('create.processing')
-                      : t('create.ready')}{' '}
-                {Math.round(uploadProgress * 100)}%
+        <>
+          <View style={styles.mediaTabs}>
+            <Pressable
+              style={[styles.mediaTab, mediaKind === 'image' && styles.mediaTabOn]}
+              onPress={() => setMediaKind('image')}
+            >
+              <Text style={[styles.mediaTabText, mediaKind === 'image' && styles.mediaTabTextOn]}>
+                {locale === 'ar' ? 'صور' : 'Images'}
               </Text>
-            </View>
-          ) : null}
-        </Pressable>
+            </Pressable>
+            <Pressable
+              style={[styles.mediaTab, mediaKind === 'video' && styles.mediaTabOn]}
+              onPress={() => setMediaKind('video')}
+            >
+              <Text style={[styles.mediaTabText, mediaKind === 'video' && styles.mediaTabTextOn]}>
+                {locale === 'ar' ? 'فيديو' : 'Video'}
+              </Text>
+            </Pressable>
+          </View>
+          <Pressable style={styles.upload} onPress={pickMedia}>
+            <Text style={[styles.uploadTitle, { textAlign }]}>{file ? file.name : t('create.pickMedia')}</Text>
+            <Text style={styles.uploadHint}>{file ? `${file.mimeType} ${formatBytes(file.size)}` : t('create.mediaHint')}</Text>
+            {uploadPhase !== 'idle' ? (
+              <View style={styles.uploadProgressWrap}>
+                <View style={styles.uploadProgressTrack}>
+                  <View style={[styles.uploadProgressFill, { width: `${Math.round(uploadProgress * 100)}%` }]} />
+                </View>
+                <Text style={styles.status}>
+                  {uploadPhase === 'preparing'
+                    ? t('create.uploadPreparing')
+                    : uploadPhase === 'uploading'
+                      ? t('create.uploading')
+                      : uploadPhase === 'processing'
+                        ? t('create.processing')
+                        : t('create.ready')}{' '}
+                  {Math.round(uploadProgress * 100)}%
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </>
       ) : null}
       {step === 1 ? (
         <TextInput
@@ -218,7 +239,9 @@ export default function CreateAdScreen() {
         <View style={styles.list}>
           {categories.slice(0, 8).map((c) => (
             <Pressable key={c.id} style={[styles.chip, categoryId === c.id && styles.chipOn]} onPress={() => setCategoryId(c.id)}>
-              <Text>{locale === 'ar' ? c.nameAr : c.nameEn}</Text>
+              <Text style={[styles.chipText, categoryId === c.id && styles.chipTextOn]}>
+                {locale === 'ar' ? c.nameAr : c.nameEn}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -227,7 +250,9 @@ export default function CreateAdScreen() {
         <View style={styles.list}>
           {cities.map((c) => (
             <Pressable key={c.id} style={[styles.chip, cityId === c.id && styles.chipOn]} onPress={() => setCityId(c.id)}>
-              <Text>{locale === 'ar' ? c.nameAr : c.nameEn}</Text>
+              <Text style={[styles.chipText, cityId === c.id && styles.chipTextOn]}>
+                {locale === 'ar' ? c.nameAr : c.nameEn}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -266,50 +291,66 @@ export default function CreateAdScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: 20 },
-  heading: { color: colors.black, fontSize: 28, fontWeight: '800', marginBottom: 16 },
+  root: { flex: 1, backgroundColor: colors.black, paddingHorizontal: 20 },
+  heading: { color: colors.white, fontSize: 28, fontWeight: '800', marginBottom: 16 },
   progress: { flexDirection: 'row-reverse', gap: 8, marginBottom: 18 },
-  dot: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border },
+  dot: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)' },
   dotActive: { backgroundColor: colors.primary },
-  stepLabel: { color: colors.black, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  stepLabel: { color: colors.white, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  mediaTabs: { flexDirection: 'row-reverse', gap: 8, marginBottom: 14 },
+  mediaTab: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.charcoal,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  mediaTabOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  mediaTabText: { color: colors.white, fontWeight: '800' },
+  mediaTabTextOn: { color: colors.black },
   upload: {
     borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: '#CFCFCF',
+    borderColor: 'rgba(255,196,0,0.45)',
     borderRadius: 18,
     minHeight: 180,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.charcoal,
     padding: 20,
     gap: 8,
   },
-  uploadTitle: { fontSize: 18, fontWeight: '800', color: colors.black },
-  uploadHint: { color: colors.gray, textAlign: 'center' },
-  status: { color: colors.black, fontWeight: '700' },
+  uploadTitle: { fontSize: 18, fontWeight: '800', color: colors.white },
+  uploadHint: { color: 'rgba(255,255,255,0.55)', textAlign: 'center' },
+  status: { color: colors.white, fontWeight: '700' },
   uploadProgressWrap: { width: '100%', gap: 8, marginTop: 8 },
   uploadProgressTrack: {
     height: 8,
     borderRadius: 999,
-    backgroundColor: colors.border,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     overflow: 'hidden',
   },
   uploadProgressFill: { height: '100%', borderRadius: 999, backgroundColor: colors.primary },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: 14,
     minHeight: 54,
     paddingHorizontal: 14,
     fontSize: 16,
-    color: colors.black,
-    backgroundColor: colors.surface,
+    color: colors.white,
+    backgroundColor: colors.charcoal,
   },
   list: { gap: 8 },
-  chip: { padding: 14, borderRadius: 12, backgroundColor: colors.surface },
+  chip: { padding: 14, borderRadius: 12, backgroundColor: colors.charcoal },
   chipOn: { backgroundColor: colors.primary },
-  preview: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, gap: 8 },
-  previewTitle: { fontWeight: '800', fontSize: 18 },
+  chipText: { color: colors.white, fontWeight: '700' },
+  chipTextOn: { color: colors.black },
+  preview: { backgroundColor: colors.charcoal, borderRadius: 16, padding: 16, gap: 8 },
+  previewTitle: { fontWeight: '800', fontSize: 18, color: colors.white },
   next: {
     marginTop: 28,
     backgroundColor: colors.primary,
