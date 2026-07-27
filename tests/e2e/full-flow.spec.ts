@@ -75,7 +75,7 @@ test('full visual advertising flow with real video', async ({ page, context }) =
 
   await page.getByRole('button', { name: 'ادفع عبر Sandbox' }).click();
   await page.waitForURL('**/payments/sandbox/checkout**', { timeout: 30000 });
-  await expect(page.getByText('Webhook')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('Webhook result:')).toBeVisible({ timeout: 30000 });
   await page.screenshot({ path: `${ARTIFACTS}/06-sandbox-checkout-webhook.png`, fullPage: true });
 
   await page.goto(`/ads/${adId}/status`);
