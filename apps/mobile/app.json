@@ -2,7 +2,7 @@
   "expo": {
     "name": "إعلاني",
     "slug": "e3lani",
-    "version": "0.1.4-staging",
+    "version": "0.1.5-staging",
     "orientation": "portrait",
     "scheme": "e3lani",
     "userInterfaceStyle": "automatic",

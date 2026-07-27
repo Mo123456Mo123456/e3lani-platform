@@ -2,6 +2,19 @@
 
 ## الحكم
 
+Staging الدائم على Render **منشور**:
+
+| Service | URL |
+|---|---|
+| Web | https://e3lani-web-staging.onrender.com |
+| Admin | https://e3lani-admin-staging.onrender.com |
+| API | https://e3lani-api-staging.onrender.com/api/v1/health |
+| Android v5 | https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/visual-qa-phase3/e3lani-staging-release-v5.apk |
+
+المتبقي للمسار الكامل: ضبط `S3_*` على خدمة API (الرفع يعيد `STORAGE_NOT_CONFIGURED`).
+
+<details><summary>سجل الحظر السابق (قبل Render)</summary>
+
 لا يمكن إكمال **Staging دائم** من داخل وكيل Cursor الحالي بدون مفتاح API لمنصة استضافة.
 
 تم التحقق من:

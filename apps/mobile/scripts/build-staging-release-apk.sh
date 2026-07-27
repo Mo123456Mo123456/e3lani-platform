@@ -16,10 +16,18 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 # Export EXPO_PUBLIC_* for Metro/Expo embed (build-time bake into JS bundle).
+# Expo/.env loaders do NOT override already-exported shell vars — clear first.
+unset EXPO_PUBLIC_API_URL EXPO_PUBLIC_API_BASE_URL EXPO_PUBLIC_APP_ENV
+# Sync staging values into .env / .env.local so stale tunnel URLs cannot win.
+cp "$ENV_FILE" "$ROOT/.env"
+cp "$ENV_FILE" "$ROOT/.env.local"
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
+# Drop Metro/Expo caches that may pin a previous EXPO_PUBLIC_* inline.
+rm -rf "$ROOT/.expo" "$ROOT/node_modules/.cache" /tmp/metro-cache /tmp/metro-file-map-* 2>/dev/null || true
+rm -f "$ASSETS_DIR/index.android.bundle"
 
 # Prefer EXPO_PUBLIC_API_URL; fall back to EXPO_PUBLIC_API_BASE_URL.
 if [[ -z "${EXPO_PUBLIC_API_URL:-}" && -n "${EXPO_PUBLIC_API_BASE_URL:-}" ]]; then
