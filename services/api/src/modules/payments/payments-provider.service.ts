@@ -1,5 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { SandboxPaymentProvider, type PaymentProvider } from '@e3lani/payments';
+import {
+  ProductionPaymentProviderStub,
+  SandboxPaymentProvider,
+  type PaymentProvider,
+} from '@e3lani/payments';
 
 @Injectable()
 export class PaymentsProviderService implements OnModuleInit {
@@ -15,11 +19,23 @@ export class PaymentsProviderService implements OnModuleInit {
         process.env.API_PUBLIC_URL ?? 'http://localhost:3001',
       );
       this.providers.set('sandbox', this.sandbox);
+    } else {
+      const providerName = process.env.PAYMENT_PROVIDER ?? 'production';
+      this.providers.set(
+        providerName,
+        new ProductionPaymentProviderStub({ providerName, mode }),
+      );
     }
   }
 
   getProvider(name: string): PaymentProvider {
     const provider = this.providers.get(name);
+    const mode = process.env.PAYMENT_MODE ?? 'sandbox';
+    if (!provider && mode !== 'sandbox') {
+      const stub = new ProductionPaymentProviderStub({ providerName: name, mode });
+      this.providers.set(name, stub);
+      return stub;
+    }
     if (!provider) {
       throw new Error(`Payment provider not configured: ${name}`);
     }

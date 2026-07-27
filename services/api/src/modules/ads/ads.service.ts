@@ -11,14 +11,27 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AdStateService } from '../../common/ad-state.service';
 import { decorateAdMedia } from '../../common/media-urls';
 import { AuditService } from '../../common/audit.service';
+import {
+  ProductionModerationPlaceholderAdapter,
+  SandboxModerationAdapter,
+  moderationMode,
+  type ModerationAdapter,
+} from '../../adapters/moderation/moderation-adapter';
 
 @Injectable()
 export class AdsService {
+  private readonly moderation: ModerationAdapter;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly adState: AdStateService,
     private readonly audit: AuditService,
-  ) {}
+  ) {
+    this.moderation =
+      moderationMode() === 'production'
+        ? new ProductionModerationPlaceholderAdapter()
+        : new SandboxModerationAdapter();
+  }
 
   async listMine(ownerId: string) {
     const ads = await this.prisma.ad.findMany({
@@ -84,6 +97,7 @@ export class AdsService {
     const ad = await this.getById(adId);
     if (ad.ownerId !== ownerId) throw new ForbiddenException();
     if (!ad.currentRevision) throw new BadRequestException('REVISION_REQUIRED');
+    const revision = ad.currentRevision;
 
     const images = ad.media.filter((row) => row.asset.kind === MediaKind.IMAGE);
     const videos = ad.media.filter((row) => row.asset.kind === MediaKind.VIDEO);
@@ -101,12 +115,73 @@ export class AdsService {
       throw new BadRequestException('Video exceeds 60 seconds');
     }
 
-    return this.adState.transition({
+    const autoModeration = await this.moderation.autoModerate({
+      id: revision.id,
+      title: revision.title,
+      description: revision.description,
+      categoryId: revision.categoryId,
+      countryCode: revision.countryCode,
+      cityId: revision.cityId,
+    });
+
+    const pending = await this.adState.transition({
       adId,
       to: 'PENDING_REVIEW',
       actorId: ownerId,
       reason: 'Submitted for review',
     });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.adRevision.update({
+        where: { id: revision.id },
+        data: {
+          moderationStatus: autoModeration.decision,
+          moderationNotes: `auto:${autoModeration.decision}`,
+        },
+      });
+      await tx.moderationReview.create({
+        data: {
+          revisionId: revision.id,
+          status: autoModeration.decision,
+          riskScore: autoModeration.riskScore,
+          notes: `auto:${autoModeration.decision}`,
+          findings: {
+            create: autoModeration.findings.map((finding) => ({
+              code: finding.code,
+              severity: finding.severity,
+              detail: finding.detail,
+            })),
+          },
+        },
+      });
+    });
+
+    if (autoModeration.decision === 'AUTO_APPROVED') {
+      await this.prisma.ad.update({
+        where: { id: adId },
+        data: { approvedRevisionId: revision.id },
+      });
+      return this.adState.transition({
+        adId,
+        to: 'APPROVED_AWAITING_PAYMENT',
+        actorId: ownerId,
+        reason: 'Auto-approved by sandbox moderation',
+      });
+    }
+
+    if (autoModeration.decision === 'REJECTED') {
+      return this.adState.transition({
+        adId,
+        to: 'REJECTED',
+        actorId: ownerId,
+        reason: 'Rejected by auto-moderation',
+      });
+    }
+
+    return {
+      ...pending,
+      moderation: autoModeration,
+    };
   }
 
   async approve(adId: string, actorId: string, notes?: string) {

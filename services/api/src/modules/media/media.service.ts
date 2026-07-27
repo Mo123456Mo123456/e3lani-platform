@@ -17,9 +17,11 @@ import {
   createSandboxSignedUpload,
   createSignedUpload,
   createStorageClientFromEnv,
+  deleteObject,
   ensureBucketOrCreate,
   objectExists,
   resolveStorageEnv,
+  sandboxDeleteObject,
   sandboxEnsureRoot,
   sandboxGetObject,
   sandboxHeadObject,
@@ -315,6 +317,47 @@ export class MediaService implements OnModuleInit {
       include: { asset: true },
     });
     return { ...row, asset: await decorateAsset(row.asset, this.storageBinding()) };
+  }
+
+  async cleanupAsset(ownerId: string, assetId: string) {
+    const asset = await this.prisma.mediaAsset.findUnique({
+      where: { id: assetId },
+      include: { adMedia: true },
+    });
+    if (!asset || asset.ownerId !== ownerId) throw new BadRequestException('ASSET_NOT_FOUND');
+    if (asset.adMedia.length > 0 || asset.status === 'READY') {
+      throw new BadRequestException('MEDIA_ASSET_IN_USE');
+    }
+
+    assertAllowedStorageKey(asset.storageKey);
+    if (asset.posterKey) assertAllowedStorageKey(asset.posterKey);
+
+    const deletedKeys: string[] = [];
+    if (this.sandboxMode) {
+      await sandboxDeleteObject(asset.storageKey);
+      deletedKeys.push(asset.storageKey);
+      if (asset.posterKey) {
+        await sandboxDeleteObject(asset.posterKey);
+        deletedKeys.push(asset.posterKey);
+      }
+    } else if (this.client && this.config) {
+      await deleteObject(this.client, { bucket: this.config.bucket, key: asset.storageKey });
+      deletedKeys.push(asset.storageKey);
+      if (asset.posterKey) {
+        await deleteObject(this.client, { bucket: this.config.bucket, key: asset.posterKey });
+        deletedKeys.push(asset.posterKey);
+      }
+    } else {
+      throw new ServiceUnavailableException('STORAGE_NOT_CONFIGURED');
+    }
+
+    await this.prisma.mediaAsset.delete({ where: { id: assetId } });
+    return {
+      ok: true,
+      assetId,
+      deletedKeys,
+      mode: this.sandboxMode ? 'sandbox' : 'object-storage',
+    };
   }
 
   private async enqueueProcessing(

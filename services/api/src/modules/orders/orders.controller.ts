@@ -11,7 +11,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { PlatformChannel } from '@e3lani/types';
-import { requireUserId } from '../../common/auth.util';
+import { assertRole, requireUserId } from '../../common/auth.util';
 import { OrdersService } from './orders.service';
 
 @ApiTags('orders')
@@ -61,5 +61,27 @@ export class OrdersController {
   verifyRedirect(@Param('id') id: string) {
     // Intentionally does not activate — documents fail-closed redirect policy.
     return this.orders.rejectRedirectActivation(id);
+  }
+
+  @ApiBearerAuth()
+  @Post('orders/:id/refunds')
+  async refund(
+    @Param('id') id: string,
+    @Headers('authorization') authorization: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: { amount?: number; reason?: string },
+  ) {
+    const user = await requireUserId(this.jwt, authorization);
+    assertRole(user, ['FINANCE', 'SUPER_ADMIN']);
+    if (!idempotencyKey) {
+      throw new UnauthorizedException('IDEMPOTENCY_KEY_REQUIRED');
+    }
+    return this.orders.refundOrder({
+      orderId: id,
+      actorId: user.sub,
+      amount: body.amount,
+      reason: body.reason,
+      idempotencyKey,
+    });
   }
 }

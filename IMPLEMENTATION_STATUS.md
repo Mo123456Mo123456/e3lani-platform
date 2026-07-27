@@ -26,29 +26,29 @@ Foundation phase aligns pricing to **19/5/5/10/20/15/5 SAR**, adds **sandbox sto
 | OTP sandbox | DONE | `packages/auth`, `POST /auth/request-otp`, `verify-otp` |
 | Production OTP adapter | PARTIAL | Fail-closed placeholder only |
 | JWT access | DONE | 15m access token |
-| Refresh rotation / logout | MISSING | Session hash stored; no `/auth/refresh` or revoke |
+| Refresh rotation / logout | DONE | `POST /auth/refresh`, `POST /auth/logout` |
 | Roles + permissions map | DONE | Prisma `Role` + `packages/auth/permissions` |
-| Profile update / suspension APIs | PARTIAL | Schema fields; limited APIs |
-| Audit log writes | PARTIAL | Model exists; few/no writes |
-| Ad state machine | PARTIAL | Transitions exist; pause/schedule/expire/republish APIs thin |
-| Pricing engine | PARTIAL | Engine DONE; amounts = master brief 19/5/5/10/20/15/5 |
+| Profile update / suspension APIs | DONE | `PATCH /users/me`; suspension enforced |
+| Audit log writes | DONE | `AuditService` on auth/profile/ads |
+| Ad state machine | DONE | pause/resume/schedule/expire/republish/extend/share |
+| Pricing engine | DONE | Engine + amounts = master brief 19/5/5/10/20/15/5 |
 | Sandbox payments + webhooks | DONE | HMAC sandbox checkout |
 | Production payment adapters | MISSING | Interface + disabled stubs |
 | Refunds API | MISSING | |
 | Categories + SA geo seed | DONE | 21 categories + cities; bootstrap seed |
-| Feed tabs | PARTIAL | forYou/latest; nearby stubs |
-| Search / filters | MISSING | |
+| Feed tabs | DONE | forYou/latest/nearby + search/filters |
+| Search / filters | DONE | `GET /feed/search` |
 | Saved ads | DONE | |
-| Sharing | MISSING | |
+| Sharing | DONE | `POST /ads/:id/share` + analytics event |
 | Media signed upload + inline process | DONE | R2 + sandbox disk store; `/media/sandbox/{upload,download}` |
 | Media worker | PARTIAL | Code present; not on Render Free |
 | Admin review queue | DONE | approve / needs-changes / reject |
-| Reports / appeals APIs | MISSING | Report model only |
-| Notifications | MISSING | Model only |
-| Analytics ingest | MISSING | Model only |
-| Enterprise campaigns | MISSING | |
+| Reports / appeals APIs | DONE | reports + appeals modules |
+| Notifications | DONE | list/read + emit on ad lifecycle |
+| Analytics ingest | DONE | `POST /analytics/events` + ad summary |
+| Enterprise campaigns | PARTIAL | Campaign CRUD skeleton |
 | Health / ready | DONE | Includes storage summary |
-| Rate limiting | MISSING | |
+| Rate limiting | DONE | OTP routes in-memory sliding window |
 | CORS | DONE | `CORS_ORIGINS` |
 | GitHub Actions CI | DONE | `.github/workflows/ci.yml` |
 | Migrations | DONE | Init migration + `migrate deploy` on Render |

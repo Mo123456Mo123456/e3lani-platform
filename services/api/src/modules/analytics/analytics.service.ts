@@ -34,15 +34,81 @@ export class AnalyticsService {
     if (!ad) throw new NotFoundException('AD_NOT_FOUND');
     if (ad.ownerId !== ownerId) throw new ForbiddenException();
 
-    const rows = await this.prisma.analyticsEvent.groupBy({
-      by: ['name'],
-      where: { adId },
-      _count: { _all: true },
-    });
+    const aggregate = await this.aggregateAd(adId);
 
     return {
       adId,
-      counts: Object.fromEntries(rows.map((row) => [row.name, row._count._all])),
+      ...aggregate,
     };
+  }
+
+  async aggregateAd(adId: string) {
+    const [rows, total, uniqueUsers, uniqueSessions, firstEvent, lastEvent] = await Promise.all([
+      this.prisma.analyticsEvent.groupBy({
+        by: ['name'],
+        where: { adId },
+        _count: { _all: true },
+      }),
+      this.prisma.analyticsEvent.count({ where: { adId } }),
+      this.prisma.analyticsEvent.groupBy({
+        by: ['userId'],
+        where: { adId, userId: { not: null } },
+        _count: { _all: true },
+      }),
+      this.prisma.analyticsEvent.groupBy({
+        by: ['sessionId'],
+        where: { adId, sessionId: { not: null } },
+        _count: { _all: true },
+      }),
+      this.prisma.analyticsEvent.findFirst({
+        where: { adId },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+      this.prisma.analyticsEvent.findFirst({
+        where: { adId },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    return {
+      counts: Object.fromEntries(rows.map((row) => [row.name, row._count._all])),
+      totals: {
+        events: total,
+        uniqueUsers: uniqueUsers.length,
+        uniqueSessions: uniqueSessions.length,
+      },
+      window: {
+        firstEventAt: firstEvent?.createdAt.toISOString() ?? null,
+        lastEventAt: lastEvent?.createdAt.toISOString() ?? null,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async runDailyRollup(adIds?: string[]) {
+    const ids =
+      adIds ??
+      (
+        await this.prisma.ad.findMany({
+          where: { deletedAt: null },
+          select: { id: true },
+        })
+      ).map((ad) => ad.id);
+
+    const summaries = await Promise.all(
+      ids.map(async (adId) => {
+        const aggregate = await this.aggregateAd(adId);
+        await this.prisma.systemSetting.upsert({
+          where: { key: `analytics:ad:${adId}` },
+          create: { key: `analytics:ad:${adId}`, value: aggregate },
+          update: { value: aggregate },
+        });
+        return { adId, ...aggregate };
+      }),
+    );
+
+    return { ok: true, count: summaries.length, summaries };
   }
 }

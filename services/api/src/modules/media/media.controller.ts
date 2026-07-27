@@ -110,6 +110,16 @@ export class MediaController {
   }
 
   @ApiBearerAuth()
+  @Post('media/:assetId/cleanup')
+  async cleanup(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('assetId') assetId: string,
+  ) {
+    const user = await requireUserId(this.jwt, authorization);
+    return this.media.cleanupAsset(user.sub, assetId);
+  }
+
+  @ApiBearerAuth()
   @Post('ads/:adId/media')
   async attach(
     @Headers('authorization') authorization: string | undefined,
