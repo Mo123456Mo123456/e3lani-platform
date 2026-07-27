@@ -9,11 +9,20 @@ Compressed screenshots from the visual QA pass. Large media is **not** stored he
 - WebM: https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/visual-qa-phase3/full-flow-recording.webm
 - Short GIF preview: `full-flow-preview.gif` (also on the same Release)
 
+
+## Android Staging Release (standalone, no Metro)
+
+- Report: [`ANDROID_STAGING_RELEASE_REPORT.md`](./ANDROID_STAGING_RELEASE_REPORT.md)
+- APK (GitHub Release): https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/visual-qa-phase3/e3lani-staging-release.apk
+- Emulator UI (bundle loaded): `android-release-ui-loaded.png`
+- Version: `0.1.3-staging` (versionCode `3`)
+
 ## Android APK (installable)
 
-- https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/visual-qa-phase3/e3lani-debug.apk
+- Release (use this): https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/visual-qa-phase3/e3lani-staging-release.apk
+- Legacy debug (Metro-dependent): https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/visual-qa-phase3/e3lani-debug.apk
 
-Debug APK built via Expo prebuild + Gradle (`assembleDebug`). Points at the sandbox API used during this agent run.
+Prefer the **staging release** APK. It embeds `index.android.bundle` and does not require Metro.
 
 ## Screenshot index
 

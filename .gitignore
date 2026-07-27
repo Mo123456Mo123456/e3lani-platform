@@ -13,9 +13,23 @@ coverage
 uploads
 tmp
 .pnpm-store
+# Native folders are generally ignored (Expo prebuild), but we track the
+# mobile Android project so Release signing/bundling config is reproducible.
 android
+!apps/mobile/android/
+!apps/mobile/android/**
+apps/mobile/android/.gradle/
+apps/mobile/android/**/build/
+apps/mobile/android/app/build/
+apps/mobile/android/build/
+apps/mobile/android/app/src/main/assets/index.android.bundle
+apps/mobile/android/app/src/main/assets/app.config
+apps/mobile/android/app/src/main/res/drawable-*/__node_modules_*
+apps/mobile/android/local.properties
+apps/mobile/android/app/.cxx/
 ios
 web-build
+docs/visual-evidence/*.apk
 .vercel
 *.pem
 service-account*.json

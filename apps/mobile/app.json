@@ -2,7 +2,7 @@
   "expo": {
     "name": "إعلاني",
     "slug": "e3lani",
-    "version": "0.1.0",
+    "version": "0.1.3-staging",
     "orientation": "portrait",
     "scheme": "e3lani",
     "userInterfaceStyle": "automatic",
@@ -37,7 +37,9 @@
         {
           "iCloudContainerEnvironment": "Production"
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
