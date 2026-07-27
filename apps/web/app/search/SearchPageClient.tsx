@@ -190,7 +190,9 @@ export default function SearchPageClient() {
 
       <div className="grid-2">
         {items.map((ad) => {
-          const media = ad.media?.[0]?.asset;
+          const media =
+            ad.media?.find((row) => row.asset?.kind === 'VIDEO')?.asset ??
+            ad.media?.[0]?.asset;
           const title = ad.currentRevision?.title ?? (isAr ? 'إعلان' : 'Ad');
           return (
             <Link key={ad.id} className="panel search-result-card" href={`/ads/${ad.id}`}>
