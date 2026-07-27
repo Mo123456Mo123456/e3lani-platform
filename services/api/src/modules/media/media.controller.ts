@@ -25,6 +25,17 @@ function readUploadBody(req: RawBodyRequest<Request>): Buffer {
   throw new BadRequestException('RAW_BODY_REQUIRED');
 }
 
+function inferContentTypeFromKey(key: string): string {
+  const lower = key.toLowerCase();
+  if (lower.endsWith('.mp4')) return 'video/mp4';
+  if (lower.endsWith('.mov')) return 'video/quicktime';
+  if (lower.endsWith('.webm')) return 'video/webm';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  return 'application/octet-stream';
+}
+
 @ApiTags('media')
 @Controller()
 export class MediaController {
