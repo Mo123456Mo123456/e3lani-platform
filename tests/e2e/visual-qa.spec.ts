@@ -72,7 +72,7 @@ test('desktop full-flow screen recording + main screens', async ({ page, context
 
   // Login OTP
   const phone = `+9665${String(Date.now()).slice(-8)}`;
-  const uniqueTitle = `تدقيق مرئي ${Date.now()}`;
+  const uniqueTitle = `تدقيق مرئي urgent ${Date.now()}`;
   await page.goto('/login');
   await page.locator('input').first().fill(phone);
   await page.getByRole('button', { name: 'إرسال الرمز' }).click();

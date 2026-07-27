@@ -26,7 +26,7 @@ async function apiJson(
 
 test('full visual advertising flow with real video', async ({ page, context }) => {
   test.setTimeout(420000);
-  const uniqueTitle = `إعلان فيديو Phase3 ${Date.now()}`;
+  const uniqueTitle = `إعلان فيديو urgent Phase3 ${Date.now()}`;
   const phone = `+9665${String(Date.now()).slice(-8)}`;
 
   await page.goto('/login');
