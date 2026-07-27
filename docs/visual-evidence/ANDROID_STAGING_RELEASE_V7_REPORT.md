@@ -22,7 +22,13 @@ API baked: `https://e3lani-api-staging.onrender.com/api/v1`
 
 Installable standalone Release APK (embedded `assets/index.android.bundle`; no Metro required).
 
-Binary is gitignored under `apps/mobile/dist/`. Cloud agent copy: `/opt/cursor/artifacts/e3lani-staging-release-v7.apk`.
+Binary is gitignored under `apps/mobile/dist/`.
+
+## Public download (GitHub Release)
+
+- Release: https://github.com/Mo123456Mo123456/e3lani-platform/releases/tag/staging-apk-v7
+- Direct HTTPS: https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/staging-apk-v7/e3lani-staging-release-v7.apk
+- Repo is private — open the link while logged into GitHub with repo access (mobile browser/GitHub app).
 
 ## Verification
 
