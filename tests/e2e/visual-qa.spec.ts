@@ -49,6 +49,7 @@ function attachCollectors(page: Page) {
 test.describe.configure({ mode: 'serial' });
 
 test('desktop full-flow screen recording + main screens', async ({ page, context }) => {
+  test.setTimeout(420000);
   const { consoleErrors, failedRequests } = attachCollectors(page);
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -81,11 +82,12 @@ test('desktop full-flow screen recording + main screens', async ({ page, context
   await page.waitForURL('**/account');
   await page.screenshot({ path: `${ARTIFACTS}/desktop-04-account.png`, fullPage: true });
 
-  // Create + upload video
+  // Create + upload image + video (minImages=1)
   await page.goto('/ads/new');
   await page.screenshot({ path: `${ARTIFACTS}/desktop-05-create.png`, fullPage: true });
+  const imagePath = join(process.cwd(), 'tests/fixtures/sample-ad.jpg');
   const videoPath = join(process.cwd(), 'tests/fixtures/sample-ad.mp4');
-  await page.locator('input[type="file"]').setInputFiles(videoPath);
+  await page.locator('input[type="file"]').setInputFiles([imagePath, videoPath]);
   await expect(page.getByText('sample-ad.mp4')).toBeVisible();
   await page.screenshot({ path: `${ARTIFACTS}/desktop-06-upload-video.png`, fullPage: true });
   await page.getByRole('button', { name: 'التالي' }).click();
@@ -94,7 +96,7 @@ test('desktop full-flow screen recording + main screens', async ({ page, context
   await expect(page.locator('select option').first()).toBeAttached({ timeout: 15000 });
   for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'التالي' }).click();
   await page.getByRole('button', { name: 'إرسال للمراجعة' }).click();
-  await page.waitForURL('**/status', { timeout: 180000 });
+  await page.waitForURL('**/status', { timeout: 300000 });
   await expect(page.getByText('قيد المراجعة')).toBeVisible({ timeout: 30000 });
   await page.screenshot({ path: `${ARTIFACTS}/desktop-07-ad-status-pending.png`, fullPage: true });
 
@@ -132,13 +134,13 @@ test('desktop full-flow screen recording + main screens', async ({ page, context
   await expect(page.locator('video')).toBeVisible({ timeout: 15000 });
   await page.screenshot({ path: `${ARTIFACTS}/desktop-12-ad-page.png`, fullPage: true });
 
-  const me = await page.evaluate(async () => {
+  const me = await page.evaluate(async (apiBase) => {
     const token = localStorage.getItem('e3lani_access_token');
-    const res = await fetch('http://127.0.0.1:3001/api/v1/users/me', {
+    const res = await fetch(`${apiBase}/users/me`, {
       headers: { authorization: `Bearer ${token}` },
     });
     return res.json();
-  });
+  }, API);
   const brandSlug = me?.brandProfile?.slug;
   expect(brandSlug).toBeTruthy();
   await page.goto(`/brands/${brandSlug}`);

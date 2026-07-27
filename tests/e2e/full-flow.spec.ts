@@ -25,6 +25,7 @@ async function apiJson(
 }
 
 test('full visual advertising flow with real video', async ({ page, context }) => {
+  test.setTimeout(420000);
   const uniqueTitle = `إعلان فيديو Phase3 ${Date.now()}`;
   const phone = `+9665${String(Date.now()).slice(-8)}`;
 
@@ -37,8 +38,9 @@ test('full visual advertising flow with real video', async ({ page, context }) =
   await page.screenshot({ path: `${ARTIFACTS}/01-account.png`, fullPage: true });
 
   await page.goto('/ads/new');
+  const imagePath = join(process.cwd(), 'tests/fixtures/sample-ad.jpg');
   const videoPath = join(process.cwd(), 'tests/fixtures/sample-ad.mp4');
-  await page.locator('input[type="file"]').setInputFiles(videoPath);
+  await page.locator('input[type="file"]').setInputFiles([imagePath, videoPath]);
   await page.getByRole('button', { name: 'التالي' }).click();
   await page.getByPlaceholder('عنوان الإعلان').fill(uniqueTitle);
   await page.getByRole('button', { name: 'التالي' }).click();
@@ -47,7 +49,7 @@ test('full visual advertising flow with real video', async ({ page, context }) =
     await page.getByRole('button', { name: 'التالي' }).click();
   }
   await page.getByRole('button', { name: 'إرسال للمراجعة' }).click();
-  await page.waitForURL('**/status', { timeout: 180000 });
+  await page.waitForURL('**/status', { timeout: 300000 });
   await expect(page.getByText('قيد المراجعة')).toBeVisible({ timeout: 30000 });
   await page.screenshot({ path: `${ARTIFACTS}/02-ad-pending-review.png`, fullPage: true });
 

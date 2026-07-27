@@ -97,7 +97,7 @@ export class AdsService {
     const images = ad.media.filter((row) => row.asset.kind === MediaKind.IMAGE);
     const videos = ad.media.filter((row) => row.asset.kind === MediaKind.VIDEO);
     if (images.length < MEDIA_LIMITS.minImages) {
-      throw new BadRequestException(`At least ${MEDIA_LIMITS.minImages} image required`);
+      throw new BadRequestException(`يلزم صورة واحدة على الأقل (${MEDIA_LIMITS.minImages})`);
     }
     if (images.length > MEDIA_LIMITS.maxImages) {
       throw new BadRequestException(`Max ${MEDIA_LIMITS.maxImages} images per ad`);

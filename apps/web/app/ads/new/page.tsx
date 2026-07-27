@@ -10,6 +10,10 @@ import { api, getToken } from '../../../lib/api';
 const steps = ['الوسائط', 'العنوان', 'القسم', 'المدينة', 'التواصل', 'معاينة'];
 const publishPrice = DEFAULT_SA_PRICING.AD_PUBLISH_30D;
 
+function mediaKind(file: File): 'image' | 'video' {
+  return file.type.startsWith('video/') ? 'video' : 'image';
+}
+
 export default function CreateAdPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -21,7 +25,7 @@ export default function CreateAdPage() {
   const [cityId, setCityId] = useState('');
   const [whatsapp, setWhatsapp] = useState('+966512345678');
   const [storeUrl, setStoreUrl] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [mediaStatus, setMediaStatus] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,20 +40,40 @@ export default function CreateAdPage() {
     });
   }, [router]);
 
-  const kind = useMemo(() => {
-    if (!file) return null;
-    return file.type.startsWith('video/') ? 'video' : 'image';
-  }, [file]);
+  const imageCount = useMemo(
+    () => files.filter((file) => mediaKind(file) === 'image').length,
+    [files],
+  );
+  const videoCount = useMemo(
+    () => files.filter((file) => mediaKind(file) === 'video').length,
+    [files],
+  );
+  const canProceedMedia = imageCount >= 1;
+
+  async function uploadOne(adId: string, file: File, sortOrder: number) {
+    const kind = mediaKind(file);
+    if (kind === 'video' && file.size > 200 * 1024 * 1024) {
+      throw new Error('الفيديو يتجاوز 200MB');
+    }
+    const intent = await api.uploadIntent({
+      kind,
+      mimeType: file.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg'),
+      sizeBytes: file.size,
+      durationSeconds: kind === 'video' ? 2 : undefined,
+    });
+    await uploadFileToSignedUrl(intent.uploadUrl, file, intent.headers);
+    await api.completeUpload(intent.assetId);
+    const ready = await pollMediaReady(api, intent.assetId, { timeoutMs: 180000 });
+    if (ready.status === 'FAILED') throw new Error(`فشلت معالجة الوسائط: ${file.name}`);
+    await api.attachMedia(adId, intent.assetId, sortOrder);
+  }
 
   async function submit() {
     setBusy(true);
     setError('');
     try {
-      if (!file || !kind) throw new Error('اختر صورة أو فيديو');
-      if (kind === 'video') {
-        if (file.size > 200 * 1024 * 1024) throw new Error('الفيديو يتجاوز 200MB');
-        // duration validated server-side when provided; client hint via video element optional
-      }
+      if (files.length === 0) throw new Error('اختر صورة واحدة على الأقل (وفيديو اختياري)');
+      if (imageCount < 1) throw new Error('يلزم صورة واحدة على الأقل مع الفيديو');
 
       const ad = await api.createAd({
         title,
@@ -63,20 +87,16 @@ export default function CreateAdPage() {
         },
       });
 
-      setMediaStatus('UPLOADING');
-      const intent = await api.uploadIntent({
-        kind,
-        mimeType: file.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg'),
-        sizeBytes: file.size,
-        durationSeconds: kind === 'video' ? 2 : undefined,
-      });
-      await uploadFileToSignedUrl(intent.uploadUrl, file, intent.headers);
-      setMediaStatus('PROCESSING');
-      await api.completeUpload(intent.assetId);
-      const ready = await pollMediaReady(api, intent.assetId, { timeoutMs: 120000 });
-      if (ready.status === 'FAILED') throw new Error('فشلت معالجة الوسائط');
+      // Images first, then videos — matches feed poster expectations.
+      const ordered = [
+        ...files.filter((file) => mediaKind(file) === 'image'),
+        ...files.filter((file) => mediaKind(file) === 'video'),
+      ];
+      for (let i = 0; i < ordered.length; i++) {
+        setMediaStatus(`UPLOADING ${i + 1}/${ordered.length}`);
+        await uploadOne(ad.id, ordered[i], i);
+      }
       setMediaStatus('READY');
-      await api.attachMedia(ad.id, intent.assetId, 0);
       await api.submitReview(ad.id);
       router.push(`/ads/${ad.id}/status`);
     } catch (e) {
@@ -103,22 +123,43 @@ export default function CreateAdPage() {
           <>
             <input
               type="file"
+              multiple
               accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
             />
-            <p className="muted">صور JPG/PNG/WebP أو فيديو MP4/MOV حتى 60 ثانية و200MB. لا تحويل صور إلى فيديو.</p>
-            {file ? (
-              <p>
-                الملف: {file.name} · {(file.size / (1024 * 1024)).toFixed(2)} MB · {kind}
-              </p>
+            <p className="muted">
+              صورة واحدة على الأقل (JPG/PNG/WebP) + فيديو اختياري (MP4/MOV حتى 60 ثانية و200MB). يمكن اختيار عدة
+              ملفات معًا.
+            </p>
+            {files.length > 0 ? (
+              <ul className="muted" style={{ margin: 0, paddingInlineStart: 18 }}>
+                {files.map((file) => (
+                  <li key={`${file.name}-${file.size}`}>
+                    {file.name} · {(file.size / (1024 * 1024)).toFixed(2)} MB · {mediaKind(file)}
+                  </li>
+                ))}
+              </ul>
             ) : null}
+            <p className="badge">
+              صور: {imageCount} · فيديو: {videoCount}
+            </p>
             {mediaStatus ? <p className="badge">حالة الوسائط: {mediaStatus}</p> : null}
           </>
         ) : null}
         {step === 1 ? (
           <>
-            <input className="input" placeholder="عنوان الإعلان" value={title} onChange={(e) => setTitle(e.target.value)} />
-            <textarea className="textarea" placeholder="الوصف (اختياري)" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <input
+              className="input"
+              placeholder="عنوان الإعلان"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <textarea
+              className="textarea"
+              placeholder="الوصف (اختياري)"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </>
         ) : null}
         {step === 2 ? (
@@ -141,14 +182,27 @@ export default function CreateAdPage() {
         ) : null}
         {step === 4 ? (
           <>
-            <input className="input" placeholder="واتساب" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
-            <input className="input" placeholder="رابط المتجر (اختياري)" value={storeUrl} onChange={(e) => setStoreUrl(e.target.value)} />
+            <input
+              className="input"
+              placeholder="واتساب"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+            />
+            <input
+              className="input"
+              placeholder="رابط المتجر (اختياري)"
+              value={storeUrl}
+              onChange={(e) => setStoreUrl(e.target.value)}
+            />
           </>
         ) : null}
         {step === 5 ? (
           <div className="stack">
             <strong>{title || 'بدون عنوان'}</strong>
             <span className="muted">{description || 'بدون وصف'}</span>
+            <span className="muted">
+              وسائط: {imageCount} صورة · {videoCount} فيديو
+            </span>
             <span>
               المراجعة مجانية. الدفع يظهر بعد القبول فقط ({publishPrice.amount} {publishPrice.currency}).
             </span>
@@ -169,7 +223,7 @@ export default function CreateAdPage() {
               onClick={() => setStep((s) => s + 1)}
               disabled={
                 busy ||
-                (step === 0 && !file) ||
+                (step === 0 && !canProceedMedia) ||
                 (step === 1 && title.trim().length < 3) ||
                 (step === 2 && !categoryId) ||
                 (step === 3 && !cityId)
@@ -178,7 +232,11 @@ export default function CreateAdPage() {
               التالي
             </button>
           ) : (
-            <button className="btn btn-primary" onClick={submit} disabled={busy || !categoryId || !cityId || !file}>
+            <button
+              className="btn btn-primary"
+              onClick={submit}
+              disabled={busy || !categoryId || !cityId || !canProceedMedia}
+            >
               {busy ? 'جاري الرفع والمعالجة...' : 'إرسال للمراجعة'}
             </button>
           )}

@@ -225,19 +225,25 @@ export function createApiClient(options: ApiClientOptions) {
       request('POST', `/ads/${adId}/media`, { body: { assetId, sortOrder } }),
     paymentOptions: (adId: string) =>
       request<PaymentOptions>('GET', `/ads/${adId}/payment-options?platform=web`, { auth: false }),
-    createOrder: (adId: string, idempotencyKey: string, urls?: { successUrl?: string; cancelUrl?: string }) =>
-      request<{
+    createOrder: (adId: string, idempotencyKey: string, urls?: { successUrl?: string; cancelUrl?: string }) => {
+      const webOrigin = (
+        process.env.EXPO_PUBLIC_WEB_URL ??
+        process.env.NEXT_PUBLIC_SITE_URL ??
+        'https://e3lani-web-staging.onrender.com'
+      ).replace(/\/$/, '');
+      return request<{
         order: { id: string; total: string | number; status: string };
         checkout: { checkoutUrl?: string; providerReference: string };
         activationPolicy: string;
       }>('POST', '/orders', {
         body: {
           adId,
-          successUrl: urls?.successUrl ?? 'http://localhost:3000/payment/success',
-          cancelUrl: urls?.cancelUrl ?? 'http://localhost:3000/payment/cancel',
+          successUrl: urls?.successUrl ?? `${webOrigin}/payment/success`,
+          cancelUrl: urls?.cancelUrl ?? `${webOrigin}/payment/cancel`,
         },
         headers: { 'idempotency-key': idempotencyKey },
-      }),
+      });
+    },
     saved: () => request<Array<{ ad: AdDetail }>>('GET', '/saved'),
     saveAd: (id: string) => request('POST', `/ads/${id}/save`),
     unsaveAd: (id: string) => request('DELETE', `/ads/${id}/save`),
