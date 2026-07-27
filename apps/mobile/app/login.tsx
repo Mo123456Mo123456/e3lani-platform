@@ -3,12 +3,14 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConnectionError } from '../src/components/ConnectionError';
-import { api, setToken } from '../src/lib/api';
+import { api, setAuthTokens } from '../src/lib/api';
+import { useLocale } from '../src/lib/locale';
 import { colors } from '../src/theme';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { locale, rowDirection, textAlign } = useLocale();
   const [phone, setPhone] = useState('+966512345678');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -17,10 +19,12 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 24 }]}>
-      <Text style={styles.title}>دخول إعلاني</Text>
+      <View style={[styles.header, { flexDirection: rowDirection }]}>
+        <Text style={[styles.title, { textAlign }]}>{locale === 'ar' ? 'دخول إعلاني' : 'Sign in to E3lani'}</Text>
+      </View>
       {step === 'phone' ? (
         <>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} textAlign="right" />
+          <TextInput style={styles.input} value={phone} onChangeText={setPhone} textAlign={textAlign} />
           <Pressable
             style={styles.btn}
             onPress={async () => {
@@ -28,10 +32,14 @@ export default function LoginScreen() {
                 const res = await api.requestOtp({
                   phone,
                   acceptedTerms: true,
-                  locale: 'ar',
+                  locale,
                   countryCode: 'SA',
                 });
-                setHint(res.sandboxCode ? `رمز التجربة: ${res.sandboxCode}` : '');
+                setHint(
+                  res.sandboxCode
+                    ? `${locale === 'ar' ? 'رمز التجربة' : 'Sandbox code'}: ${res.sandboxCode}`
+                    : '',
+                );
                 if (res.sandboxCode) setCode(res.sandboxCode);
                 setStep('otp');
               } catch (e) {
@@ -39,13 +47,13 @@ export default function LoginScreen() {
               }
             }}
           >
-            <Text style={styles.btnText}>إرسال الرمز</Text>
+            <Text style={styles.btnText}>{locale === 'ar' ? 'إرسال الرمز' : 'Send code'}</Text>
           </Pressable>
         </>
       ) : (
         <>
-          <TextInput style={styles.input} value={code} onChangeText={setCode} textAlign="right" />
-          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+          <TextInput style={styles.input} value={code} onChangeText={setCode} textAlign={textAlign} />
+          {hint ? <Text style={[styles.hint, { textAlign }]}>{hint}</Text> : null}
           <Pressable
             style={styles.btn}
             onPress={async () => {
@@ -55,14 +63,14 @@ export default function LoginScreen() {
                   code,
                   deviceId: 'e3lani-android',
                 });
-                setToken(res.accessToken);
+                setAuthTokens(res);
                 router.replace('/account');
               } catch (e) {
                 setError((e as Error).message);
               }
             }}
           >
-            <Text style={styles.btnText}>تأكيد</Text>
+            <Text style={styles.btnText}>{locale === 'ar' ? 'تأكيد' : 'Confirm'}</Text>
           </Pressable>
         </>
       )}
@@ -79,7 +87,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: 20 },
-  title: { fontSize: 28, fontWeight: '800', textAlign: 'right', marginBottom: 20 },
+  header: { alignItems: 'center', marginBottom: 20 },
+  title: { flex: 1, fontSize: 28, fontWeight: '800' },
   input: {
     borderWidth: 1,
     borderColor: colors.border,

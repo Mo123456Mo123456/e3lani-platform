@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
-import { t } from '@e3lani/i18n';
+import { useLocale } from '../lib/locale';
 import { colors } from '../theme';
 
 const tabs = [
@@ -14,6 +14,7 @@ const tabs = [
 export function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useLocale();
 
   return (
     <View style={styles.wrap} accessibilityRole="tablist">
@@ -24,7 +25,7 @@ export function BottomNav() {
             <Pressable
               key={tab.href}
               accessibilityRole="button"
-              accessibilityLabel={t('ar', tab.labelKey)}
+              accessibilityLabel={t(tab.labelKey)}
               onPress={() => router.push(tab.href as never)}
               style={styles.centerBtn}
             >
@@ -40,7 +41,7 @@ export function BottomNav() {
             onPress={() => router.push(tab.href as never)}
             style={styles.tab}
           >
-            <Text style={[styles.tabLabel, active && styles.tabActive]}>{t('ar', tab.labelKey)}</Text>
+            <Text style={[styles.tabLabel, active && styles.tabActive]}>{t(tab.labelKey)}</Text>
           </Pressable>
         );
       })}

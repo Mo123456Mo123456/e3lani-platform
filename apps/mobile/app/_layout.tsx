@@ -1,16 +1,14 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { I18nManager } from 'react-native';
+import { LocaleProvider } from '../src/lib/locale';
 import { colors } from '../src/theme';
 
-if (!I18nManager.isRTL) {
-  I18nManager.allowRTL(true);
-  I18nManager.forceRTL(true);
-}
+I18nManager.allowRTL(true);
 
 export default function RootLayout() {
   return (
-    <>
+    <LocaleProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -19,6 +17,6 @@ export default function RootLayout() {
           animation: 'fade',
         }}
       />
-    </>
+    </LocaleProvider>
   );
 }

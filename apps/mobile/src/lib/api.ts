@@ -1,6 +1,7 @@
 import { createApiClient } from '@e3lani/api-client';
 
 let token: string | null = null;
+let refreshToken: string | null = null;
 
 export function getToken() {
   return token;
@@ -8,6 +9,19 @@ export function getToken() {
 
 export function setToken(value: string | null) {
   token = value;
+}
+
+export function getRefreshToken() {
+  return refreshToken;
+}
+
+export function setRefreshToken(value: string | null) {
+  refreshToken = value;
+}
+
+export function setAuthTokens(tokens: { accessToken: string; refreshToken: string } | null) {
+  token = tokens?.accessToken ?? null;
+  refreshToken = tokens?.refreshToken ?? null;
 }
 
 /**
@@ -52,6 +66,9 @@ export const apiOrigin = apiBaseUrl.replace(/\/api\/v1$/i, '');
 export const api = createApiClient({
   baseUrl: apiBaseUrl,
   getToken,
+  getRefreshToken,
+  setTokens: setAuthTokens,
+  onAuthExpired: () => setAuthTokens(null),
   timeoutMs: 20_000,
 });
 
