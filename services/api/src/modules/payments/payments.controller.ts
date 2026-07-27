@@ -2,6 +2,7 @@ import { Controller, Get, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { randomUUID } from 'crypto';
+import { apiPublicBaseUrl } from '@e3lani/storage';
 import { PaymentsProviderService } from './payments-provider.service';
 
 @ApiTags('payments')
@@ -35,7 +36,7 @@ export class PaymentsController {
     const body = JSON.stringify(payload);
     const timestamp = String(Date.now());
     const signature = sandbox.signPayload(body, timestamp);
-    const apiBase = process.env.API_PUBLIC_URL ?? 'http://127.0.0.1:3001';
+    const apiBase = apiPublicBaseUrl();
 
     let webhookResult = 'pending';
     try {

@@ -37,8 +37,9 @@ services:
         value: sandbox
       - key: MEDIA_PROCESSING_MODE
         value: inline
+      # Staging-only known secret so smoke can sign webhooks. Never reuse in production.
       - key: SANDBOX_PAYMENT_WEBHOOK_SECRET
-        generateValue: true
+        value: e3lani-staging-sandbox-webhook-secret
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -53,9 +54,9 @@ services:
           type: keyvalue
           property: connectionString
       - key: API_PUBLIC_URL
-        sync: false
+        value: https://e3lani-api-staging.onrender.com
       - key: CORS_ORIGINS
-        sync: false
+        value: https://e3lani-web-staging.onrender.com,https://e3lani-admin-staging.onrender.com
       - key: STORAGE_PROVIDER
         value: sandbox
       - key: STORAGE_MODE

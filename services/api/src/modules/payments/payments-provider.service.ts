@@ -5,6 +5,7 @@ import {
   SandboxPaymentProvider,
   type PaymentProvider,
 } from '@e3lani/payments';
+import { apiPublicBaseUrl } from '@e3lani/storage';
 
 @Injectable()
 export class PaymentsProviderService implements OnModuleInit {
@@ -15,10 +16,7 @@ export class PaymentsProviderService implements OnModuleInit {
     const mode = process.env.PAYMENT_MODE ?? 'sandbox';
     if (mode === 'sandbox') {
       const secret = process.env.SANDBOX_PAYMENT_WEBHOOK_SECRET ?? 'e3lani-sandbox-webhook-secret';
-      this.sandbox = new SandboxPaymentProvider(
-        secret,
-        process.env.API_PUBLIC_URL ?? 'http://localhost:3001',
-      );
+      this.sandbox = new SandboxPaymentProvider(secret, apiPublicBaseUrl());
       this.providers.set('sandbox', this.sandbox);
     } else {
       const providerName = process.env.PAYMENT_PROVIDER ?? 'moyasar';

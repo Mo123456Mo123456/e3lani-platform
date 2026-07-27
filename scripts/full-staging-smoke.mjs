@@ -1,18 +1,29 @@
 #!/usr/bin/env node
 /**
  * Full staging smoke:
- * OTP → create ad → upload image → upload video → process → pay sandbox →
- * submit review → admin approve → feed → report → appeal
+ * OTP → create ad → upload image → upload video → process →
+ * submit-review → admin approve → payment sandbox (unsigned + signed webhook) →
+ * ACTIVE → feed → report → appeal
  *
  * Usage:
- *   API_URL=https://e3lani-api-staging.onrender.com/api/v1 node scripts/full-staging-smoke.mjs
+ *   API_URL=https://e3lani-api-staging.onrender.com/api/v1 \
+ *   SANDBOX_PAYMENT_WEBHOOK_SECRET=e3lani-staging-sandbox-webhook-secret \
+ *   node scripts/full-staging-smoke.mjs
+ *
+ * Optional:
+ *   ADMIN_ACCESS_TOKEN=...  # otherwise uses sandbox open-admin (PAYMENT_MODE=sandbox)
  */
 import { createHmac, randomUUID } from 'crypto';
 import { setTimeout as sleep } from 'timers/promises';
 import sharp from 'sharp';
 
-const API = (process.env.API_URL ?? 'https://e3lani-api-staging.onrender.com/api/v1').replace(/\/$/, '');
-const SECRET = process.env.SANDBOX_PAYMENT_WEBHOOK_SECRET ?? '';
+const API = (process.env.API_URL ?? 'https://e3lani-api-staging.onrender.com/api/v1').replace(
+  /\/$/,
+  '',
+);
+const API_ORIGIN = API.replace(/\/api\/v1$/, '');
+const SECRET =
+  process.env.SANDBOX_PAYMENT_WEBHOOK_SECRET ?? 'e3lani-staging-sandbox-webhook-secret';
 const ADMIN_TOKEN = process.env.ADMIN_ACCESS_TOKEN ?? '';
 
 function assert(cond, msg) {
@@ -57,6 +68,18 @@ async function waitHealth() {
   throw new Error('health timeout');
 }
 
+function assertPublicMediaUrl(uploadUrl, kind) {
+  assert(
+    !/127\.0\.0\.1|localhost/i.test(uploadUrl),
+    `uploadUrl for ${kind} must not use localhost/127.0.0.1: ${uploadUrl.slice(0, 180)}`,
+  );
+  assert(
+    uploadUrl.startsWith('https://e3lani-api-staging.onrender.com/') ||
+      uploadUrl.startsWith(`${API_ORIGIN}/`),
+    `uploadUrl for ${kind} must use public API origin: ${uploadUrl.slice(0, 180)}`,
+  );
+}
+
 async function uploadViaIntent(token, kind, mimeType, buffer, durationSeconds) {
   const intent = await json('POST', '/media/upload-intent', {
     token,
@@ -67,17 +90,16 @@ async function uploadViaIntent(token, kind, mimeType, buffer, durationSeconds) {
       ...(durationSeconds !== undefined ? { durationSeconds } : {}),
     },
   });
-  console.log(`STEP upload-intent ${kind}:`, intent.status, intent.data?.uploadUrl?.slice?.(0, 120) ?? intent.text?.slice?.(0, 160));
+  console.log(
+    `STEP upload-intent ${kind}:`,
+    intent.status,
+    intent.data?.uploadUrl?.slice?.(0, 120) ?? intent.text?.slice?.(0, 160),
+  );
   assert([200, 201].includes(intent.status), `upload-intent ${kind}: ${intent.status} ${intent.text}`);
-  let { uploadUrl, headers, assetId, method } = intent.data;
-  // Staging misconfig: signed sandbox URLs may point at 127.0.0.1 when API_PUBLIC_URL is unset.
-  if (uploadUrl.includes('127.0.0.1') || uploadUrl.includes('localhost')) {
-    uploadUrl = uploadUrl
-      .replace('http://127.0.0.1:3001', 'https://e3lani-api-staging.onrender.com')
-      .replace('http://localhost:3001', 'https://e3lani-api-staging.onrender.com');
-    console.log('STEP rewrite upload URL host → e3lani-api-staging.onrender.com');
-  }
+  const { uploadUrl, assetId, method } = intent.data;
+  assertPublicMediaUrl(uploadUrl, kind);
   console.log('STEP upload URL final:', uploadUrl.slice(0, 180));
+
   // Prefer curl for binary PUT — Node fetch/undici intermittently ECONNRESET against Render Free.
   {
     const { writeFileSync, unlinkSync, readFileSync } = await import('fs');
@@ -122,11 +144,20 @@ async function uploadViaIntent(token, kind, mimeType, buffer, durationSeconds) {
       /* ignore */
     }
     console.log(`STEP PUT ${kind}:`, status, String(text).slice(0, 120));
-    assert(status >= 200 && status < 300, `PUT upload ${kind} failed: ${status} ${String(text || r.stderr).slice(0, 200)}`);
-  }  const complete = await json('POST', `/media/${assetId}/complete`, { token });
-  console.log(`STEP complete ${kind}:`, complete.status, complete.data?.status ?? complete.text?.slice?.(0, 120));
+    assert(
+      status >= 200 && status < 300,
+      `PUT upload ${kind} failed: ${status} ${String(text || r.stderr).slice(0, 200)}`,
+    );
+  }
+
+  const complete = await json('POST', `/media/${assetId}/complete`, { token });
+  console.log(
+    `STEP complete ${kind}:`,
+    complete.status,
+    complete.data?.status ?? complete.text?.slice?.(0, 120),
+  );
   assert([200, 201].includes(complete.status), `complete ${kind}: ${complete.status} ${complete.text}`);
-  // Poll READY
+
   for (let i = 0; i < 45; i++) {
     const asset = await json('GET', `/media/${assetId}`, { token });
     if (asset.data?.status === 'READY') {
@@ -139,6 +170,32 @@ async function uploadViaIntent(token, kind, mimeType, buffer, durationSeconds) {
     await sleep(2000);
   }
   throw new Error(`media not READY: ${kind}`);
+}
+
+async function resolveAdminToken(userToken) {
+  if (ADMIN_TOKEN) {
+    console.log('STEP admin token: ADMIN_ACCESS_TOKEN from env');
+    return ADMIN_TOKEN;
+  }
+  // Sandbox/staging: PAYMENT_MODE=sandbox opens admin routes to any authenticated user.
+  // Still exercise a distinct OTP session so we do not reuse the seller token by accident.
+  const phone = `+9665${String(Date.now() + 7).slice(-8)}`;
+  const otp = await json('POST', '/auth/request-otp', {
+    body: { phone, acceptedTerms: true, locale: 'ar', countryCode: 'SA' },
+  });
+  assert(otp.data?.sandboxCode === '123456', `admin otp missing: ${otp.status} ${otp.text}`);
+  const verify = await json('POST', '/auth/verify-otp', {
+    body: { phone, code: '123456', deviceId: `full-smoke-admin-${randomUUID().slice(0, 8)}` },
+  });
+  assert(verify.data?.accessToken, `admin token missing: ${verify.status} ${verify.text}`);
+  console.log('STEP admin token: sandbox OTP session (open-admin)');
+  return verify.data.accessToken || userToken;
+}
+
+function signSandboxWebhook(payload) {
+  const ts = String(Date.now());
+  const sig = createHmac('sha256', SECRET).update(`${ts}.${payload}`).digest('hex');
+  return { ts, sig };
 }
 
 async function main() {
@@ -178,11 +235,12 @@ async function main() {
     }
   }
 
+  // Title includes REVIEW_TERM "urgent" so sandbox moderation returns NEEDS_HUMAN → PENDING_REVIEW.
   const draft = await json('POST', '/ads', {
     token,
     body: {
-      title: `Full smoke ${Date.now()}`,
-      description: 'smoke image+video flow',
+      title: `Full smoke urgent review ${Date.now()} needs human`,
+      description: 'smoke image+video flow for admin approve path',
       categoryId,
       countryCode: 'SA',
       cityId,
@@ -198,7 +256,8 @@ async function main() {
   })
     .jpeg({ quality: 70 })
     .toBuffer();
-  console.log('STEP image bytes:', imageBuf.length);  const imageAsset = await uploadViaIntent(token, 'image', 'image/jpeg', imageBuf);
+  console.log('STEP image bytes:', imageBuf.length);
+  const imageAsset = await uploadViaIntent(token, 'image', 'image/jpeg', imageBuf);
   console.log('STEP image READY:', imageAsset.id, imageAsset.status);
 
   let videoBuf;
@@ -260,98 +319,164 @@ async function main() {
   console.log('STEP attach image:', attachI.status);
 
   const submit = await json('POST', `/ads/${adId}/submit-review`, { token });
-  console.log('STEP submit-review:', submit.status, submit.data?.status ?? submit.text?.slice?.(0, 160));
+  console.log(
+    'STEP submit-review:',
+    submit.status,
+    submit.data?.status ?? submit.text?.slice?.(0, 160),
+  );
+  assert([200, 201].includes(submit.status), `submit-review ${submit.status} ${submit.text}`);
 
   let ad = await json('GET', `/ads/${adId}`, { token });
   console.log('STEP ad status after review:', ad.data?.status);
-  if (ADMIN_TOKEN && ad.data?.status === 'PENDING_REVIEW') {
-    const approve = await json('POST', `/admin/ads/${adId}/approve`, {
-      token: ADMIN_TOKEN,
-      body: { notes: 'full smoke approve' },
-    });
-    console.log('STEP admin approve:', approve.status, approve.data?.status ?? approve.text?.slice?.(0, 160));
-    ad = await json('GET', `/ads/${adId}`, { token });
-  } else if (ad.data?.status === 'PENDING_REVIEW') {
-    console.log('STEP admin approve SKIPPED (no ADMIN_ACCESS_TOKEN); status=PENDING_REVIEW');
-  } else {
-    console.log('STEP admin approve N/A (auto-moderation path):', ad.data?.status);
-  }
+  assert(
+    ad.data?.status === 'PENDING_REVIEW',
+    `expected PENDING_REVIEW for admin path, got ${ad.data?.status}`,
+  );
 
+  const adminToken = await resolveAdminToken(token);
+  const approve = await json('POST', `/admin/ads/${adId}/approve`, {
+    token: adminToken,
+    body: { notes: 'full smoke approve' },
+  });
+  console.log(
+    'STEP admin approve:',
+    approve.status,
+    approve.data?.status ?? approve.text?.slice?.(0, 160),
+  );
+  assert([200, 201].includes(approve.status), `admin approve ${approve.status} ${approve.text}`);
   ad = await json('GET', `/ads/${adId}`, { token });
-  if (ad.data?.status === 'APPROVED_AWAITING_PAYMENT' || ad.data?.status === 'PAYMENT_FAILED') {
-    const checkout = await json('POST', `/orders`, {
-      token,
-      body: {
-        adId,
-        successUrl: 'https://e3lani-web-staging.onrender.com/payment/success',
-        cancelUrl: 'https://e3lani-web-staging.onrender.com/payment/success',
-        platform: 'web',
-      },
-      headers: { 'idempotency-key': `smoke-${randomUUID()}` },
-    });
-    console.log('STEP sandbox checkout:', checkout.status, checkout.data?.order?.id ?? checkout.data?.id ?? checkout.text?.slice?.(0, 200));
-    assert([200, 201].includes(checkout.status), `checkout ${checkout.status} ${checkout.text}`);
-    const order = checkout.data?.order ?? checkout.data;
-    const attempt = order.attempts?.[0] ?? checkout.data?.paymentAttempt;
-    const ref =
-      attempt?.providerReference ??
-      checkout.data?.checkout?.providerReference ??
-      order.providerReference;
-    console.log('STEP checkout ref:', ref, 'orderId:', order?.id);
+  assert(
+    ad.data?.status === 'APPROVED_AWAITING_PAYMENT',
+    `expected APPROVED_AWAITING_PAYMENT after admin approve, got ${ad.data?.status}`,
+  );
 
-    // Prefer server-side sandbox checkout page: it signs the webhook with the live secret.
-    if (ref && order?.id) {
-      const qs = new URLSearchParams({
-        orderId: order.id,
-        ref,
-        redirect: 'https://e3lani-web-staging.onrender.com/payment/success',
-      });
-      const page = await fetch(`${API}/payments/sandbox/checkout?${qs}`, {
-        method: 'GET',
-        redirect: 'manual',
-      });
-      const html = await page.text();
-      console.log('STEP sandbox checkout page:', page.status, html.includes('Webhook result') ? 'html_ok' : html.slice(0, 160));
-      const whMatch = html.match(/Webhook result:[\s\S]*?<code>([\s\S]*?)<\/code>/i);
-      if (whMatch) console.log('STEP sandbox webhook (server):', whMatch[1].trim().slice(0, 200));
-    } else if (SECRET && ref) {
-      const payload = JSON.stringify({
-        eventId: `evt_${randomUUID()}`,
-        type: 'payment.paid',
-        providerReference: ref,
-        orderId: order.id,
-        paid: true,
-        occurredAt: new Date().toISOString(),
-      });
-      const ts = String(Date.now());
-      const sig = createHmac('sha256', SECRET).update(`${ts}.${payload}`).digest('hex');
-      const whRes = await fetch(`${API}/webhooks/payments/sandbox`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-e3lani-timestamp': ts,
-          'x-e3lani-signature': sig,
-        },
-        body: payload,
-      });
-      const whText = await whRes.text();
-      console.log('STEP sandbox webhook:', whRes.status, whText.slice(0, 160));
-    } else {
-      console.log('STEP sandbox webhook SKIPPED (no ref / secret)');
-    }
-  } else {
-    console.log('STEP sandbox checkout SKIPPED; ad status=', ad.data?.status);
+  const checkout = await json('POST', `/orders`, {
+    token,
+    body: {
+      adId,
+      successUrl: 'https://e3lani-web-staging.onrender.com/payment/success',
+      cancelUrl: 'https://e3lani-web-staging.onrender.com/payment/success',
+      platform: 'web',
+    },
+    headers: { 'idempotency-key': `smoke-${randomUUID()}` },
+  });
+  console.log(
+    'STEP sandbox checkout:',
+    checkout.status,
+    checkout.data?.order?.id ?? checkout.data?.id ?? checkout.text?.slice?.(0, 200),
+  );
+  assert([200, 201].includes(checkout.status), `checkout ${checkout.status} ${checkout.text}`);
+  const order = checkout.data?.order ?? checkout.data;
+  const attempt = order.attempts?.[0] ?? checkout.data?.paymentAttempt;
+  const ref =
+    attempt?.providerReference ??
+    checkout.data?.checkout?.providerReference ??
+    order.providerReference;
+  console.log('STEP checkout ref:', ref, 'orderId:', order?.id);
+  assert(ref && order?.id, 'missing checkout ref/orderId');
+
+  // Unsigned webhook is expected to fail signature checks — do not treat as smoke failure.
+  {
+    const unsignedPayload = JSON.stringify({
+      eventId: `evt_unsigned_${randomUUID()}`,
+      type: 'payment.paid',
+      providerReference: ref,
+      orderId: order.id,
+      paid: true,
+      occurredAt: new Date().toISOString(),
+    });
+    const unsigned = await fetch(`${API}/webhooks/payments/sandbox`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: unsignedPayload,
+    });
+    const unsignedText = await unsigned.text();
+    console.log('STEP unsigned webhook (expected 401):', unsigned.status, unsignedText.slice(0, 160));
+    assert(
+      unsigned.status === 401 && /WEBHOOK_SIGNATURE_INVALID/i.test(unsignedText),
+      `unsigned webhook should return 401 WEBHOOK_SIGNATURE_INVALID, got ${unsigned.status} ${unsignedText}`,
+    );
+    console.log('STEP unsigned webhook: treated as expected rejection (not a failure)');
   }
 
-  // Allow activation to settle
+  // Prefer server-side sandbox checkout page: marks paid + signs with live secret.
+  {
+    const qs = new URLSearchParams({
+      orderId: order.id,
+      ref,
+      redirect: 'https://e3lani-web-staging.onrender.com/payment/success',
+    });
+    const page = await fetch(`${API}/payments/sandbox/checkout?${qs}`, {
+      method: 'GET',
+      redirect: 'manual',
+    });
+    const html = await page.text();
+    console.log(
+      'STEP sandbox checkout page:',
+      page.status,
+      html.includes('Webhook result') ? 'html_ok' : html.slice(0, 160),
+    );
+    assert(page.status === 200, `sandbox checkout page ${page.status}`);
+    const whMatch = html.match(/Webhook result:[\s\S]*?<code>([\s\S]*?)<\/code>/i);
+    if (whMatch) {
+      const result = whMatch[1].trim();
+      console.log('STEP sandbox webhook (server):', result.slice(0, 200));
+      assert(
+        !/failed:|WEBHOOK_SIGNATURE_INVALID|127\.0\.0\.1|localhost/i.test(result),
+        `server webhook should succeed against public API_PUBLIC_URL: ${result}`,
+      );
+    }
+  }
+
+  // Separate client-signed webhook with the known staging sandbox secret (idempotent after activation).
+  {
+    const payload = JSON.stringify({
+      eventId: `evt_signed_${randomUUID()}`,
+      type: 'payment.paid',
+      providerReference: ref,
+      orderId: order.id,
+      paid: true,
+      occurredAt: new Date().toISOString(),
+    });
+    const { ts, sig } = signSandboxWebhook(payload);
+    const signed = await fetch(`${API}/webhooks/payments/sandbox`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-e3lani-timestamp': ts,
+        'x-e3lani-signature': sig,
+      },
+      body: payload,
+    });
+    const signedText = await signed.text();
+    console.log('STEP signed webhook (client):', signed.status, signedText.slice(0, 200));
+    assert(
+      signed.status >= 200 && signed.status < 300,
+      `signed webhook must succeed: ${signed.status} ${signedText}`,
+    );
+    assert(
+      !/WEBHOOK_SIGNATURE_INVALID/i.test(signedText),
+      `signed webhook must not return WEBHOOK_SIGNATURE_INVALID: ${signedText}`,
+    );
+    let signedJson;
+    try {
+      signedJson = JSON.parse(signedText);
+    } catch {
+      signedJson = null;
+    }
+    assert(signedJson?.ok === true, `signed webhook body ok=true expected: ${signedText}`);
+  }
+
   await sleep(2000);
   ad = await json('GET', `/ads/${adId}`, { token });
   console.log('STEP final ad status:', ad.data?.status);
+  assert(ad.data?.status === 'ACTIVE', `expected ACTIVE, got ${ad.data?.status}`);
 
   const feed = await json('GET', '/feed?take=20');
   assert(feed.status === 200, `feed ${feed.status}`);
   const inFeed = (feed.data?.items || []).some((x) => x.id === adId);
   console.log('STEP feed:', feed.status, inFeed ? `ad ${adId} PRESENT` : `ad ${adId} ABSENT`);
+  assert(inFeed, `ACTIVE ad ${adId} missing from feed`);
 
   const report = await json('POST', `/ads/${adId}/reports`, {
     token,

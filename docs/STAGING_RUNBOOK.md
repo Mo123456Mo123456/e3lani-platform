@@ -40,11 +40,27 @@ export RENDER_API_KEY=...
 bash scripts/deploy-staging-render.sh
 ```
 
-## Required dashboard env (non-secret)
+## Required env (Blueprint-owned)
+
+Pinned in `render.yaml` for `e3lani-api-staging`:
 
 - `API_PUBLIC_URL=https://e3lani-api-staging.onrender.com`
 - `CORS_ORIGINS=https://e3lani-web-staging.onrender.com,https://e3lani-admin-staging.onrender.com`
-- Web/Admin: `NEXT_PUBLIC_API_URL=https://e3lani-api-staging.onrender.com/api/v1`
+- `SANDBOX_PAYMENT_WEBHOOK_SECRET=e3lani-staging-sandbox-webhook-secret` (staging-only; never reuse in production)
+
+Web/Admin Blueprint:
+
+- `NEXT_PUBLIC_API_URL=https://e3lani-api-staging.onrender.com/api/v1`
+
+### Full smoke (admin + signed webhook)
+
+```bash
+API_URL=https://e3lani-api-staging.onrender.com/api/v1 \
+SANDBOX_PAYMENT_WEBHOOK_SECRET=e3lani-staging-sandbox-webhook-secret \
+pnpm test:full-staging-smoke
+```
+
+Optional: `ADMIN_ACCESS_TOKEN=...` (otherwise smoke uses a second sandbox OTP session; `PAYMENT_MODE=sandbox` opens admin routes).
 
 ## Production keys (do not put in Git)
 

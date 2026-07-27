@@ -125,12 +125,41 @@ export function verifySandboxDownloadSig(key: string, exp: number, sig: string):
   }
 }
 
+function isLoopbackPublicUrl(url: string): boolean {
+  return /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:|\/|$)/i.test(url);
+}
+
+/**
+ * Public API origin used in signed sandbox upload/download/callback URLs.
+ * Prefers API_PUBLIC_URL, then Render's injected RENDER_EXTERNAL_URL.
+ * Never returns loopback when APP_ENV/NODE_ENV indicates a deployed staging/prod host.
+ */
 export function apiPublicBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return (
-    env.API_PUBLIC_URL?.trim() ||
-    env.PUBLIC_API_URL?.trim() ||
-    'http://127.0.0.1:3001'
-  ).replace(/\/$/, '');
+  const candidates = [
+    env.API_PUBLIC_URL?.trim(),
+    env.PUBLIC_API_URL?.trim(),
+    env.RENDER_EXTERNAL_URL?.trim(),
+  ].filter((value): value is string => Boolean(value));
+
+  const deployed =
+    (env.APP_ENV ?? '').toLowerCase() === 'staging' ||
+    (env.APP_ENV ?? '').toLowerCase() === 'production' ||
+    (env.NODE_ENV ?? '').toLowerCase() === 'production' ||
+    Boolean(env.RENDER_EXTERNAL_URL?.trim());
+
+  for (const candidate of candidates) {
+    const base = candidate.replace(/\/$/, '');
+    if (!isLoopbackPublicUrl(base)) return base;
+    if (!deployed) return base;
+  }
+
+  if (deployed) {
+    throw new Error(
+      'API_PUBLIC_URL must be a public https origin on staging/production (not localhost/127.0.0.1)',
+    );
+  }
+
+  return 'http://127.0.0.1:3001';
 }
 
 export function createSandboxSignedUpload(input: {

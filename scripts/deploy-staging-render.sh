@@ -32,4 +32,5 @@ print(json.dumps({
 PY
 )"
 echo
-echo "Done. Configure CORS / S3 / API_PUBLIC_URL in Render dashboard, then rebuild the mobile APK."
+echo "Done. Blueprint pins API_PUBLIC_URL + CORS_ORIGINS + staging sandbox webhook secret."
+echo "Rebuild the mobile APK after the API deploy is live."
