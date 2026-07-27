@@ -16,9 +16,12 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/s3-request-presigner": "^3.758.0",
     "@e3lani/auth": "workspace:*",
     "@e3lani/config": "workspace:*",
     "@e3lani/payments": "workspace:*",
+    "@e3lani/storage": "workspace:*",
     "@e3lani/types": "workspace:*",
     "@e3lani/validation": "workspace:*",
     "@nestjs/common": "^10.4.15",
@@ -30,27 +33,25 @@
     "@prisma/client": "^6.1.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "express": "^4.21.2",
+    "ioredis": "^5.4.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "zod": "^3.24.1",
-    "@e3lani/storage": "workspace:*",
-    "@aws-sdk/client-s3": "^3.758.0",
-    "@aws-sdk/s3-request-presigner": "^3.758.0",
-    "ioredis": "^5.4.2",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
     "@nestjs/schematics": "^10.2.3",
+    "@nestjs/testing": "^10.4.15",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.5",
+    "@types/supertest": "^6.0.2",
     "prisma": "^6.1.0",
+    "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.8",
-    "supertest": "^7.0.0",
-    "@types/supertest": "^6.0.2",
-    "@nestjs/testing": "^10.4.15"
+    "vitest": "^2.1.8"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
