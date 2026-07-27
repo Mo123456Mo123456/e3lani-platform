@@ -40,7 +40,7 @@ export default function AdStatusPage() {
           </Link>
           {canPay ? (
             <Link className="btn btn-primary" href={`/ads/${ad.id}/pay`}>
-              الدفع (59 ر.س)
+              الدفع (19 ر.س)
             </Link>
           ) : null}
           {ad.status === 'ACTIVE' ? (

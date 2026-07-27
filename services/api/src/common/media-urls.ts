@@ -1,18 +1,35 @@
 import {
+  createSandboxSignedDownload,
   createSignedDownload,
   createStorageClientFromEnv,
+  isSandboxStorageRequested,
   publicObjectUrl as joinPublicUrl,
+  resolveStorageEnv,
   type CreateStorageClientInput,
 } from '@e3lani/storage';
 import type { S3Client } from '@aws-sdk/client-s3';
 
-function defaultStorageBinding() {
+export type StorageBinding =
+  | { sandbox: true }
+  | {
+      client: S3Client;
+      config: CreateStorageClientInput & { privateBucket?: boolean; publicBaseUrl?: string };
+    }
+  | null;
+
+function defaultStorageBinding(): StorageBinding {
+  if (isSandboxStorageRequested()) {
+    return { sandbox: true };
+  }
   const resolved = createStorageClientFromEnv();
   if (!resolved) return null;
   return { client: resolved.client, config: resolved.config };
 }
 
 export function publicObjectUrl(storageKey: string): string {
+  if (isSandboxStorageRequested()) {
+    return createSandboxSignedDownload({ key: storageKey });
+  }
   const base = (process.env.R2_PUBLIC_BASE_URL ?? 'http://127.0.0.1:9000/e3lani').replace(
     /\/$/,
     '',
@@ -33,7 +50,15 @@ export async function resolveObjectUrl(input: {
   publicBaseUrl?: string;
   privateBucket?: boolean;
   expiresInSeconds?: number;
+  sandbox?: boolean;
 }): Promise<string> {
+  if (input.sandbox || isSandboxStorageRequested()) {
+    return createSandboxSignedDownload({
+      key: input.storageKey,
+      expiresInSeconds: input.expiresInSeconds ?? 3600,
+    });
+  }
+
   const useSigned =
     Boolean(input.privateBucket) ||
     !input.publicBaseUrl ||
@@ -60,22 +85,38 @@ export async function decorateAsset<
     status: string;
     kind: string;
   },
->(
-  asset: T,
-  storage?: {
-    client: S3Client;
-    config: CreateStorageClientInput & { privateBucket?: boolean; publicBaseUrl?: string };
-  } | null,
-) {
+>(asset: T, storage?: StorageBinding) {
   const binding = storage === undefined ? defaultStorageBinding() : storage;
-  const ctx = binding
-    ? {
-        client: binding.client,
-        bucket: binding.config.bucket,
-        publicBaseUrl: binding.config.publicBaseUrl,
-        privateBucket: binding.config.privateBucket ?? !binding.config.publicBaseUrl,
-      }
-    : undefined;
+
+  if (binding && 'sandbox' in binding && binding.sandbox) {
+    const sourceUrl = await resolveObjectUrl({ storageKey: asset.storageKey, sandbox: true });
+    const posterUrl = asset.posterKey
+      ? await resolveObjectUrl({ storageKey: asset.posterKey, sandbox: true })
+      : null;
+    // Sandbox (and Free-tier inline) keeps original video; no 720p transcode.
+    let playbackUrl: string | null = null;
+    if (asset.status === 'READY') {
+      playbackUrl = sourceUrl;
+    }
+    return {
+      ...asset,
+      urls: {
+        source: sourceUrl,
+        poster: posterUrl,
+        playback: playbackUrl ?? posterUrl ?? sourceUrl,
+      },
+    };
+  }
+
+  const ctx =
+    binding && 'client' in binding
+      ? {
+          client: binding.client,
+          bucket: binding.config.bucket,
+          publicBaseUrl: binding.config.publicBaseUrl,
+          privateBucket: binding.config.privateBucket ?? !binding.config.publicBaseUrl,
+        }
+      : undefined;
 
   const sourceUrl = ctx
     ? await resolveObjectUrl({ storageKey: asset.storageKey, ...ctx })
@@ -111,14 +152,16 @@ export async function decorateAsset<
 
 export async function decorateAdMedia<
   T extends { asset: Parameters<typeof decorateAsset>[0] },
->(
-  media: T[],
-  storage?: Parameters<typeof decorateAsset>[1],
-) {
+>(media: T[], storage?: Parameters<typeof decorateAsset>[1]) {
   return Promise.all(
     media.map(async (item) => ({
       ...item,
       asset: await decorateAsset(item.asset, storage),
     })),
   );
+}
+
+/** Prefer env resolution for callers that only need provider awareness. */
+export function currentStorageProvider() {
+  return resolveStorageEnv().provider;
 }

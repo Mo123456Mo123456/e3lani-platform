@@ -112,6 +112,64 @@ export async function processMediaInline(
   }
 }
 
+/**
+ * Sandbox disk storage path (Render Free without R2): read/write via local filesystem helpers.
+ */
+export async function processMediaInlineSandbox(
+  job: InlineMediaJob,
+): Promise<InlineProcessResult> {
+  const { sandboxGetObject, sandboxPutObject } = await import('@e3lani/storage');
+  const workDir = await fs.mkdtemp(join(tmpdir(), 'e3lani-inline-sandbox-'));
+  const sourcePath = join(workDir, 'source');
+  const processedKeys: string[] = [];
+
+  try {
+    const posterKey = processedPosterKey(job.storageKey);
+
+    if (job.kind === 'image') {
+      const bytes = await sandboxGetObject(job.storageKey);
+      await fs.writeFile(sourcePath, bytes);
+      const image = sharp(sourcePath).rotate();
+      const meta = await image.metadata();
+      const poster = await image
+        .resize({ width: 1080, height: 1920, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 82 })
+        .toBuffer();
+      await sandboxPutObject(posterKey, poster, 'image/jpeg');
+      processedKeys.push(posterKey);
+      return {
+        posterKey,
+        processedKeys,
+        mode: 'sandbox',
+        ...(meta.width !== undefined ? { width: meta.width } : {}),
+        ...(meta.height !== undefined ? { height: meta.height } : {}),
+      };
+    }
+
+    const poster = await sharp({
+      create: {
+        width: 720,
+        height: 1280,
+        channels: 3,
+        background: { r: 255, g: 196, b: 0 },
+      },
+    })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    await sandboxPutObject(posterKey, poster, 'image/jpeg');
+    processedKeys.push(posterKey);
+    return {
+      posterKey,
+      processedKeys,
+      mode: 'sandbox',
+      width: 720,
+      height: 1280,
+    };
+  } finally {
+    await fs.rm(workDir, { recursive: true, force: true });
+  }
+}
+
 export function shouldProcessMediaInline(env: NodeJS.ProcessEnv = process.env): boolean {
   const mode = (env.MEDIA_PROCESSING_MODE ?? '').trim().toLowerCase();
   if (mode === 'inline' || mode === 'sandbox') return true;

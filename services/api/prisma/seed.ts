@@ -153,7 +153,7 @@ async function main() {
   }
 
   console.log(
-    'Seed completed: SA geo, 21 categories, pricing 59 SAR, sandbox payment provider enabled',
+    'Seed completed: SA geo, 21 categories, pricing 19 SAR, sandbox payment provider enabled',
   );
 }
 

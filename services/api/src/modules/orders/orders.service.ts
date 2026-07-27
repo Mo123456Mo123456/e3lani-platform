@@ -167,9 +167,9 @@ export class OrdersService {
 }
 
 function expectQuoteIsApprovedPricing(total: number) {
-  if (total !== 59) {
+  if (total !== 19) {
     throw new BadRequestException(
-      `Unexpected publish price ${total}. Approved SA publish price is 59 SAR.`,
+      `Unexpected publish price ${total}. Approved SA publish price is 19 SAR.`,
     );
   }
 }

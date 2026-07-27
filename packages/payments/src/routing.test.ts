@@ -46,9 +46,9 @@ describe('payment routing', () => {
 });
 
 describe('pricing engine', () => {
-  it('quotes default SA publish price at 59 SAR', () => {
+  it('quotes default SA publish price at 19 SAR', () => {
     const quote = quoteSaudiSkus(['AD_PUBLISH_30D']);
-    expect(quote.total).toBe(59);
+    expect(quote.total).toBe(19);
     expect(quote.currency).toBe('SAR');
   });
 });

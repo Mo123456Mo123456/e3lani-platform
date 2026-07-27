@@ -147,7 +147,7 @@ export default function CreateAdPage() {
           <div className="stack">
             <strong>{title || 'بدون عنوان'}</strong>
             <span className="muted">{description || 'بدون وصف'}</span>
-            <span>المراجعة مجانية. الدفع يظهر بعد القبول فقط (59 ر.س).</span>
+            <span>المراجعة مجانية. الدفع يظهر بعد القبول فقط (19 ر.س).</span>
           </div>
         ) : null}
 

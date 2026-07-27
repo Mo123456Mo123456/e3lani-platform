@@ -4,6 +4,7 @@ import {
   Logger,
   OnModuleInit,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { MediaKind } from '@prisma/client';
 import { MEDIA_LIMITS } from '@e3lani/config';
@@ -12,12 +13,20 @@ import {
   assertAllowedStorageKey,
   buildObjectKey,
   checkStorageHealth,
+  createSandboxSignedDownload,
+  createSandboxSignedUpload,
   createSignedUpload,
   createStorageClientFromEnv,
   ensureBucketOrCreate,
   objectExists,
   resolveStorageEnv,
+  sandboxEnsureRoot,
+  sandboxGetObject,
+  sandboxHeadObject,
+  sandboxPutObject,
   storageHealthSummary,
+  verifySandboxDownloadSig,
+  verifySandboxUploadSig,
   type StorageConfig,
   type StorageHealthResult,
 } from '@e3lani/storage';
@@ -25,7 +34,11 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { decorateAsset } from '../../common/media-urls';
-import { processMediaInline, shouldProcessMediaInline } from './inline-processor';
+import {
+  processMediaInline,
+  processMediaInlineSandbox,
+  shouldProcessMediaInline,
+} from './inline-processor';
 
 /** MediaAsset.status lifecycle used by API + worker. */
 export const MEDIA_STATUSES = [
@@ -42,6 +55,7 @@ export class MediaService implements OnModuleInit {
   private readonly log = new Logger(MediaService.name);
   private client: S3Client | null = null;
   private config: StorageConfig | null = null;
+  private sandboxMode = false;
   private redis: Redis | null = null;
   private lastHealth: StorageHealthResult | null = null;
   private inlineProcessing = shouldProcessMediaInline();
@@ -50,28 +64,37 @@ export class MediaService implements OnModuleInit {
 
   async onModuleInit() {
     this.inlineProcessing = shouldProcessMediaInline();
-    const resolved = createStorageClientFromEnv();
-    if (resolved) {
-      this.client = resolved.client;
-      this.config = resolved.config;
-      try {
-        await ensureBucketOrCreate(
-          this.client,
-          this.config.bucket,
-          this.config.provider,
-        );
-        this.log.log(
-          `Storage ready provider=${this.config.provider} bucket=${this.config.bucket} private=${this.config.privateBucket} mediaMode=${this.inlineProcessing ? 'inline' : 'queue'}`,
-        );
-      } catch (error) {
-        const name = error instanceof Error ? error.message : 'unknown';
-        this.log.warn(`Storage bucket check failed (${name}) — uploads will report unhealthy`);
-      }
-    } else {
-      const status = resolveStorageEnv();
-      this.log.warn(
-        `Storage not ready mode=${status.mode} missing=${status.missing.join(',') || 'none'}`,
+    const status = resolveStorageEnv();
+    this.sandboxMode = status.provider === 'sandbox' && status.configured;
+
+    if (this.sandboxMode) {
+      await sandboxEnsureRoot();
+      this.log.log(
+        `Storage ready provider=sandbox mediaMode=${this.inlineProcessing ? 'inline' : 'queue'}`,
       );
+    } else {
+      const resolved = createStorageClientFromEnv();
+      if (resolved) {
+        this.client = resolved.client;
+        this.config = resolved.config;
+        try {
+          await ensureBucketOrCreate(
+            this.client,
+            this.config.bucket,
+            this.config.provider,
+          );
+          this.log.log(
+            `Storage ready provider=${this.config.provider} bucket=${this.config.bucket} private=${this.config.privateBucket} mediaMode=${this.inlineProcessing ? 'inline' : 'queue'}`,
+          );
+        } catch (error) {
+          const name = error instanceof Error ? error.message : 'unknown';
+          this.log.warn(`Storage bucket check failed (${name}) — uploads will report unhealthy`);
+        }
+      } else {
+        this.log.warn(
+          `Storage not ready mode=${status.mode} missing=${status.missing.join(',') || 'none'}`,
+        );
+      }
     }
 
     if (process.env.REDIS_URL) {
@@ -87,6 +110,10 @@ export class MediaService implements OnModuleInit {
     }
   }
 
+  isSandbox(): boolean {
+    return this.sandboxMode;
+  }
+
   storageSummary() {
     return storageHealthSummary();
   }
@@ -97,6 +124,9 @@ export class MediaService implements OnModuleInit {
   }
 
   private storageBinding() {
+    if (this.sandboxMode) {
+      return { sandbox: true as const };
+    }
     if (!this.client || !this.config) return null;
     return { client: this.client, config: this.config };
   }
@@ -134,11 +164,16 @@ export class MediaService implements OnModuleInit {
     });
     assertAllowedStorageKey(key);
 
-    const signed = await createSignedUpload(this.client!, {
-      bucket: this.config!.bucket,
-      key,
-      mimeType: normalized.mimeType,
-    });
+    const signed = this.sandboxMode
+      ? createSandboxSignedUpload({
+          key,
+          mimeType: normalized.mimeType,
+        })
+      : await createSignedUpload(this.client!, {
+          bucket: this.config!.bucket,
+          key,
+          mimeType: normalized.mimeType,
+        });
 
     const asset = await this.prisma.mediaAsset.create({
       data: {
@@ -160,6 +195,48 @@ export class MediaService implements OnModuleInit {
     };
   }
 
+  async putSandboxUpload(input: {
+    key: string;
+    exp: number;
+    sig: string;
+    mime: string;
+    body: Buffer;
+  }) {
+    if (!this.sandboxMode) {
+      throw new ServiceUnavailableException('SANDBOX_STORAGE_DISABLED');
+    }
+    assertAllowedStorageKey(input.key);
+    if (!verifySandboxUploadSig(input.key, input.mime, input.exp, input.sig)) {
+      throw new UnauthorizedException('SANDBOX_UPLOAD_SIG_INVALID');
+    }
+    await sandboxPutObject(input.key, input.body, input.mime);
+    return { ok: true, key: input.key, sizeBytes: input.body.length };
+  }
+
+  async getSandboxDownload(input: { key: string; exp: number; sig: string }) {
+    if (!this.sandboxMode) {
+      throw new ServiceUnavailableException('SANDBOX_STORAGE_DISABLED');
+    }
+    assertAllowedStorageKey(input.key);
+    if (!verifySandboxDownloadSig(input.key, input.exp, input.sig)) {
+      throw new UnauthorizedException('SANDBOX_DOWNLOAD_SIG_INVALID');
+    }
+    const head = await sandboxHeadObject(input.key);
+    if (!head.exists) {
+      throw new BadRequestException('OBJECT_NOT_FOUND');
+    }
+    const body = await sandboxGetObject(input.key);
+    return {
+      body,
+      contentType: head.contentType ?? 'application/octet-stream',
+      sizeBytes: head.sizeBytes ?? body.length,
+    };
+  }
+
+  signedSandboxDownloadUrl(key: string): string {
+    return createSandboxSignedDownload({ key });
+  }
+
   async completeUpload(ownerId: string, assetId: string) {
     this.requireStorageConfigured();
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id: assetId } });
@@ -168,7 +245,9 @@ export class MediaService implements OnModuleInit {
     }
     assertAllowedStorageKey(asset.storageKey);
 
-    const head = await objectExists(this.client!, this.config!.bucket, asset.storageKey);
+    const head = this.sandboxMode
+      ? await sandboxHeadObject(asset.storageKey)
+      : await objectExists(this.client!, this.config!.bucket, asset.storageKey);
     if (!head.exists) {
       throw new BadRequestException('UPLOAD_NOT_FOUND_IN_STORAGE');
     }
@@ -280,11 +359,13 @@ export class MediaService implements OnModuleInit {
         where: { id: assetId },
         data: { status: 'PROCESSING' },
       });
-      const result = await processMediaInline(this.client!, this.config!.bucket, {
-        assetId,
-        storageKey,
-        kind,
-      });
+      const result = this.sandboxMode
+        ? await processMediaInlineSandbox({ assetId, storageKey, kind })
+        : await processMediaInline(this.client!, this.config!.bucket, {
+            assetId,
+            storageKey,
+            kind,
+          });
       await this.prisma.mediaAsset.update({
         where: { id: assetId },
         data: {
@@ -308,6 +389,10 @@ export class MediaService implements OnModuleInit {
 
   requireStorageConfigured() {
     const status = resolveStorageEnv();
+    if (status.provider === 'sandbox' && status.configured) {
+      this.sandboxMode = true;
+      return;
+    }
     if (status.configured && this.client && this.config) {
       return;
     }

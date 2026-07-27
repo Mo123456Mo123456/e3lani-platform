@@ -69,8 +69,8 @@ test('full visual advertising flow with real video', async ({ page, context }) =
   await page.goto(`/ads/${adId}/status`);
   await expect(page.getByText('مقبول — بانتظار الدفع')).toBeVisible({ timeout: 20000 });
   await page.screenshot({ path: `${ARTIFACTS}/04-awaiting-payment.png`, fullPage: true });
-  await page.getByRole('link', { name: 'الدفع (59 ر.س)' }).click();
-  await expect(page.getByText('59')).toBeVisible();
+  await page.getByRole('link', { name: 'الدفع (19 ر.س)' }).click();
+  await expect(page.getByText('19')).toBeVisible();
   await page.screenshot({ path: `${ARTIFACTS}/05-payment.png`, fullPage: true });
 
   await page.getByRole('button', { name: 'ادفع عبر Sandbox' }).click();

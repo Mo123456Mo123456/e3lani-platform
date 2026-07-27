@@ -173,7 +173,7 @@ export default function CreateAdScreen() {
       {step === 5 ? (
         <View style={styles.preview}>
           <Text style={styles.previewTitle}>{title || 'بدون عنوان'}</Text>
-          <Text style={styles.uploadHint}>المراجعة مجانية. الدفع 59 ر.س بعد القبول فقط.</Text>
+          <Text style={styles.uploadHint}>المراجعة مجانية. الدفع 19 ر.س بعد القبول فقط.</Text>
         </View>
       ) : null}
 

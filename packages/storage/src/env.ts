@@ -1,4 +1,4 @@
-export type StorageProviderName = 'r2' | 'minio' | 's3' | 'unknown';
+export type StorageProviderName = 'r2' | 'minio' | 's3' | 'sandbox' | 'unknown';
 
 export type StorageConfig = {
   endpoint: string;
@@ -23,7 +23,7 @@ export type StorageEnvStatus = {
   endpointHost?: string;
   privateBucket: boolean;
   forcePathStyle: boolean;
-  mode: 'configured' | 'unconfigured' | 'dev-defaults' | 'misconfigured';
+  mode: 'configured' | 'unconfigured' | 'dev-defaults' | 'misconfigured' | 'sandbox';
   config?: StorageConfig;
   checkedAt: string;
 };
@@ -39,6 +39,23 @@ export const R2_ENV_KEYS = [
 function trim(value: string | undefined): string | undefined {
   const v = value?.trim();
   return v ? v : undefined;
+}
+
+function truthy(value: string | undefined): boolean {
+  if (!value) return false;
+  const v = value.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+export function isSandboxStorageRequested(env: NodeJS.ProcessEnv = process.env): boolean {
+  const provider = trim(env.STORAGE_PROVIDER)?.toLowerCase();
+  const mode = trim(env.STORAGE_MODE)?.toLowerCase();
+  return (
+    provider === 'sandbox' ||
+    mode === 'sandbox' ||
+    truthy(env.SANDBOX_STORAGE_ENABLED) ||
+    truthy(env.USE_SANDBOX_STORAGE)
+  );
 }
 
 function endpointHost(endpoint: string): string | undefined {
@@ -61,12 +78,29 @@ function withHost(status: StorageEnvStatus, host: string | undefined): StorageEn
 }
 
 /**
- * Resolve object-storage env using R2_* names only.
+ * Resolve object-storage env.
+ * Prefer explicit sandbox (Render Free staging without R2 secrets).
+ * Otherwise use Cloudflare R2_* credentials (no legacy S3_* aliases).
  * AWS SDK settings for R2 are fixed: region=auto, forcePathStyle=false.
  * Never log secret values from this helper.
  */
 export function resolveStorageEnv(env: NodeJS.ProcessEnv = process.env): StorageEnvStatus {
   const checkedAt = new Date().toISOString();
+
+  if (isSandboxStorageRequested(env)) {
+    return {
+      configured: true,
+      misconfigured: false,
+      missing: [],
+      provider: 'sandbox',
+      bucket: 'sandbox',
+      privateBucket: true,
+      forcePathStyle: false,
+      mode: 'sandbox',
+      checkedAt,
+    };
+  }
+
   const endpoint = trim(env.R2_ENDPOINT);
   const bucket = trim(env.R2_BUCKET);
   const accessKeyId = trim(env.R2_ACCESS_KEY_ID);
@@ -94,11 +128,7 @@ export function resolveStorageEnv(env: NodeJS.ProcessEnv = process.env): Storage
   if (!secretAccessKey) missing.push('R2_SECRET_ACCESS_KEY');
 
   const anyStorageHint = Boolean(
-    endpoint ||
-      bucket ||
-      accessKeyId ||
-      secretAccessKey ||
-      providerHint,
+    endpoint || bucket || accessKeyId || secretAccessKey || providerHint,
   );
 
   // Local DX: MinIO defaults only outside prod/staging and only when nothing is set.

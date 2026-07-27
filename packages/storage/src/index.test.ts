@@ -110,4 +110,43 @@ describe('resolveStorageEnv', () => {
     });
     expect(client).toBeTruthy();
   });
+
+  it('enables sandbox without R2 credentials when STORAGE_PROVIDER=sandbox', () => {
+    const status = resolveStorageEnv({
+      NODE_ENV: 'production',
+      APP_ENV: 'staging',
+      STORAGE_PROVIDER: 'sandbox',
+      STORAGE_MODE: 'sandbox',
+      SANDBOX_STORAGE_ENABLED: 'true',
+    } as NodeJS.ProcessEnv);
+    expect(status.configured).toBe(true);
+    expect(status.misconfigured).toBe(false);
+    expect(status.provider).toBe('sandbox');
+    expect(status.mode).toBe('sandbox');
+    expect(status.missing).toEqual([]);
+    expect(status.config).toBeUndefined();
+  });
+});
+
+describe('sandbox signed urls', () => {
+  it('creates and verifies upload signatures', async () => {
+    const { createSandboxSignedUpload, verifySandboxUploadSig } = await import('./sandbox');
+    const signed = createSandboxSignedUpload({
+      apiPublicUrl: 'https://e3lani-api-staging.onrender.com',
+      key: 'uploads/2026-07-27/user/image/abc.jpg',
+      mimeType: 'image/jpeg',
+      expiresInSeconds: 600,
+    });
+    expect(signed.method).toBe('PUT');
+    expect(signed.uploadUrl).toContain('/api/v1/media/sandbox/upload?');
+    const url = new URL(signed.uploadUrl);
+    expect(
+      verifySandboxUploadSig(
+        url.searchParams.get('key')!,
+        url.searchParams.get('mime')!,
+        Number(url.searchParams.get('exp')),
+        url.searchParams.get('sig')!,
+      ),
+    ).toBe(true);
+  });
 });

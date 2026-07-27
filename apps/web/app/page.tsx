@@ -23,8 +23,8 @@ export default function HomePage() {
         <h1 className="hero-title">{tr('brand.tagline')}</h1>
         <p className="muted hero-copy">
           {isAr
-            ? 'انشر صورة أو فيديو، راجع مجانًا، وادفع 59 ر.س بعد القبول فقط. تواصل مباشر عبر المتجر أو واتساب.'
-            : 'Publish a photo or video, get free review, and pay 59 SAR only after approval. Direct contact via store or WhatsApp.'}
+            ? 'انشر صورة أو فيديو، راجع مجانًا، وادفع 19 ر.س بعد القبول فقط. تواصل مباشر عبر المتجر أو واتساب.'
+            : 'Publish a photo or video, get free review, and pay 19 SAR only after approval. Direct contact via store or WhatsApp.'}
         </p>
         <div className="hero-actions">
           <Link className="btn btn-primary" href="/browse">

@@ -10,15 +10,47 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createHash, randomUUID } from 'crypto';
 import {
+  isSandboxStorageRequested,
   resolveStorageEnv,
   storageHealthSummary,
   type StorageConfig,
   type StorageEnvStatus,
   type StorageProviderName,
 } from './env';
+import {
+  apiPublicBaseUrl,
+  checkSandboxStorageHealth,
+  createSandboxSignedDownload,
+  createSandboxSignedUpload,
+  sandboxDeleteObject,
+  sandboxEnsureRoot,
+  sandboxGetObject,
+  sandboxHeadObject,
+  sandboxPutObject,
+  sandboxRoot,
+  verifySandboxDownloadSig,
+  verifySandboxUploadSig,
+  type SandboxSignedUpload,
+} from './sandbox';
 
-export type { StorageConfig, StorageEnvStatus, StorageProviderName };
-export { resolveStorageEnv, storageHealthSummary };
+export type { StorageConfig, StorageEnvStatus, StorageProviderName, SandboxSignedUpload };
+export {
+  resolveStorageEnv,
+  storageHealthSummary,
+  isSandboxStorageRequested,
+  apiPublicBaseUrl,
+  checkSandboxStorageHealth,
+  createSandboxSignedDownload,
+  createSandboxSignedUpload,
+  sandboxDeleteObject,
+  sandboxEnsureRoot,
+  sandboxGetObject,
+  sandboxHeadObject,
+  sandboxPutObject,
+  sandboxRoot,
+  verifySandboxDownloadSig,
+  verifySandboxUploadSig,
+};
 
 export type SignedUpload = {
   assetKey: string;
@@ -62,12 +94,12 @@ export function createStorageClient(config: CreateStorageClientInput): S3Client 
   });
 }
 
-/** Build client from env; returns null when storage is not fully configured. */
+/** Build S3/R2 client from env; returns null for sandbox or when unconfigured. */
 export function createStorageClientFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): { client: S3Client; config: StorageConfig; status: StorageEnvStatus } | null {
   const status = resolveStorageEnv(env);
-  if (!status.configured || !status.config) return null;
+  if (!status.configured || !status.config || status.provider === 'sandbox') return null;
   return {
     client: createStorageClient(status.config),
     config: status.config,
@@ -197,6 +229,16 @@ export async function checkStorageHealth(
   };
   if (status.bucket) base.bucket = status.bucket;
   if (status.endpointHost) base.endpointHost = status.endpointHost;
+
+  if (status.provider === 'sandbox' && status.configured) {
+    const probe = await checkSandboxStorageHealth();
+    return {
+      ...base,
+      healthy: probe.healthy,
+      message: probe.message,
+      bucket: 'sandbox',
+    };
+  }
 
   if (!status.configured || !status.config) {
     return {
