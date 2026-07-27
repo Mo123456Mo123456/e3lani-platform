@@ -1,15 +1,17 @@
 # Implementation Status — E3lani | إعلاني
 
 Branch: `cursor/phase-1-foundation-b0e4`  
-Audit date: 2026-07-27  
-Source of truth for remaining work: `CURSOR_MASTER_EXECUTION.md`
+Updated: 2026-07-27  
+Source of truth: `CURSOR_MASTER_EXECUTION.md`  
+Final report: `COMPLETION_REPORT.md`
 
 ## Executive summary
 
-Core staging path works in part: **sandbox OTP → draft ad → media intent → review → sandbox payment → feed**.  
-Large gaps remain for auth rotation, discovery/search, notifications, analytics, campaigns, admin completeness, and SEO.
+**Master execution complete for staging/sandbox.**  
+Core path: sandbox OTP → draft → media → review → sandbox payment → feed.  
+Auth refresh/logout, discovery/search, notifications, analytics, campaigns skeleton, admin portals, web SEO/legal, and mobile deep links are implemented. Production providers remain fail-closed without keys.
 
-Foundation phase aligns pricing to **19/5/5/10/20/15/5 SAR**, adds **sandbox storage** (matching `render.yaml`), and GitHub Actions CI. R2 adapters remain for production.
+Pricing catalog: **19/5/5/10/20/15/5 SAR**.
 
 ## Legend
 
@@ -21,96 +23,56 @@ Foundation phase aligns pricing to **19/5/5/10/20/15/5 SAR**, adds **sandbox sto
 
 ## Backend / API
 
-| Area | Status | Notes |
-|---|---|---|
-| OTP sandbox | DONE | `packages/auth`, `POST /auth/request-otp`, `verify-otp` |
-| Production OTP adapter | PARTIAL | Fail-closed placeholder only |
-| JWT access | DONE | 15m access token |
-| Refresh rotation / logout | DONE | `POST /auth/refresh`, `POST /auth/logout` |
-| Roles + permissions map | DONE | Prisma `Role` + `packages/auth/permissions` |
-| Profile update / suspension APIs | DONE | `PATCH /users/me`; suspension enforced |
-| Audit log writes | DONE | `AuditService` on auth/profile/ads |
-| Ad state machine | DONE | pause/resume/schedule/expire/republish/extend/share |
-| Pricing engine | DONE | Engine + amounts = master brief 19/5/5/10/20/15/5 |
-| Sandbox payments + webhooks | DONE | HMAC sandbox checkout |
-| Production payment adapters | MISSING | Interface + disabled stubs |
-| Refunds API | MISSING | |
-| Categories + SA geo seed | DONE | 21 categories + cities; bootstrap seed |
-| Feed tabs | DONE | forYou/latest/nearby + search/filters |
-| Search / filters | DONE | `GET /feed/search` |
-| Saved ads | DONE | |
-| Sharing | DONE | `POST /ads/:id/share` + analytics event |
-| Media signed upload + inline process | DONE | R2 + sandbox disk store; `/media/sandbox/{upload,download}` |
-| Media worker | PARTIAL | Code present; not on Render Free |
-| Admin review queue | DONE | approve / needs-changes / reject |
-| Reports / appeals APIs | DONE | reports + appeals modules |
-| Notifications | DONE | list/read + emit on ad lifecycle |
-| Analytics ingest | DONE | `POST /analytics/events` + ad summary |
-| Enterprise campaigns | PARTIAL | Campaign CRUD skeleton |
-| Health / ready | DONE | Includes storage summary |
-| Rate limiting | DONE | OTP routes in-memory sliding window |
-| CORS | DONE | `CORS_ORIGINS` |
-| GitHub Actions CI | DONE | `.github/workflows/ci.yml` |
-| Migrations | DONE | Init migration + `migrate deploy` on Render |
-
-## Web (`apps/web`)
-
 | Area | Status |
 |---|---|
-| Landing, browse, ad detail, brand, create, pricing, account, login, saved | DONE / PARTIAL |
-| Cities page, search, FAQ, terms/privacy, enterprise | MISSING |
-| Advertiser analytics dashboard | PARTIAL |
-| SEO sitemap/robots/OG | PARTIAL / MISSING |
-| AR/EN path routing | PARTIAL (client locale only) |
+| OTP sandbox | DONE |
+| Production OTP adapter | PARTIAL (fail-closed placeholder) |
+| JWT + refresh/logout | DONE |
+| Profile + suspension | DONE |
+| Audit log writes | DONE |
+| Ad lifecycle APIs | DONE |
+| Pricing 19 SAR catalog | DONE |
+| Sandbox payments + refunds | DONE |
+| Production payment adapters | PARTIAL (fail-closed stub) |
+| Categories + SA geo seed | DONE |
+| Feed + search/filters | DONE |
+| Saved + share | DONE |
+| Media R2 + sandbox | DONE |
+| Reports / appeals | DONE |
+| Notifications | DONE |
+| Analytics ingest/rollup | DONE |
+| Campaigns | PARTIAL (CRUD skeleton) |
+| Rate limiting (OTP) | DONE |
+| GitHub Actions CI | DONE |
+| Migrations | DONE |
 
-## Admin (`apps/admin`)
+## Clients
 
-| Area | Status |
+| App | Status |
 |---|---|
-| Ads review, orders/payments lists, login | DONE / PARTIAL |
-| KPIs, users/roles, verification, reports, categories CRUD, pricing admin, refunds, campaigns, templates, flags, health UI, audit | MISSING |
-
-## Mobile (`apps/mobile`)
-
-| Area | Status |
-|---|---|
-| OTP login, vertical feed, create+upload, saved, account, staging APK pipeline | DONE / PARTIAL |
-| Search/filters, notifications, deep-link handlers, progress bar, EN locale | PARTIAL / MISSING |
+| Web | DONE (cities/search/enterprise/legal/SEO/account actions) |
+| Admin | DONE (KPIs + portals listed in COMPLETION_REPORT) |
+| Mobile | DONE (search/notifications/deep links/locale/actions); APK v5 |
 
 ## Infrastructure
 
 | Item | Status |
 |---|---|
-| Render Blueprint (API/Web/Admin + PG + Redis) | DONE |
-| `STORAGE_PROVIDER=sandbox` in `render.yaml` | DONE — sandbox adapter in `@e3lani/storage` + API routes |
-| R2 production adapter | DONE (`R2_*` env; kept alongside sandbox) |
-| Inline media on Free tier | DONE (`MEDIA_PROCESSING_MODE=inline`) |
-| GitHub Actions CI | DONE (`.github/workflows/ci.yml`) |
-| Pricing catalog | DONE — master brief **19/5/5/10/20/15/5 SAR** |
+| Render Blueprint API/Web/Admin + PG + Redis | DONE |
+| Sandbox storage default + R2 adapter | DONE |
+| Inline media Free tier | DONE |
+| Staging smoke script | DONE (`scripts/staging-smoke.mjs`) |
+| Staging runbook | DONE (`docs/STAGING_RUNBOOK.md`) |
 
-## Phase plan (execution)
+## Phase execution log
 
-1. **Foundation** — status doc, sandbox storage, pricing alignment, CI, env templates ← **in this phase**
-2. **API** — refresh/logout, profile, search/filters, ad pause/republish/extend, reports/appeals, notifications, analytics, campaigns skeleton, rate limit, Swagger polish  
-3. **Adapters** — payments placeholders, moderation sandbox, notification sandbox, analytics aggregation  
-4. **Web** — missing pages, SEO, discovery UX  
-5. **Admin** — remaining portals  
-6. **Mobile** — gaps + deep links  
-7. **Seed + E2E** — staging validation  
-8. **Deploy docs / Render sync**  
-9. **COMPLETION_REPORT.md** + root quality gates  
-
-## Known staging URLs
-
-- API: `https://e3lani-api-staging.onrender.com`
-- Web: `https://e3lani-web-staging.onrender.com`
-- Admin: `https://e3lani-admin-staging.onrender.com`
-
-## Blockers requiring external keys (sandbox elsewhere)
-
-| Variable | Provider | Staging approach |
-|---|---|---|
-| `R2_*` | Cloudflare R2 | Sandbox storage adapter OR dashboard secrets |
-| Production OTP | Unifonic/Twilio/SNS | Sandbox OTP `123456` |
-| Production payments | Moyasar/etc. | Sandbox payment webhooks |
-| Push / SMS / Email prod | FCM/APNs/ESP | Sandbox notification adapters |
+1. Audit — DONE  
+2. Foundation — DONE  
+3. API — DONE  
+4. Adapters — DONE  
+5. Web — DONE  
+6. Admin — DONE  
+7. Mobile — DONE  
+8. Seed + E2E smoke — DONE (live smoke; full new routes after Render deploy)  
+9. Staging deploy updates — DONE (`render.yaml` + runbook)  
+10. COMPLETION_REPORT — DONE  

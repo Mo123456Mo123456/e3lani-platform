@@ -56,8 +56,8 @@ async function waitForHealth(timeoutMs = 30000) {
 }
 
 async function main() {
-  assert(DEFAULT_SA_PRICING.AD_PUBLISH_30D.amount === 59, 'Pricing must remain 59 SAR');
-  console.log('✓ approved pricing is 59 SAR');
+  assert(DEFAULT_SA_PRICING.AD_PUBLISH_30D.amount === 19, 'Pricing must be 19 SAR per master brief');
+  console.log('✓ approved pricing is 19 SAR');
 
   await waitForHealth();
   console.log('✓ API healthy');

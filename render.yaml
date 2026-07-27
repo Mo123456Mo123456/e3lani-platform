@@ -62,6 +62,8 @@ services:
         value: sandbox
       - key: SANDBOX_STORAGE_ENABLED
         value: "true"
+      # If R2 secrets are present in the dashboard, set STORAGE_PROVIDER=r2 there to override.
+      # Sandbox is the Blueprint default so Free staging never depends on missing R2 keys.
 
   - type: web
     name: e3lani-web-staging
@@ -69,6 +71,7 @@ services:
     plan: free
     region: frankfurt
     rootDir: .
+    autoDeploy: true
     buildCommand: |
       npm install --global pnpm@9.15.4 --prefix "$HOME/.local" &&
       export PATH="$HOME/.local/bin:$PATH" &&
@@ -80,8 +83,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NEXT_PUBLIC_API_URL
+        value: https://e3lani-api-staging.onrender.com/api/v1
       - key: NEXT_PUBLIC_API_BASE_URL
-        sync: false
+        value: https://e3lani-api-staging.onrender.com/api/v1
 
   - type: web
     name: e3lani-admin-staging
@@ -89,6 +94,7 @@ services:
     plan: free
     region: frankfurt
     rootDir: .
+    autoDeploy: true
     buildCommand: |
       npm install --global pnpm@9.15.4 --prefix "$HOME/.local" &&
       export PATH="$HOME/.local/bin:$PATH" &&
@@ -100,8 +106,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NEXT_PUBLIC_API_URL
+        value: https://e3lani-api-staging.onrender.com/api/v1
       - key: NEXT_PUBLIC_API_BASE_URL
-        sync: false
+        value: https://e3lani-api-staging.onrender.com/api/v1
 
   - type: keyvalue
     name: e3lani-redis-staging
