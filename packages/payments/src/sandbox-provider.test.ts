@@ -37,6 +37,36 @@ describe('SandboxPaymentProvider webhook security', () => {
     });
     expect(ok).toBe(false);
   });
+
+  it('accepts staging alias secret when APP_ENV=staging', async () => {
+    const prev = process.env.APP_ENV;
+    process.env.APP_ENV = 'staging';
+    try {
+      const body = JSON.stringify({
+        eventId: 'evt_alias',
+        type: 'payment.paid',
+        providerReference: 'sandbox_pay_alias',
+        orderId: 'order_alias',
+        paid: true,
+      });
+      const timestamp = String(Date.now());
+      const { createHmac } = await import('crypto');
+      const signature = createHmac('sha256', 'e3lani-staging-sandbox-webhook-secret')
+        .update(`${timestamp}.${body}`)
+        .digest('hex');
+      const ok = await provider.verifyWebhookSignature({
+        headers: {
+          'x-e3lani-signature': signature,
+          'x-e3lani-timestamp': timestamp,
+        },
+        rawBody: body,
+      });
+      expect(ok).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.APP_ENV;
+      else process.env.APP_ENV = prev;
+    }
+  });
 });
 
 describe('payment refunds', () => {

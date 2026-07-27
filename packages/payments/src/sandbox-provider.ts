@@ -95,10 +95,24 @@ export class SandboxPaymentProvider implements PaymentProvider {
     return { refundId: `sandbox_refund_${randomUUID()}`, status: 'refunded' };
   }
 
-  signPayload(rawBody: string, timestamp: string): string {
-    return createHmac('sha256', this.webhookSecret)
+  signPayload(rawBody: string, timestamp: string, secret = this.webhookSecret): string {
+    return createHmac('sha256', secret)
       .update(`${timestamp}.${rawBody}`)
       .digest('hex');
+  }
+
+  private signatureSecrets(): string[] {
+    const secrets = [this.webhookSecret];
+    // Staging smoke uses a documented alias so client-signed webhooks work even when
+    // the live Render secret was previously generateValue'd.
+    const alias = process.env.SANDBOX_PAYMENT_WEBHOOK_SECRET_ALIAS?.trim();
+    const stagingKnown = 'e3lani-staging-sandbox-webhook-secret';
+    const appEnv = (process.env.APP_ENV ?? '').toLowerCase();
+    if (alias) secrets.push(alias);
+    if (appEnv === 'staging') {
+      secrets.push(stagingKnown);
+    }
+    return [...new Set(secrets.filter(Boolean))];
   }
 
   async verifyWebhookSignature(input: VerifyWebhookSignatureInput): Promise<boolean> {
@@ -114,11 +128,13 @@ export class SandboxPaymentProvider implements PaymentProvider {
     if (Math.abs(Date.now() - ts) > 5 * 60 * 1000) return false;
 
     const rawBody = typeof input.rawBody === 'string' ? input.rawBody : input.rawBody.toString('utf8');
-    const expected = this.signPayload(rawBody, timestamp);
     const a = Buffer.from(signature);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
+    for (const secret of this.signatureSecrets()) {
+      const expected = this.signPayload(rawBody, timestamp, secret);
+      const b = Buffer.from(expected);
+      if (a.length === b.length && timingSafeEqual(a, b)) return true;
+    }
+    return false;
   }
 
   async parseWebhook(input: ParseWebhookInput): Promise<ParsedWebhookEvent> {
