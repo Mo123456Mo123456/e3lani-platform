@@ -74,7 +74,7 @@ describe('payment refunds', () => {
     const provider = new SandboxPaymentProvider('test-secret', 'http://localhost:3001');
     const checkout = await provider.createCheckout({
       orderId: 'order_1',
-      amount: 19,
+      amount: 59,
       currency: 'SAR',
       countryCode: 'SA',
       channel: 'hosted_checkout',
@@ -88,7 +88,7 @@ describe('payment refunds', () => {
     const refundProvider = getRefundProvider(provider);
     const refund = await refundProvider.refundPayment({
       providerReference: checkout.providerReference,
-      amount: 19,
+      amount: 59,
       reason: 'test refund',
       idempotencyKey: 'order_1:refund',
     });
@@ -110,7 +110,7 @@ describe('payment refunds', () => {
     await expect(
       provider.createCheckout({
         orderId: 'order_1',
-        amount: 19,
+        amount: 59,
         currency: 'SAR',
         countryCode: 'SA',
         channel: 'hosted_checkout',
@@ -123,7 +123,7 @@ describe('payment refunds', () => {
     await expect(
       provider.refundPayment({
         providerReference: 'pay_1',
-        amount: 19,
+        amount: 59,
         idempotencyKey: 'order_1:refund',
       }),
     ).rejects.toThrow(/PAYMENT_PROVIDER_NOT_CONFIGURED:moyasar/);

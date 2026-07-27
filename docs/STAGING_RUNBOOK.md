@@ -15,7 +15,7 @@ Branch for auto-deploy: `cursor/phase-1-foundation-b0e4`
 
 ## Bootstrap
 
-API start runs `prisma migrate deploy` then seeds SA geo/categories/pricing when empty (`ensure-seed.ts`). Pricing catalog upserts to **19/5/5/10/20/15/5 SAR**.
+API start runs `prisma migrate deploy` then seeds SA geo/categories/pricing when empty (`ensure-seed.ts`). Pricing catalog upserts to **59/10/29/15/29/29/10 SAR** (publish tax-inclusive).
 
 ## Storage
 

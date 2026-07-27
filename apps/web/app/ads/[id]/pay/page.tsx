@@ -47,8 +47,15 @@ export default function PayPage() {
         <p className="muted">يظهر الدفع فقط بعد قبول المراجعة. صفحة النجاح لا تفعّل الإعلان.</p>
         {options ? (
           <>
+            <p className="muted">
+              الصافي: {options.quote.subtotal} {options.quote.currency}
+              {options.quote.taxAmount > 0
+                ? ` · الضريبة: ${options.quote.taxAmount} ${options.quote.currency}`
+                : ''}
+            </p>
             <p>
-              الإجمالي: <strong>{options.quote.total} {options.quote.currency}</strong>
+              الإجمالي المستحق: <strong>{options.quote.total} {options.quote.currency}</strong>
+              {options.quote.taxMode === 'inclusive' ? ' (شامل الضريبة)' : ''}
             </p>
             <p className="muted">
               المزود: {options.routing.ok ? options.routing.provider?.name : options.messageAr}

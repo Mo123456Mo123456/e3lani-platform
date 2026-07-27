@@ -62,7 +62,7 @@ test('Web staging pages + OTP + create + RTL/LTR', async ({ page }) => {
     ['browse', '/browse', /تصفح|Browse|إعلان/],
     ['categories', '/categories', /أقسام|Categories|سيارات|عقارات/],
     ['search', '/search', /بحث|Search/],
-    ['pricing', '/pricing', /تسعير|Pricing|19|ر\.س|SAR/],
+    ['pricing', '/pricing', /تسعير|Pricing|59|ر\.س|SAR/],
     ['saved', '/saved', /محفوظ|Saved|دخول|Login/],
     ['account', '/account', /حساب|Account|دخول|Login/],
     ['terms', '/terms', /شروط|Terms/],

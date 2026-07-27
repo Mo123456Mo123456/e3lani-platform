@@ -136,5 +136,5 @@ export async function ensureSeedData(prisma: PrismaClient): Promise<void> {
     update: { enabled: true, priority: 1 },
   });
 
-  log.log('Bootstrap seed complete (SA geo, 21 categories, pricing, sandbox payments)');
+  log.log('Bootstrap seed complete (SA geo, 21 categories, pricing 59 SAR tax-inclusive, sandbox payments)');
 }

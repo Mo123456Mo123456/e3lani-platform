@@ -4,6 +4,7 @@ import {
   routePayment,
   DEFAULT_PROVIDER_CATALOG,
   getRefundProvider,
+  assertApprovedPublishTotal,
 } from '@e3lani/payments';
 import type { PlatformChannel } from '@e3lani/types';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -31,7 +32,11 @@ export class OrdersService {
     }
 
     const quote = quoteSaudiSkus(['AD_PUBLISH_30D']);
-    expectQuoteIsApprovedPricing(quote.total);
+    try {
+      assertApprovedPublishTotal(quote.total);
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
 
     const providers = await this.prisma.paymentProviderConfig.findMany();
     const catalog =
@@ -307,13 +312,5 @@ export class OrdersService {
       });
       throw error;
     }
-  }
-}
-
-function expectQuoteIsApprovedPricing(total: number) {
-  if (total !== 19) {
-    throw new BadRequestException(
-      `Unexpected publish price ${total}. Approved SA publish price is 19 SAR.`,
-    );
   }
 }

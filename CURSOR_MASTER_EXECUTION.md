@@ -128,13 +128,13 @@ Rules:
 
 Implement the confirmed pricing model:
 
-- Normal ad: 19 SAR / 30 days
-- Republish: 5 SAR
-- Extend 15 days: 5 SAR
-- Highlight 3 days: 10 SAR
-- Highlight 7 days: 20 SAR
-- Top of category: 15 SAR
-- City targeting add-on: 5 SAR
+- Normal ad: 59 SAR / 30 days (tax-inclusive when VAT applies; user pays 59)
+- Republish: 10 SAR
+- Extend 15 days: 29 SAR
+- Highlight 3 days: 15 SAR
+- Highlight 7 days: 29 SAR
+- Top of category: 29 SAR
+- City targeting add-on: 10 SAR
 
 Build:
 - pricing configuration tables

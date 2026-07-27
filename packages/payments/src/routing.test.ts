@@ -46,9 +46,30 @@ describe('payment routing', () => {
 });
 
 describe('pricing engine', () => {
-  it('quotes default SA publish price at 19 SAR', () => {
+  it('quotes default SA publish price at 59 SAR tax-inclusive', () => {
     const quote = quoteSaudiSkus(['AD_PUBLISH_30D']);
-    expect(quote.total).toBe(19);
+    expect(quote.total).toBe(59);
     expect(quote.currency).toBe('SAR');
+    expect(quote.taxMode).toBe('inclusive');
+    expect(quote.taxAmount).toBe(7.7);
+    expect(quote.subtotal).toBe(51.3);
+    expect(roundMoney(quote.subtotal + quote.taxAmount)).toBe(quote.total);
+  });
+
+  it('keeps addon catalog at approved SA amounts', () => {
+    const quote = quoteSaudiSkus([
+      'AD_REPOST',
+      'AD_EXTEND_15D',
+      'AD_HIGHLIGHT_3D',
+      'AD_HIGHLIGHT_7D',
+      'AD_TOP_CATEGORY',
+      'AD_EXTRA_CITY',
+    ]);
+    expect(quote.lines.map((line) => line.unitAmount)).toEqual([10, 29, 15, 29, 29, 10]);
+    expect(quote.total).toBe(122);
   });
 });
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}

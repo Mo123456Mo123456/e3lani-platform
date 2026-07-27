@@ -1,9 +1,15 @@
-import { DEFAULT_SA_PRICING, type CurrencyCode, type PricingSku } from '@e3lani/types';
+import {
+  APPROVED_SA_PUBLISH_TOTAL_SAR,
+  DEFAULT_SA_PRICING,
+  type CurrencyCode,
+  type PricingSku,
+} from '@e3lani/types';
 
 export type PricedLine = {
   sku: PricingSku;
   labelAr: string;
   labelEn: string;
+  /** Listed unit price (tax-inclusive when taxMode is inclusive). */
   unitAmount: number;
   quantity: number;
   lineTotal: number;
@@ -15,11 +21,22 @@ export type PriceQuote = {
   currency: CurrencyCode;
   countryCode: string;
   lines: PricedLine[];
+  /**
+   * Net amount before tax (صافي).
+   * For tax-inclusive catalogs this is total − taxAmount.
+   */
   subtotal: number;
+  /** Extracted or added VAT (ضريبة). */
   taxAmount: number;
+  /** Amount the customer pays (إجمالي). Equals listed price when tax is inclusive. */
   total: number;
   taxMode: 'inclusive' | 'exclusive' | 'none';
+  taxRate: number;
 };
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 export function quoteSaudiSkus(
   skus: readonly PricingSku[],
@@ -41,16 +58,25 @@ export function quoteSaudiSkus(
     };
   });
 
-  const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
+  const listedTotal = roundMoney(lines.reduce((sum, line) => sum + line.lineTotal, 0));
+  let subtotal = listedTotal;
   let taxAmount = 0;
-  let total = subtotal;
+  let total = listedTotal;
 
   if (taxMode === 'exclusive') {
-    taxAmount = Math.round(subtotal * taxRate * 100) / 100;
-    total = subtotal + taxAmount;
+    // Listed amounts are net; tax is added on top.
+    subtotal = listedTotal;
+    taxAmount = roundMoney(subtotal * taxRate);
+    total = roundMoney(subtotal + taxAmount);
   } else if (taxMode === 'inclusive') {
-    taxAmount = Math.round(((subtotal * taxRate) / (1 + taxRate)) * 100) / 100;
-    total = subtotal;
+    // Listed amounts are what the user pays. Split into net + tax; total stays listed.
+    total = listedTotal;
+    taxAmount = roundMoney((listedTotal * taxRate) / (1 + taxRate));
+    subtotal = roundMoney(total - taxAmount);
+  } else {
+    subtotal = listedTotal;
+    taxAmount = 0;
+    total = listedTotal;
   }
 
   return {
@@ -61,5 +87,14 @@ export function quoteSaudiSkus(
     taxAmount,
     total,
     taxMode,
+    taxRate,
   };
+}
+
+export function assertApprovedPublishTotal(total: number): void {
+  if (total !== APPROVED_SA_PUBLISH_TOTAL_SAR) {
+    throw new Error(
+      `Unexpected publish price ${total}. Approved SA publish total is ${APPROVED_SA_PUBLISH_TOTAL_SAR} SAR.`,
+    );
+  }
 }

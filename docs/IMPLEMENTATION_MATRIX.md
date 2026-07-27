@@ -24,4 +24,4 @@
 
 ## سياسة التعارض
 
-`docs/requirements/PRODUCT_SPEC_AR.md` + برومبت 27 يوليو 2026 يلغيان أسعار README القديمة (19 ر.س).
+`docs/requirements/PRODUCT_SPEC_AR.md` يحدد التسعير المعتمد **59/10/29/15/29/29/10** (بدل 19/5/5/…).

@@ -21,7 +21,7 @@ function jsonResponse(body: unknown, ok = true, status = 200) {
 function checkoutInput() {
   return {
     orderId: 'order_1',
-    amount: 19,
+    amount: 59,
     currency: 'SAR' as const,
     countryCode: 'SA',
     channel: 'hosted_checkout' as const,
@@ -138,7 +138,7 @@ describe('MoyasarPaymentProvider', () => {
       expect.objectContaining({ method: 'POST' }),
     );
     expect(JSON.parse(request.body)).toEqual({
-      amount: 1900,
+      amount: 5900,
       currency: 'SAR',
       description: 'E3lani order order_1',
       callback_url: 'https://merchant.example/success',

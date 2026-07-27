@@ -11,7 +11,7 @@ Final report: `COMPLETION_REPORT.md`
 Core path: sandbox OTP → draft → media → review → sandbox payment → feed.  
 Auth refresh/logout, discovery/search, notifications, analytics, campaigns skeleton, admin portals, web SEO/legal, and mobile deep links are implemented. Production providers remain fail-closed without keys.
 
-Pricing catalog: **19/5/5/10/20/15/5 SAR**.
+Pricing catalog: **59/10/29/15/29/29/10 SAR** (publish tax-inclusive).
 
 ## Legend
 
@@ -31,7 +31,7 @@ Pricing catalog: **19/5/5/10/20/15/5 SAR**.
 | Profile + suspension | DONE |
 | Audit log writes | DONE |
 | Ad lifecycle APIs | DONE |
-| Pricing 19 SAR catalog | DONE |
+| Pricing 59 SAR catalog | DONE |
 | Sandbox payments + refunds | DONE |
 | Production payment adapters | PARTIAL (fail-closed stub) |
 | Categories + SA geo seed | DONE |

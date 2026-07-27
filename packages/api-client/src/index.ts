@@ -374,7 +374,15 @@ export type CreateAdBody = {
 export type PaymentOptions = {
   adId: string;
   revisionId: string;
-  quote: { total: number; currency: string; lines: unknown[] };
+  quote: {
+    total: number;
+    subtotal: number;
+    taxAmount: number;
+    taxMode?: 'inclusive' | 'exclusive' | 'none';
+    taxRate?: number;
+    currency: string;
+    lines: unknown[];
+  };
   routing: { ok: boolean; provider?: { name: string }; channel?: string; reason?: string };
   messageAr?: string;
 };

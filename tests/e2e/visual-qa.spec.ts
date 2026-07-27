@@ -119,8 +119,8 @@ test('desktop full-flow screen recording + main screens', async ({ page, context
   // Pay
   await page.goto(`/ads/${adId}/status`);
   await expect(page.getByText('مقبول — بانتظار الدفع')).toBeVisible({ timeout: 20000 });
-  await page.getByRole('link', { name: /الدفع \(19/ }).click();
-  await expect(page.getByText('19')).toBeVisible();
+  await page.getByRole('link', { name: /الدفع \(59/ }).click();
+  await expect(page.getByText('59')).toBeVisible();
   await page.screenshot({ path: `${ARTIFACTS}/desktop-10-payment.png`, fullPage: true });
   await page.getByRole('button', { name: 'ادفع عبر Sandbox' }).click();
   await page.waitForURL('**/payments/sandbox/checkout**', { timeout: 30000 });
