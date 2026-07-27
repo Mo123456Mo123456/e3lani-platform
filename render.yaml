@@ -1,0 +1,97 @@
+# Render Blueprint — durable free-tier staging for E3lani
+# Docs: https://render.com/docs/blueprint-spec
+previewsEnabled: false
+
+services:
+  - type: web
+    name: e3lani-api-staging
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: infrastructure/docker/Dockerfile.api
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: OTP_MODE
+        value: sandbox
+      - key: OTP_PROVIDER
+        value: sandbox
+      - key: PAYMENT_MODE
+        value: sandbox
+      - key: SANDBOX_PAYMENT_WEBHOOK_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: e3lani-pg-staging
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: e3lani-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: API_PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        value: e3lani
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_PUBLIC_BASE_URL
+        sync: false
+
+  - type: web
+    name: e3lani-web-staging
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: apps/web
+    buildCommand: cd ../.. && corepack enable && pnpm install --frozen-lockfile && pnpm --filter @e3lani/web... build
+    startCommand: pnpm --filter @e3lani/web start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+
+  - type: web
+    name: e3lani-admin-staging
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: apps/admin
+    buildCommand: cd ../.. && corepack enable && pnpm install --frozen-lockfile && pnpm --filter @e3lani/admin... build
+    startCommand: pnpm --filter @e3lani/admin start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+
+  - type: keyvalue
+    name: e3lani-redis-staging
+    plan: free
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: e3lani-pg-staging
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"

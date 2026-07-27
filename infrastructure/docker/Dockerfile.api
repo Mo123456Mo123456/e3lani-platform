@@ -1,0 +1,33 @@
+# Durable staging API image for E3lani (NestJS monorepo slice).
+FROM node:20-bookworm-slim AS base
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl ca-certificates python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
+COPY packages ./packages
+COPY services/api ./services/api
+# Only install what API needs (workspace links)
+RUN pnpm install --frozen-lockfile --filter @e3lani/api...
+
+FROM deps AS build
+RUN pnpm --filter @e3lani/api exec prisma generate
+RUN pnpm --filter @e3lani/api build \
+ && pnpm --filter @e3lani/auth build \
+ && pnpm --filter @e3lani/config build \
+ && pnpm --filter @e3lani/payments build \
+ && pnpm --filter @e3lani/types build \
+ && pnpm --filter @e3lani/validation build \
+ && pnpm --filter @e3lani/storage build
+
+FROM base AS runner
+ENV NODE_ENV=production
+ENV PORT=3001
+WORKDIR /app
+COPY --from=build /app /app
+WORKDIR /app/services/api
+EXPOSE 3001
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/main.js"]
