@@ -9,21 +9,45 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "sa.e3lani.app"
+      "bundleIdentifier": "sa.e3lani.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "لإضافة صور وفيديو للإعلان",
+        "NSPhotoLibraryUsageDescription": "لاختيار صور وفيديو من الجهاز",
+        "NSMicrophoneUsageDescription": "لتسجيل الصوت مع الفيديو"
+      }
     },
     "android": {
       "package": "sa.e3lani.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFC400"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "INTERNET"
+      ]
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "e3lani-local-preview"
       }
     }
   }

@@ -80,3 +80,11 @@
 
 - PR يبقى **Draft** لمراجعة التسجيل والصور
 - Issue #1 **لا يُغلق** حتى اعتمادك البصري للمسار
+
+---
+
+## تحديث قابلية المراجعة (نفس الجلسة)
+
+- الصور المضغوطة داخل المستودع: [`docs/visual-evidence/`](./visual-evidence/)
+- تسجيل المسار + APK على GitHub Release: https://github.com/Mo123456Mo123456/e3lani-platform/releases/tag/visual-qa-phase3
+- مصفوفة الأسطح: [`docs/DEVICE_TEST_MATRIX_AR.md`](./DEVICE_TEST_MATRIX_AR.md)
