@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AdDetail } from '@e3lani/api-client';
+import { BrandHeader } from '../../src/components/BrandHeader';
 import { LogoMark } from '../../src/components/LogoMark';
 import { api, getToken, setAuthTokens } from '../../src/lib/api';
 import { useLocale } from '../../src/lib/locale';
@@ -58,14 +59,15 @@ export default function AccountScreen() {
       style={styles.root}
       contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 }}
     >
+      <BrandHeader title={t('account.title')} subtitle={phone || t('account.loginPrompt')} markSize={36} />
+
       <View style={[styles.profile, { flexDirection: rowDirection }]}>
-        <View style={styles.avatar}>
-          <LogoMark size={28} />
+        <View style={styles.avatar} accessibilityLabel="E3lani">
+          <LogoMark size={30} />
         </View>
-        <View style={styles.profileText}>
-          <Text style={[styles.name, { textAlign }]}>{t('account.title')}</Text>
-          <Text style={[styles.meta, { textAlign }]}>{phone || t('account.loginPrompt')}</Text>
-        </View>
+        <Text style={[styles.profileHint, { textAlign }]}>
+          {locale === 'ar' ? 'حساب المعلن' : 'Advertiser account'}
+        </Text>
       </View>
 
       <View style={[styles.topActions, { flexDirection: rowDirection }]}>
@@ -148,41 +150,48 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: 20 },
+  root: { flex: 1, backgroundColor: colors.black, paddingHorizontal: 20 },
   profile: { alignItems: 'center', gap: 12, marginBottom: 16 },
   avatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.charcoal,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: colors.primary,
   },
-  profileText: { flex: 1 },
-  name: { color: colors.black, fontSize: 22, fontWeight: '800' },
-  meta: { color: colors.gray, marginTop: 4 },
+  profileHint: { flex: 1, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+  meta: { color: 'rgba(255,255,255,0.6)', marginTop: 4 },
   topActions: { gap: 8, flexWrap: 'wrap', marginBottom: 18 },
   logout: {
-    backgroundColor: colors.black,
+    backgroundColor: colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
   },
-  logoutText: { color: colors.white, fontWeight: '800' },
+  logoutText: { color: colors.black, fontWeight: '800' },
   secondaryBtn: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.charcoal,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,196,0,0.28)',
   },
-  secondaryBtnText: { color: colors.black, fontWeight: '800' },
-  section: { color: colors.black, fontWeight: '800', fontSize: 16, marginBottom: 10 },
+  secondaryBtnText: { color: colors.white, fontWeight: '800' },
+  section: { color: colors.primary, fontWeight: '800', fontSize: 16, marginBottom: 10 },
   list: { gap: 8 },
-  row: { backgroundColor: colors.surface, borderRadius: 14, padding: 14 },
-  rowTitle: { fontWeight: '700' },
-  rowMeta: { color: colors.gray, marginTop: 4 },
+  row: {
+    backgroundColor: colors.charcoal,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  rowTitle: { fontWeight: '700', color: colors.white },
+  rowMeta: { color: 'rgba(255,255,255,0.55)', marginTop: 4 },
   adActions: { marginTop: 12, flexWrap: 'wrap', gap: 8 },
   actionBtn: {
     backgroundColor: colors.primary,
