@@ -8,75 +8,115 @@ Staging الدائم على Render **منشور**:
 |---|---|
 | Web | https://e3lani-web-staging.onrender.com |
 | Admin | https://e3lani-admin-staging.onrender.com |
-| API | https://e3lani-api-staging.onrender.com/api/v1/health |
+| API Health | https://e3lani-api-staging.onrender.com/api/v1/health |
 | Android v5 | https://github.com/Mo123456Mo123456/e3lani-platform/releases/download/visual-qa-phase3/e3lani-staging-release-v5.apk |
 
-المتبقي للمسار الكامل: ضبط `S3_*` على خدمة API (الرفع يعيد `STORAGE_NOT_CONFIGURED`).
-
-<details><summary>سجل الحظر السابق (قبل Render)</summary>
-
-لا يمكن إكمال **Staging دائم** من داخل وكيل Cursor الحالي بدون مفتاح API لمنصة استضافة.
-
-تم التحقق من:
-
-| المسار | النتيجة |
+| Field | Value |
 |---|---|
-| Cloudflare quick tunnel | مرفوض للتسليم (HTTP 530 بعد انتهاء الجلسة) |
-| منافذ VM العامة | مغلقة من الخارج |
-| Fly.io / Railway / Vercel CLI | تحتاج تسجيل دخول تفاعلي (OAuth) |
-| GHCR push | `permission_denied` لحساب التكامل الحالي |
-| Codespaces | `403` على التكامل الحالي |
-| Secrets المستودع | غير مقروءة (`403`) |
+| versionName | `0.1.5-staging` |
+| versionCode | `5` |
+| SHA-256 | `ba49bde90a6ec225baf55b81bc8e61ade8818ac8d8f9725e68f6afcdb30a3cfe` |
 
-## ما جاهز في المستودع
+تم التحقق من API: OTP `123456` → Feed → إنشاء إعلان (DRAFT).  
+رفع الوسائط يعتمد على Cloudflare R2 (انظر أدناه).
 
-- `infrastructure/docker/Dockerfile.api` — صورة NestJS API (بُنيت محليًا بنجاح: `ghcr.io/mo123456mo123456/e3lani-api:staging`)
-- `render.yaml` — Blueprint لـ API + Web + Admin + Postgres + Redis على Render Free
-- `scripts/deploy-staging-render.sh` — نشر عبر Render API
+## Cloudflare R2 — تخزين الوسائط
 
-## المطلوب من مالك الحساب (مرة واحدة)
+لا تضع أسرارًا في Git. عيّن القيم من لوحة Cloudflare ثم انقلها إلى Render Environment.
 
-1. أنشئ حسابًا على [Render](https://render.com) (بدون بطاقة للخطة المجانية) واربط مستودع GitHub `Mo123456Mo123456/e3lani-platform`.
-2. أنشئ API Key من Dashboard → Account Settings → API Keys.
-3. أعد تشغيل الوكيل مع المتغير:
+### صفحة إعداد R2
 
-```bash
-export RENDER_API_KEY=rnd_...
-bash scripts/deploy-staging-render.sh
+https://dash.cloudflare.com/?to=/:account/r2
+
+### المتغيرات المطلوبة (API + media-worker)
+
+| Variable | Source |
+|---|---|
+| `STORAGE_PROVIDER` | ثابت: `r2` |
+| `S3_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
+| `S3_REGION` | `auto` |
+| `S3_BUCKET` | اسم الـBucket |
+| `S3_ACCESS_KEY_ID` | R2 → Manage R2 API Tokens → Access Key ID |
+| `S3_SECRET_ACCESS_KEY` | Secret Access Key (يُعرض مرة واحدة) |
+| `S3_PUBLIC_BASE_URL` | اتركه فارغًا للـBucket الخاص + Signed GET |
+| `S3_FORCE_PATH_STYLE` | `false` |
+
+أسماء قديمة ما زالت مدعومة للتوافق: `S3_ACCESS_KEY` / `S3_SECRET_KEY`.
+
+### إعداد Bucket CORS (مطلوب للرفع من المتصفح/الجوال)
+
+في R2 → Bucket → Settings → CORS Policy:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://e3lani-web-staging.onrender.com",
+      "https://e3lani-admin-staging.onrender.com"
+    ],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["Content-Type", "Authorization", "*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
 ```
 
-أو من واجهة Render: **New → Blueprint** → اختر المستودع والفرع `cursor/phase-1-foundation-b0e4` → طبّق `render.yaml`.
+تطبيق Android يرفع عبر Signed URL مباشرة إلى R2 (لا يحتاج Origin ثابت في CORS بنفس أسلوب المتصفح؛ أبقِ PUT مفعّلًا).
 
-### إصلاح EROFS / corepack (مهم)
+### Bucket خاص + Signed URLs
 
-لا تستخدم `corepack enable` على Render Node — يفشل بـ `EROFS: unlink '/usr/bin/pnpm'`.
-`render.yaml` يثبّت `pnpm@9.15.4` تحت `$HOME/.local` ويشغّل Node/Prisma/Next مباشرة بدون pnpm في `startCommand`.
+- لا تجعل كل الملفات عامة تلقائيًا.
+- اترك `S3_PUBLIC_BASE_URL` فارغًا → API يُصدر Signed GET عند الحاجة.
+- الرفع: Signed PUT من `/media/upload-intent`.
 
-بعد دفع التعديل: من Blueprint اضغط **Manual Sync** ثم أعد البناء.
+### بعد ضبط المتغيرات على Render
 
-4. بعد ظهور الخدمات، عيّن:
-
-- `API_PUBLIC_URL=https://e3lani-api-staging.onrender.com`
-- `CORS_ORIGINS=https://e3lani-web-staging.onrender.com,https://e3lani-admin-staging.onrender.com`
-- تخزين كائنات (Cloudflare R2 / AWS S3 / Backblaze) في `S3_*`
-
-5. تحقق:
+1. Dashboard → `e3lani-api-staging` → Environment → الصق المتغيرات.
+2. Dashboard → `e3lani-media-worker-staging` → نفس متغيرات التخزين + `DATABASE_URL`/`REDIS_URL` (من Blueprint).
+3. Manual Deploy للـAPI والـWorker.
+4. تحقق:
 
 ```bash
-curl https://e3lani-api-staging.onrender.com/api/v1/health
+curl -sS https://e3lani-api-staging.onrender.com/api/v1/health
+# storage.configured يجب أن يصبح true بعد ضبط R2
+
+# إداري (يتطلب Bearer token بمراجع):
+curl -sS -H "Authorization: Bearer <token>" \
+  https://e3lani-api-staging.onrender.com/api/v1/admin/providers/storage/health
 ```
 
-6. ابنِ APK مرتبطًا بالعنوان الثابت فقط (بدون `trycloudflare`):
+### مسار الوسائط
+
+```
+Client → POST /media/upload-intent (Signed PUT)
+      → PUT مباشر إلى R2
+      → POST /media/:id/complete  (UPLOADED → QUEUED)
+      → media-worker (PROCESSING → FFmpeg/Sharp → processed/* على R2 → READY)
+      → POST /ads/:id/media
+      → POST /ads/:id/submit-review
+```
+
+حالات `MediaAsset.status`: `UPLOADING` → `UPLOADED` → `QUEUED` → `PROCESSING` → `READY` | `FAILED`.
+
+## ملاحظات Render
+
+لا تستخدم `corepack enable` على Render Node — يفشل بـ `EROFS`.  
+`render.yaml` يثبّت `pnpm@9.15.4` تحت `$HOME/.local`.
+
+API يطبّق bootstrap seed تلقائيًا (21 فئة + مدن السعودية) إذا كانت قاعدة البيانات فارغة.
+
+`e3lani-media-worker-staging` صورة Docker تتضمن FFmpeg.
+
+## بناء APK
+
+عنوان API لم يتغير — **APK v5 يكفي** ما لم يتغير كود الجوال أو عنوان الـAPI.
 
 ```bash
 EXPO_PUBLIC_API_URL=https://e3lani-api-staging.onrender.com/api/v1 \
   pnpm --filter @e3lani/mobile build:android:staging-release
 ```
 
-## ملاحظة عن الدومين
+## الدومين
 
-`api-staging.e3lani.com` يحتاج نطاقًا مملوكًا + DNS. إلى أن يتوفر، استخدم `*.onrender.com` كعنوان ثابت (ليس نفقًا مؤقتًا).
-
-## Android
-
-لن يُبنى APK جديد على `trycloudflare`. Android **غير جاهز للتسليم النهائي** حتى يعمل Health الثابت من جهازك ثم يُعاد بناء APK عليه.
+`api-staging.e3lani.com` يحتاج نطاقًا مملوكًا + DNS. حتى يتوفر، `*.onrender.com` عنوان ثابت صالح.

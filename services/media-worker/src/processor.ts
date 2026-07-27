@@ -21,8 +21,11 @@ export type ProcessResult = {
   posterKey: string;
   width?: number;
   height?: number;
+  durationSec?: number;
   processedKeys: string[];
 };
+
+const MAX_VIDEO_SECONDS = 60;
 
 async function downloadToFile(client: S3Client, bucket: string, key: string, dest: string) {
   const obj = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
@@ -64,6 +67,37 @@ function runFfmpeg(args: string[]): Promise<void> {
   });
 }
 
+function probeDurationSeconds(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      'ffprobe',
+      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', filePath],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`ffprobe failed (${code}): ${stderr.slice(-300)}`));
+        return;
+      }
+      const seconds = Number.parseFloat(stdout.trim());
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        reject(new Error('VIDEO_DURATION_UNKNOWN'));
+        return;
+      }
+      resolve(seconds);
+    });
+  });
+}
+
 export async function processMediaJob(
   client: S3Client,
   bucket: string,
@@ -100,7 +134,12 @@ export async function processMediaJob(
       };
     }
 
-    // Video: extract poster + create 720p progressive MP4 when ffmpeg is available
+    // Video: enforce duration, extract poster, create 720p progressive MP4.
+    const durationSec = await probeDurationSeconds(sourcePath);
+    if (durationSec > MAX_VIDEO_SECONDS) {
+      throw new Error(`Video exceeds ${MAX_VIDEO_SECONDS} seconds`);
+    }
+
     await runFfmpeg(['-i', sourcePath, '-ss', '00:00:00.5', '-vframes', '1', posterPath]);
     const posterMeta = await sharp(posterPath).metadata();
     width = posterMeta.width;
@@ -136,6 +175,7 @@ export async function processMediaJob(
     return {
       posterKey,
       processedKeys,
+      durationSec: Math.round(durationSec * 100) / 100,
       ...(width !== undefined ? { width } : {}),
       ...(height !== undefined ? { height } : {}),
     };

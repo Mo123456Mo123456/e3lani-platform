@@ -1,36 +1,45 @@
+import type { S3Client } from '@aws-sdk/client-s3';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
-import { createStorageClient } from '@e3lani/storage';
+import { createStorageClientFromEnv, resolveStorageEnv } from '@e3lani/storage';
 import { processMediaJob, type MediaJob } from './processor';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
-  const bucket = process.env.S3_BUCKET ?? 'e3lani';
-  const client = createStorageClient({
-    endpoint: process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000',
-    region: process.env.S3_REGION ?? 'us-east-1',
-    bucket,
-    accessKeyId: process.env.S3_ACCESS_KEY ?? 'e3lani',
-    secretAccessKey: process.env.S3_SECRET_KEY ?? 'e3lanisecret',
-  });
+  const status = resolveStorageEnv();
+  if (!status.configured || !status.config) {
+    console.error(
+      `STORAGE_NOT_CONFIGURED missing=${status.missing.join(',') || 'none'} — media-worker refuses to start with fake success`,
+    );
+    process.exit(1);
+  }
 
+  const resolved = createStorageClientFromEnv();
+  if (!resolved) {
+    console.error('STORAGE_NOT_CONFIGURED');
+    process.exit(1);
+  }
+
+  const { client, config } = resolved;
+  const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
   const redis = new Redis(redisUrl);
+
   // eslint-disable-next-line no-console
-  console.log('E3lani media-worker listening on queue e3lani:media:jobs');
+  console.log(
+    `E3lani media-worker listening provider=${config.provider} bucket=${config.bucket} private=${config.privateBucket}`,
+  );
 
   for (;;) {
     const item = await redis.brpop('e3lani:media:jobs', 5);
     if (!item) {
-      // Also drain DB-queued assets for resilience
       const queued = await prisma.mediaAsset.findMany({
         where: { status: 'QUEUED' },
         take: 5,
         orderBy: { createdAt: 'asc' },
       });
       for (const asset of queued) {
-        await handleJob(client, bucket, {
+        await handleJob(client, config.bucket, {
           assetId: asset.id,
           storageKey: asset.storageKey,
           kind: asset.kind === 'VIDEO' ? 'video' : 'image',
@@ -40,15 +49,11 @@ async function main() {
     }
 
     const job = JSON.parse(item[1]) as MediaJob;
-    await handleJob(client, bucket, job);
+    await handleJob(client, config.bucket, job);
   }
 }
 
-async function handleJob(
-  client: ReturnType<typeof createStorageClient>,
-  bucket: string,
-  job: MediaJob,
-) {
+async function handleJob(client: S3Client, bucket: string, job: MediaJob) {
   try {
     await prisma.mediaAsset.update({
       where: { id: job.assetId },
@@ -62,13 +67,14 @@ async function handleJob(
         posterKey: result.posterKey,
         ...(result.width !== undefined ? { width: result.width } : {}),
         ...(result.height !== undefined ? { height: result.height } : {}),
+        ...(result.durationSec !== undefined ? { durationSec: result.durationSec } : {}),
       },
     });
     // eslint-disable-next-line no-console
-    console.log(`Processed ${job.assetId} → ${result.posterKey}`);
+    console.log(`Processed ${job.assetId} → READY ${result.posterKey}`);
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error(`Failed ${job.assetId}`, error);
+    console.error(`Failed ${job.assetId}`, error instanceof Error ? error.message : error);
     await prisma.mediaAsset.update({
       where: { id: job.assetId },
       data: { status: 'FAILED' },

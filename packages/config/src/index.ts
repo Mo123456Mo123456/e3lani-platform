@@ -18,6 +18,8 @@ export const BRAND = {
 export const MEDIA_LIMITS = {
   maxVideoSeconds: 60,
   maxVideoBytes: 200 * 1024 * 1024,
+  /** Soft cap for source images (posters are re-encoded by the worker). */
+  maxImageBytes: 20 * 1024 * 1024,
   maxImages: 5,
   minImages: 1,
   maxFilesPerUpload: 10,
@@ -25,6 +27,14 @@ export const MEDIA_LIMITS = {
   videoMime: ['video/mp4', 'video/quicktime'] as const,
   imageMime: ['image/jpeg', 'image/png', 'image/webp'] as const,
 } as const;
+
+/** Normalize client MIME aliases (never trust filenames). */
+export function normalizeMediaMime(mimeType: string): string {
+  const m = mimeType.trim().toLowerCase();
+  if (m === 'image/jpg') return 'image/jpeg';
+  if (m === 'video/mov') return 'video/quicktime';
+  return m;
+}
 
 export const AUTH_LIMITS = {
   otpTtlSeconds: 300,

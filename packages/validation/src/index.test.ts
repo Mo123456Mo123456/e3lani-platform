@@ -32,4 +32,75 @@ describe('validation', () => {
       }),
     ).toThrow(/200MB/);
   });
+
+  it('rejects unsupported mime types', () => {
+    expect(() =>
+      validateMediaIntent({
+        kind: 'image',
+        mimeType: 'image/gif',
+        sizeBytes: 1024,
+      }),
+    ).toThrow(/Unsupported image mime/);
+    expect(() =>
+      validateMediaIntent({
+        kind: 'video',
+        mimeType: 'video/avi',
+        sizeBytes: 1024,
+        durationSeconds: 10,
+      }),
+    ).toThrow(/Unsupported video mime/);
+  });
+
+  it('requires video duration and enforces 60s', () => {
+    expect(() =>
+      validateMediaIntent({
+        kind: 'video',
+        mimeType: 'video/mp4',
+        sizeBytes: 1024,
+      }),
+    ).toThrow(/durationSeconds/);
+    expect(() =>
+      validateMediaIntent({
+        kind: 'video',
+        mimeType: 'video/mp4',
+        sizeBytes: 1024,
+        durationSeconds: 90,
+      }),
+    ).toThrow(/60 seconds/);
+  });
+
+  it('rejects oversized images and normalizes image/jpg', () => {
+    expect(() =>
+      validateMediaIntent({
+        kind: 'image',
+        mimeType: 'image/png',
+        sizeBytes: 25 * 1024 * 1024,
+      }),
+    ).toThrow(/20MB/);
+    const ok = validateMediaIntent({
+      kind: 'image',
+      mimeType: 'image/jpg',
+      sizeBytes: 2048,
+      fileName: '../../evil.exe',
+    });
+    expect(ok.mimeType).toBe('image/jpeg');
+  });
+
+  it('accepts allowed MP4/MOV/JPEG/PNG/WebP', () => {
+    expect(
+      validateMediaIntent({
+        kind: 'image',
+        mimeType: 'image/webp',
+        sizeBytes: 1000,
+      }).mimeType,
+    ).toBe('image/webp');
+    expect(
+      validateMediaIntent({
+        kind: 'video',
+        mimeType: 'video/quicktime',
+        sizeBytes: 1000,
+        durationSeconds: 15,
+      }).mimeType,
+    ).toBe('video/quicktime');
+  });
 });

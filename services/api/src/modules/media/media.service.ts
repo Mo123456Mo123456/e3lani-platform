@@ -1,52 +1,102 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { MediaKind } from '@prisma/client';
+import { MEDIA_LIMITS } from '@e3lani/config';
 import { validateMediaIntent } from '@e3lani/validation';
 import {
   assertAllowedStorageKey,
   buildObjectKey,
+  checkStorageHealth,
   createSignedUpload,
-  createStorageClient,
-  ensureBucket,
+  createStorageClientFromEnv,
+  ensureBucketOrCreate,
   objectExists,
+  resolveStorageEnv,
+  storageHealthSummary,
+  type StorageConfig,
+  type StorageHealthResult,
 } from '@e3lani/storage';
+import type { S3Client } from '@aws-sdk/client-s3';
 import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { decorateAsset } from '../../common/media-urls';
 
+/** MediaAsset.status lifecycle used by API + worker. */
+export const MEDIA_STATUSES = [
+  'UPLOADING',
+  'UPLOADED',
+  'QUEUED',
+  'PROCESSING',
+  'READY',
+  'FAILED',
+] as const;
+
 @Injectable()
 export class MediaService implements OnModuleInit {
-  private readonly bucket = process.env.S3_BUCKET ?? 'e3lani';
-  private readonly client = createStorageClient({
-    endpoint: process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000',
-    region: process.env.S3_REGION ?? 'us-east-1',
-    bucket: this.bucket,
-    accessKeyId: process.env.S3_ACCESS_KEY ?? 'e3lani',
-    secretAccessKey: process.env.S3_SECRET_KEY ?? 'e3lanisecret',
-    ...(process.env.S3_PUBLIC_BASE_URL
-      ? { publicBaseUrl: process.env.S3_PUBLIC_BASE_URL }
-      : {}),
-  });
+  private readonly log = new Logger(MediaService.name);
+  private client: S3Client | null = null;
+  private config: StorageConfig | null = null;
   private redis: Redis | null = null;
+  private lastHealth: StorageHealthResult | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    if (process.env.S3_ENDPOINT) {
-      await ensureBucket(this.client, this.bucket);
+    const resolved = createStorageClientFromEnv();
+    if (resolved) {
+      this.client = resolved.client;
+      this.config = resolved.config;
+      try {
+        await ensureBucketOrCreate(
+          this.client,
+          this.config.bucket,
+          this.config.provider,
+        );
+        this.log.log(
+          `Storage ready provider=${this.config.provider} bucket=${this.config.bucket} private=${this.config.privateBucket}`,
+        );
+      } catch (error) {
+        const name = error instanceof Error ? error.message : 'unknown';
+        this.log.warn(`Storage bucket check failed (${name}) — uploads will report unhealthy`);
+        // Keep client; health endpoint will surface HeadBucket failure. Never fake success.
+      }
+    } else {
+      const status = resolveStorageEnv();
+      this.log.warn(
+        `Storage not ready mode=${status.mode} missing=${status.missing.join(',') || 'none'}`,
+      );
     }
+
     if (process.env.REDIS_URL) {
-      this.redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 1, lazyConnect: true });
+      this.redis = new Redis(process.env.REDIS_URL, {
+        maxRetriesPerRequest: 1,
+        lazyConnect: true,
+      });
       try {
         await this.redis.connect();
       } catch {
         this.redis = null;
       }
     }
+  }
+
+  storageSummary() {
+    return storageHealthSummary();
+  }
+
+  async storageHealth(): Promise<StorageHealthResult> {
+    this.lastHealth = await checkStorageHealth();
+    return this.lastHealth;
+  }
+
+  private storageBinding() {
+    if (!this.client || !this.config) return null;
+    return { client: this.client, config: this.config };
   }
 
   async createUploadIntent(
@@ -57,39 +107,45 @@ export class MediaService implements OnModuleInit {
       sizeBytes: number;
       durationSeconds?: number;
       adId?: string;
+      fileName?: string;
     },
   ) {
+    this.requireStorageConfigured();
+
+    let normalized: ReturnType<typeof validateMediaIntent>;
     try {
-      validateMediaIntent({
+      normalized = validateMediaIntent({
         kind: input.kind,
         mimeType: input.mimeType,
         sizeBytes: input.sizeBytes,
         durationSeconds: input.durationSeconds,
+        fileName: input.fileName,
       });
     } catch (error) {
       throw new BadRequestException((error as Error).message);
     }
 
+    // Never use client fileName for keys — buildObjectKey is server-side only.
     const key = buildObjectKey({
       ownerId,
-      kind: input.kind,
-      mimeType: input.mimeType,
+      kind: normalized.kind,
+      mimeType: normalized.mimeType,
     });
     assertAllowedStorageKey(key);
 
-    const signed = await createSignedUpload(this.client, {
-      bucket: this.bucket,
+    const signed = await createSignedUpload(this.client!, {
+      bucket: this.config!.bucket,
       key,
-      mimeType: input.mimeType,
+      mimeType: normalized.mimeType,
     });
 
     const asset = await this.prisma.mediaAsset.create({
       data: {
         ownerId,
-        kind: input.kind === 'video' ? MediaKind.VIDEO : MediaKind.IMAGE,
-        mimeType: input.mimeType,
-        sizeBytes: input.sizeBytes,
-        durationSec: input.durationSeconds,
+        kind: normalized.kind === 'video' ? MediaKind.VIDEO : MediaKind.IMAGE,
+        mimeType: normalized.mimeType,
+        sizeBytes: normalized.sizeBytes,
+        durationSec: normalized.durationSeconds,
         storageKey: key,
         status: 'UPLOADING',
       },
@@ -98,40 +154,57 @@ export class MediaService implements OnModuleInit {
     return {
       assetId: asset.id,
       ...signed,
-      note: 'Upload via signed URL only. Client must not invent storage URLs.',
+      status: 'UPLOADING',
+      note: 'Upload via signed URL only. Client must not invent storage URLs or filenames.',
     };
   }
 
   async completeUpload(ownerId: string, assetId: string) {
+    this.requireStorageConfigured();
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id: assetId } });
     if (!asset || asset.ownerId !== ownerId) {
       throw new BadRequestException('ASSET_NOT_FOUND');
     }
     assertAllowedStorageKey(asset.storageKey);
 
-    const head = await objectExists(this.client, this.bucket, asset.storageKey);
+    const head = await objectExists(this.client!, this.config!.bucket, asset.storageKey);
     if (!head.exists) {
       throw new BadRequestException('UPLOAD_NOT_FOUND_IN_STORAGE');
     }
 
-    const updated = await this.prisma.mediaAsset.update({
+    const sizeBytes = head.sizeBytes ?? asset.sizeBytes;
+    if (asset.kind === MediaKind.VIDEO && sizeBytes > MEDIA_LIMITS.maxVideoBytes) {
+      throw new BadRequestException('Video exceeds 200MB limit');
+    }
+    if (asset.kind === MediaKind.IMAGE && sizeBytes > MEDIA_LIMITS.maxImageBytes) {
+      throw new BadRequestException('Image exceeds 20MB limit');
+    }
+
+    await this.prisma.mediaAsset.update({
       where: { id: assetId },
       data: {
         status: 'UPLOADED',
-        sizeBytes: head.sizeBytes ?? asset.sizeBytes,
+        sizeBytes,
         mimeType: head.contentType ?? asset.mimeType,
       },
     });
 
-    await this.enqueueProcessing(updated.id, updated.storageKey, updated.kind === 'VIDEO' ? 'video' : 'image');
-    return decorateAsset(await this.prisma.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }));
+    await this.enqueueProcessing(
+      assetId,
+      asset.storageKey,
+      asset.kind === 'VIDEO' ? 'video' : 'image',
+    );
+    return decorateAsset(
+      await this.prisma.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+      this.storageBinding(),
+    );
   }
 
   async getAsset(assetId: string, ownerId?: string) {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id: assetId } });
     if (!asset) throw new BadRequestException('ASSET_NOT_FOUND');
     if (ownerId && asset.ownerId !== ownerId) throw new BadRequestException('ASSET_NOT_FOUND');
-    return decorateAsset(asset);
+    return decorateAsset(asset, this.storageBinding());
   }
 
   async attachToAd(ownerId: string, adId: string, assetId: string, sortOrder = 0) {
@@ -139,6 +212,18 @@ export class MediaService implements OnModuleInit {
     if (!ad || ad.ownerId !== ownerId) throw new BadRequestException('AD_NOT_FOUND');
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id: assetId } });
     if (!asset || asset.ownerId !== ownerId) throw new BadRequestException('ASSET_NOT_FOUND');
+    if (asset.status !== 'READY') {
+      throw new BadRequestException('MEDIA_NOT_READY');
+    }
+
+    const existing = await this.prisma.adMedia.findMany({
+      where: { adId },
+      include: { asset: true },
+    });
+    const imageCount = existing.filter((row) => row.asset.kind === MediaKind.IMAGE).length;
+    if (asset.kind === MediaKind.IMAGE && imageCount >= MEDIA_LIMITS.maxImages) {
+      throw new BadRequestException(`Max ${MEDIA_LIMITS.maxImages} images per ad`);
+    }
 
     const row = await this.prisma.adMedia.create({
       data: {
@@ -149,12 +234,15 @@ export class MediaService implements OnModuleInit {
       },
       include: { asset: true },
     });
-    return { ...row, asset: decorateAsset(row.asset) };
+    return { ...row, asset: await decorateAsset(row.asset, this.storageBinding()) };
   }
 
-  private async enqueueProcessing(assetId: string, storageKey: string, kind: 'image' | 'video') {
+  private async enqueueProcessing(
+    assetId: string,
+    storageKey: string,
+    kind: 'image' | 'video',
+  ) {
     if (!this.redis) {
-      // Worker may poll DB; mark queued anyway.
       await this.prisma.mediaAsset.update({
         where: { id: assetId },
         data: { status: 'QUEUED' },
@@ -177,8 +265,17 @@ export class MediaService implements OnModuleInit {
   }
 
   requireStorageConfigured() {
-    if (!process.env.S3_ENDPOINT) {
-      throw new ServiceUnavailableException('STORAGE_NOT_CONFIGURED');
+    const status = resolveStorageEnv();
+    if (status.configured && this.client && this.config) {
+      return;
     }
+    if (status.misconfigured) {
+      throw new ServiceUnavailableException(
+        `STORAGE_MISCONFIGURED: missing ${status.missing.join(', ')}`,
+      );
+    }
+    throw new ServiceUnavailableException(
+      `STORAGE_NOT_CONFIGURED: missing ${status.missing.join(', ') || 'S3_ENDPOINT'}`,
+    );
   }
 }

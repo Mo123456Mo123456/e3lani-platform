@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MEDIA_LIMITS } from '@e3lani/config';
+import { MEDIA_LIMITS, normalizeMediaMime } from '@e3lani/config';
 
 export const phoneSchema = z
   .string()
@@ -43,25 +43,51 @@ export const mediaUploadIntentSchema = z.object({
   mimeType: z.string(),
   sizeBytes: z.number().int().positive(),
   durationSeconds: z.number().positive().optional(),
+  /** Ignored — clients must not control storage keys/filenames. */
+  fileName: z.string().max(255).optional(),
 });
 
-export function validateMediaIntent(input: z.infer<typeof mediaUploadIntentSchema>): void {
+export function validateMediaIntent(input: z.infer<typeof mediaUploadIntentSchema>): {
+  kind: 'image' | 'video';
+  mimeType: string;
+  sizeBytes: number;
+  durationSeconds?: number;
+} {
   const parsed = mediaUploadIntentSchema.parse(input);
+  const mimeType = normalizeMediaMime(parsed.mimeType);
+
   if (parsed.kind === 'video') {
-    if (!(MEDIA_LIMITS.videoMime as readonly string[]).includes(parsed.mimeType)) {
+    if (!(MEDIA_LIMITS.videoMime as readonly string[]).includes(mimeType)) {
       throw new Error('Unsupported video mime type');
     }
     if (parsed.sizeBytes > MEDIA_LIMITS.maxVideoBytes) {
       throw new Error('Video exceeds 200MB limit');
     }
-    if (parsed.durationSeconds && parsed.durationSeconds > MEDIA_LIMITS.maxVideoSeconds) {
+    if (parsed.durationSeconds === undefined) {
+      throw new Error('Video durationSeconds is required');
+    }
+    if (parsed.durationSeconds > MEDIA_LIMITS.maxVideoSeconds) {
       throw new Error('Video exceeds 60 seconds');
     }
-  } else {
-    if (!(MEDIA_LIMITS.imageMime as readonly string[]).includes(parsed.mimeType)) {
-      throw new Error('Unsupported image mime type');
-    }
+    return {
+      kind: 'video',
+      mimeType,
+      sizeBytes: parsed.sizeBytes,
+      durationSeconds: parsed.durationSeconds,
+    };
   }
+
+  if (!(MEDIA_LIMITS.imageMime as readonly string[]).includes(mimeType)) {
+    throw new Error('Unsupported image mime type');
+  }
+  if (parsed.sizeBytes > MEDIA_LIMITS.maxImageBytes) {
+    throw new Error('Image exceeds 20MB limit');
+  }
+  return {
+    kind: 'image',
+    mimeType,
+    sizeBytes: parsed.sizeBytes,
+  };
 }
 
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;

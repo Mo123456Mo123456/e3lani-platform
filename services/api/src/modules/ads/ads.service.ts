@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { MEDIA_LIMITS } from '@e3lani/config';
 import { createAdDraftSchema } from '@e3lani/validation';
+import { MediaKind } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdStateService } from '../../common/ad-state.service';
 import { decorateAdMedia } from '../../common/media-urls';
@@ -25,7 +27,9 @@ export class AdsService {
         media: { include: { asset: true }, orderBy: { sortOrder: 'asc' } },
       },
     });
-    return ads.map((ad) => ({ ...ad, media: decorateAdMedia(ad.media) }));
+    return Promise.all(
+      ads.map(async (ad) => ({ ...ad, media: await decorateAdMedia(ad.media) })),
+    );
   }
 
   async createDraft(ownerId: string, body: unknown) {
@@ -71,13 +75,30 @@ export class AdsService {
       },
     });
     if (!ad || ad.deletedAt) throw new NotFoundException('AD_NOT_FOUND');
-    return { ...ad, media: decorateAdMedia(ad.media) };
+    return { ...ad, media: await decorateAdMedia(ad.media) };
   }
 
   async submitReview(adId: string, ownerId: string) {
     const ad = await this.getById(adId);
     if (ad.ownerId !== ownerId) throw new ForbiddenException();
     if (!ad.currentRevision) throw new BadRequestException('REVISION_REQUIRED');
+
+    const images = ad.media.filter((row) => row.asset.kind === MediaKind.IMAGE);
+    const videos = ad.media.filter((row) => row.asset.kind === MediaKind.VIDEO);
+    if (images.length < MEDIA_LIMITS.minImages) {
+      throw new BadRequestException(`At least ${MEDIA_LIMITS.minImages} image required`);
+    }
+    if (images.length > MEDIA_LIMITS.maxImages) {
+      throw new BadRequestException(`Max ${MEDIA_LIMITS.maxImages} images per ad`);
+    }
+    const notReady = ad.media.filter((row) => row.asset.status !== 'READY');
+    if (notReady.length > 0) {
+      throw new BadRequestException('All media must be READY before review');
+    }
+    if (videos.some((row) => (row.asset.durationSec ?? 0) > MEDIA_LIMITS.maxVideoSeconds)) {
+      throw new BadRequestException('Video exceeds 60 seconds');
+    }
+
     return this.adState.transition({
       adId,
       to: 'PENDING_REVIEW',

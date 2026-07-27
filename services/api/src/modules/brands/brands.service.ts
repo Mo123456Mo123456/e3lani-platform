@@ -30,10 +30,12 @@ export class BrandsService {
     if (!brand) throw new NotFoundException('BRAND_NOT_FOUND');
     return {
       ...brand,
-      ads: brand.user.ads.map((ad) => ({
-        ...ad,
-        media: decorateAdMedia(ad.media),
-      })),
+      ads: await Promise.all(
+        brand.user.ads.map(async (ad) => ({
+          ...ad,
+          media: await decorateAdMedia(ad.media),
+        })),
+      ),
     };
   }
 }

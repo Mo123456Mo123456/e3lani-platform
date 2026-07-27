@@ -138,10 +138,13 @@ async function main() {
 
   const client = createStorageClient({
     endpoint: process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000',
-    region: 'us-east-1',
+    region: process.env.S3_REGION ?? 'us-east-1',
     bucket: process.env.S3_BUCKET ?? 'e3lani',
-    accessKeyId: process.env.S3_ACCESS_KEY ?? 'e3lani',
-    secretAccessKey: process.env.S3_SECRET_KEY ?? 'e3lanisecret',
+    accessKeyId:
+      process.env.S3_ACCESS_KEY_ID ?? process.env.S3_ACCESS_KEY ?? 'e3lani',
+    secretAccessKey:
+      process.env.S3_SECRET_ACCESS_KEY ?? process.env.S3_SECRET_KEY ?? 'e3lanisecret',
+    forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? 'true') !== 'false',
   });
   const processed = await processMediaJob(client, process.env.S3_BUCKET ?? 'e3lani', {
     assetId: intent.data.assetId,
@@ -149,6 +152,15 @@ async function main() {
     kind: 'image',
   });
   assert(processed.posterKey.includes('processed/'), 'thumbnail key missing');
+
+  // Mark READY (worker normally does this) before attach.
+  const { PrismaClient } = await import('@prisma/client');
+  const prisma = new PrismaClient();
+  await prisma.mediaAsset.update({
+    where: { id: intent.data.assetId },
+    data: { status: 'READY', posterKey: processed.posterKey },
+  });
+  await prisma.$disconnect();
 
   const attach = await json('POST', `/ads/${adId}/media`, {
     token,

@@ -22,13 +22,15 @@ export class SavedService {
         },
       },
     });
-    return rows.map((row) => ({
-      ...row,
-      ad: {
-        ...row.ad,
-        media: decorateAdMedia(row.ad.media),
-      },
-    }));
+    return Promise.all(
+      rows.map(async (row) => ({
+        ...row,
+        ad: {
+          ...row.ad,
+          media: await decorateAdMedia(row.ad.media),
+        },
+      })),
+    );
   }
 
   async save(userId: string, adId: string) {

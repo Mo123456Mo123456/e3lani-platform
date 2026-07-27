@@ -34,7 +34,9 @@ export class FeedService {
     const hasMore = items.length > args.take;
     const page = hasMore ? items.slice(0, args.take) : items;
     return {
-      items: page.map((ad) => ({ ...ad, media: decorateAdMedia(ad.media) })),
+      items: await Promise.all(
+        page.map(async (ad) => ({ ...ad, media: await decorateAdMedia(ad.media) })),
+      ),
       nextCursor: hasMore ? page[page.length - 1]?.id ?? null : null,
       hasMore,
     };

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { checkStorageHealth } from '@e3lani/storage';
 import { assertRole, requireUserId } from '../../common/auth.util';
 import { AdminService } from './admin.service';
 
@@ -44,6 +45,16 @@ export class AdminController {
   @Get('payments')
   payments(@Headers('authorization') authorization?: string) {
     return this.moderator(authorization).then(() => this.admin.listPayments());
+  }
+
+  /**
+   * Storage provider health (no secrets). Confirms bucket reachability for R2/S3/MinIO.
+   * GET /api/v1/admin/providers/storage/health
+   */
+  @Get('providers/storage/health')
+  async storageHealth(@Headers('authorization') authorization?: string) {
+    await this.moderator(authorization);
+    return checkStorageHealth();
   }
 
   @Post('ads/:id/approve')

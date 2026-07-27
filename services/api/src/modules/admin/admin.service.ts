@@ -20,7 +20,9 @@ export class AdminService {
       },
       orderBy: { updatedAt: 'asc' },
     });
-    return rows.map((ad) => ({ ...ad, media: decorateAdMedia(ad.media) }));
+    return Promise.all(
+      rows.map(async (ad) => ({ ...ad, media: await decorateAdMedia(ad.media) })),
+    );
   }
 
   async approve(adId: string, actorId: string, notes?: string) {

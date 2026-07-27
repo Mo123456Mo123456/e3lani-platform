@@ -7,6 +7,9 @@
 #
 # Also: NODE_ENV=production would skip devDependencies (prisma, typescript).
 # Always pass --prod=false during build install.
+#
+# Object storage (Cloudflare R2): set sync:false secrets in the dashboard.
+# Never commit real Access Key / Secret values.
 previewsEnabled: false
 
 services:
@@ -31,6 +34,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: APP_ENV
+        value: staging
       - key: PORT
         value: "3001"
       - key: OTP_MODE
@@ -58,18 +63,61 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      - key: STORAGE_PROVIDER
+        value: r2
       - key: S3_ENDPOINT
-        sync: false
-      - key: S3_BUCKET
-        value: e3lani
-      - key: S3_ACCESS_KEY
-        sync: false
-      - key: S3_SECRET_KEY
         sync: false
       - key: S3_REGION
         value: auto
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
       - key: S3_PUBLIC_BASE_URL
         sync: false
+      - key: S3_FORCE_PATH_STYLE
+        value: "false"
+
+  - type: worker
+    name: e3lani-media-worker-staging
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: infrastructure/docker/Dockerfile.media-worker
+    dockerContext: .
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: e3lani-pg-staging
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: e3lani-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: STORAGE_PROVIDER
+        value: r2
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_PUBLIC_BASE_URL
+        sync: false
+      - key: S3_FORCE_PATH_STYLE
+        value: "false"
 
   - type: web
     name: e3lani-web-staging

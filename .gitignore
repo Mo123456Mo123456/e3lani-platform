@@ -9,6 +9,7 @@ coverage
 .env.*
 !.env.example
 !.env.staging.example
+!**/.env.example
 *.tsbuildinfo
 .DS_Store
 uploads
