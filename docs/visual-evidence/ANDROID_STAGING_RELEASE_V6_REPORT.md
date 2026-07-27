@@ -1,7 +1,7 @@
 # Android staging release v6
 
 Built: 2026-07-27T19:07:33Z  
-Branch tip at build time: `d2c5cff` (pre-fix commit; rebuild after push for tip SHA)  
+Hardening commit: `2384c24`  
 versionCode: **6**  
 versionName: **0.1.6-staging**  
 applicationId: `sa.e3lani.app`  

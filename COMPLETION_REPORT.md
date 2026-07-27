@@ -1,7 +1,8 @@
 # Completion Report — E3lani | إعلاني
 
 Branch: `cursor/phase-1-foundation-b0e4`  
-Updated: 2026-07-27 (PR #2 hardening pass)
+Updated: 2026-07-27 (PR #2 hardening pass)  
+Tip commit: `2384c24`
 
 ## Verdict
 
