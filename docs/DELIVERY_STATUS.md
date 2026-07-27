@@ -25,6 +25,13 @@
 | أعلى القسم | 29 ر.س |
 | مدينة إضافية | 10 ر.س |
 
+## نتائج التحقق (Phase 3)
+
+- `pnpm typecheck` / `lint` / `test` / `build` — ناجح
+- `pnpm test:integration` — `PHASE2_INTEGRATION_OK`
+- `pnpm test:e2e` — ناجح (مسار فيديو كامل + دخان جوال)
+- لقطات المسار: `/opt/cursor/artifacts/01` … `09`
+
 ## المتبقي قبل Production
 
 1. StoreKit / Google Play Billing adapters مع تحقق خادمي حقيقي
