@@ -78,6 +78,33 @@ export class WebhooksService {
       throw new BadRequestException('PAYMENT_FOR_NON_CURRENT_REVISION');
     }
 
+    const existingTxn = await this.prisma.paymentTransaction.findUnique({
+      where: {
+        provider_providerReference: {
+          provider: providerName,
+          providerReference: event.providerReference,
+        },
+      },
+    });
+
+    // Idempotent: same provider reference already paid/activated
+    if (existingTxn || order.status === 'PAID' || order.ad.status === 'ACTIVE') {
+      await this.prisma.paymentWebhookEvent.update({
+        where: {
+          provider_eventId: { provider: providerName, eventId: event.eventId },
+        },
+        data: { processed: true },
+      });
+      return {
+        ok: true,
+        activated: true,
+        duplicate: true,
+        adId: order.adId,
+        orderId: order.id,
+        eventId: event.eventId,
+      };
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.order.update({
         where: { id: order.id },
