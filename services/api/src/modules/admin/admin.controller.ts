@@ -36,6 +36,16 @@ export class AdminController {
     return this.moderator(authorization).then(() => this.admin.listPendingReview());
   }
 
+  @Get('orders')
+  orders(@Headers('authorization') authorization?: string) {
+    return this.moderator(authorization).then(() => this.admin.listOrders());
+  }
+
+  @Get('payments')
+  payments(@Headers('authorization') authorization?: string) {
+    return this.moderator(authorization).then(() => this.admin.listPayments());
+  }
+
   @Post('ads/:id/approve')
   async approve(
     @Param('id') id: string,

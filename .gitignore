@@ -20,3 +20,6 @@ web-build
 *.pem
 service-account*.json
 dump.rdb
+playwright-report
+test-results
+blob-report

@@ -7,6 +7,7 @@ import {
 import { createAdDraftSchema } from '@e3lani/validation';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdStateService } from '../../common/ad-state.service';
+import { decorateAdMedia } from '../../common/media-urls';
 
 @Injectable()
 export class AdsService {
@@ -14,6 +15,18 @@ export class AdsService {
     private readonly prisma: PrismaService,
     private readonly adState: AdStateService,
   ) {}
+
+  async listMine(ownerId: string) {
+    const ads = await this.prisma.ad.findMany({
+      where: { ownerId, deletedAt: null },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        currentRevision: { include: { category: true, city: true } },
+        media: { include: { asset: true }, orderBy: { sortOrder: 'asc' } },
+      },
+    });
+    return ads.map((ad) => ({ ...ad, media: decorateAdMedia(ad.media) }));
+  }
 
   async createDraft(ownerId: string, body: unknown) {
     const input = createAdDraftSchema.parse(body);
@@ -58,7 +71,7 @@ export class AdsService {
       },
     });
     if (!ad || ad.deletedAt) throw new NotFoundException('AD_NOT_FOUND');
-    return ad;
+    return { ...ad, media: decorateAdMedia(ad.media) };
   }
 
   async submitReview(adId: string, ownerId: string) {

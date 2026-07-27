@@ -2,23 +2,17 @@
 
 **تاريخ التحديث:** 27 يوليو 2026  
 **الفرع:** `cursor/phase-1-foundation-b0e4`  
-**PR:** #2  
-**الحالة العامة:** Phase 2 مكتملة تقنيًا للاختبار/Sandbox — **ليست جاهزة لتحصيل أموال حقيقية أو الإطلاق الإنتاجي.**
+**PR:** #2 (Draft)  
+**الحالة العامة:** Phase 3 — واجهات مربوطة بالـAPI الحقيقي ومسار مستخدم كامل في Sandbox. **ليست جاهزة لتحصيل أموال حقيقية أو الإطلاق الإنتاجي.**
 
-## ما تم فحصه
+## ما تم في Phase 3
 
-- Docker Compose: PostgreSQL + Redis + MinIO يعملان.
-- Prisma migrate deploy + seed (تسعير 59 ر.س مؤكد).
-- اختبار تكامل حي: مستخدم → إعلان → إصدار → رفع وسائط → مراجعة → دفع sandbox → webhook.
-
-## ما نُفّذ في Phase 2
-
-- Signed URL uploads (`POST /media/upload-intent` → PUT → `/complete`)
-- Media Worker: صور (sharp thumbnail) + فيديو (ffmpeg poster/720p) عبر Redis queue
-- دورة المراجعة: DRAFT → PENDING_REVIEW → NEEDS_CHANGES | APPROVED_AWAITING_PAYMENT
-- مزود دفع `sandbox` مع توقيع HMAC ونافذة replay وIdempotency
-- منع التفعيل عبر redirect (`POST /orders/:id/verify-redirect` يعيد activated:false)
-- التفعيل فقط بعد Webhook موقّع + verifyPayment خادمي
+- ربط Web / Admin / Expo بالـAPI الحقيقي عبر `@e3lani/api-client`
+- إزالة Demo/Mock من المسارات الأساسية
+- مسار كامل: OTP → إنشاء → رفع وسائط → مراجعة → دفع بعد القبول → Webhook → Feed
+- واجهات: تصفح، أقسام، إنشاء، حالة، دفع، حساب، محفوظات، إعلان، براند، مراجعة إدارة، مدفوعات
+- فيديو حقيقي (FFmpeg + MinIO) مع حالات المعالجة
+- Playwright E2E + اختبار دخان للجوال عبر API
 
 ## التسعير المعتمد (لم يُغيَّر)
 
@@ -31,20 +25,11 @@
 | أعلى القسم | 29 ر.س |
 | مدينة إضافية | 10 ر.س |
 
-## نتائج التحقق
-
-- `pnpm test` — ناجح
-- `node scripts/phase2-integration.mjs` — `PHASE2_INTEGRATION_OK`
-- بناء API / Web / Admin / packages — يُحدَّث في تقرير الجلسة
-
-## المتبقي
+## المتبقي قبل Production
 
 1. StoreKit / Google Play Billing adapters مع تحقق خادمي حقيقي
 2. مزود إقليمي إنتاجي (Moyasar/MyFatoorah) بمفاتيح تاجر
-3. ربط واجهات الجوال/الويب بالـ API بدل demo data
-4. E2E Playwright + مراقبة إنتاجية
-5. MFA للإدارة وSecret Manager
+3. MFA للإدارة وSecret Manager
+4. مراقبة إنتاجية ومفاتيح من `docs/KEYS_AND_ACCOUNTS_AR.md`
 
-## المفاتيح المطلوبة قبل Production
-
-انظر `docs/KEYS_AND_ACCOUNTS_AR.md`.
+انظر أيضًا: `docs/PHASE3_REPORT_AR.md` و `docs/PHASE2_REPORT_AR.md`.

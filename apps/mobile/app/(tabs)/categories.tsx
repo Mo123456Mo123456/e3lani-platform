@@ -1,12 +1,19 @@
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { Category } from '@e3lani/api-client';
 import { t } from '@e3lani/i18n';
 import { LogoMark } from '../../src/components/LogoMark';
-import { moreCategories, primaryCategories } from '../../src/data/demo';
+import { api } from '../../src/lib/api';
 import { colors } from '../../src/theme';
 
 export default function CategoriesScreen() {
   const insets = useSafeAreaInsets();
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    api.categories().then(setCategories).catch(console.error);
+  }, []);
 
   return (
     <ScrollView
@@ -17,23 +24,21 @@ export default function CategoriesScreen() {
         <LogoMark size={26} />
         <Text style={styles.title}>{t('ar', 'categories.title')}</Text>
       </View>
-
       <View style={styles.grid}>
-        {primaryCategories.map((category) => (
+        {categories.slice(0, 6).map((category) => (
           <Pressable key={category.id} style={styles.card}>
             <View style={styles.iconBubble}>
-              <Text style={styles.iconLetter}>{category.name.slice(0, 1)}</Text>
+              <Text style={styles.iconLetter}>{category.nameAr.slice(0, 1)}</Text>
             </View>
-            <Text style={styles.cardLabel}>{category.name}</Text>
+            <Text style={styles.cardLabel}>{category.nameAr}</Text>
           </Pressable>
         ))}
       </View>
-
       <Text style={styles.section}>{t('ar', 'categories.exploreMore')}</Text>
       <View style={styles.list}>
-        {moreCategories.map((category) => (
+        {categories.slice(6).map((category) => (
           <Pressable key={category.id} style={styles.listRow}>
-            <Text style={styles.listLabel}>{category.name}</Text>
+            <Text style={styles.listLabel}>{category.nameAr}</Text>
             <Text style={styles.chevron}>‹</Text>
           </Pressable>
         ))}
@@ -51,17 +56,8 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 20,
   },
-  title: {
-    color: colors.black,
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  grid: {
-    paddingHorizontal: 16,
-    flexDirection: 'row-reverse',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
+  title: { color: colors.black, fontSize: 28, fontWeight: '800' },
+  grid: { paddingHorizontal: 16, flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 12 },
   card: {
     width: '47%',
     backgroundColor: colors.surface,

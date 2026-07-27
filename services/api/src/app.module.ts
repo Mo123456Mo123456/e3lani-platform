@@ -13,6 +13,8 @@ import { MediaModule } from './modules/media/media.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { PaymentsProviderModule } from './modules/payments/payments-provider.module';
+import { SavedModule } from './modules/saved/saved.module';
+import { BrandsModule } from './modules/brands/brands.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { PaymentsProviderModule } from './modules/payments/payments-provider.mod
     MediaModule,
     AdminModule,
     WebhooksModule,
+    SavedModule,
+    BrandsModule,
   ],
 })
 export class AppModule {}

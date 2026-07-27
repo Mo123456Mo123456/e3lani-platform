@@ -16,6 +16,7 @@ import {
 } from '@e3lani/storage';
 import Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
+import { decorateAsset } from '../../common/media-urls';
 
 @Injectable()
 export class MediaService implements OnModuleInit {
@@ -123,7 +124,14 @@ export class MediaService implements OnModuleInit {
     });
 
     await this.enqueueProcessing(updated.id, updated.storageKey, updated.kind === 'VIDEO' ? 'video' : 'image');
-    return updated;
+    return decorateAsset(await this.prisma.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }));
+  }
+
+  async getAsset(assetId: string, ownerId?: string) {
+    const asset = await this.prisma.mediaAsset.findUnique({ where: { id: assetId } });
+    if (!asset) throw new BadRequestException('ASSET_NOT_FOUND');
+    if (ownerId && asset.ownerId !== ownerId) throw new BadRequestException('ASSET_NOT_FOUND');
+    return decorateAsset(asset);
   }
 
   async attachToAd(ownerId: string, adId: string, assetId: string, sortOrder = 0) {
@@ -132,7 +140,7 @@ export class MediaService implements OnModuleInit {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id: assetId } });
     if (!asset || asset.ownerId !== ownerId) throw new BadRequestException('ASSET_NOT_FOUND');
 
-    return this.prisma.adMedia.create({
+    const row = await this.prisma.adMedia.create({
       data: {
         adId,
         assetId,
@@ -141,6 +149,7 @@ export class MediaService implements OnModuleInit {
       },
       include: { asset: true },
     });
+    return { ...row, asset: decorateAsset(row.asset) };
   }
 
   private async enqueueProcessing(assetId: string, storageKey: string, kind: 'image' | 'video') {

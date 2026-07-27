@@ -1,11 +1,10 @@
-import { Body, Controller, Headers, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { requireUserId } from '../../common/auth.util';
 import { MediaService } from './media.service';
 
 @ApiTags('media')
-@ApiBearerAuth()
 @Controller()
 export class MediaController {
   constructor(
@@ -13,6 +12,7 @@ export class MediaController {
     private readonly jwt: JwtService,
   ) {}
 
+  @ApiBearerAuth()
   @Post('media/upload-intent')
   async uploadIntent(
     @Headers('authorization') authorization: string | undefined,
@@ -30,6 +30,7 @@ export class MediaController {
     return this.media.createUploadIntent(user.sub, body);
   }
 
+  @ApiBearerAuth()
   @Post('media/:assetId/complete')
   async complete(
     @Headers('authorization') authorization: string | undefined,
@@ -39,6 +40,17 @@ export class MediaController {
     return this.media.completeUpload(user.sub, assetId);
   }
 
+  @ApiBearerAuth()
+  @Get('media/:assetId')
+  async get(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('assetId') assetId: string,
+  ) {
+    const user = await requireUserId(this.jwt, authorization);
+    return this.media.getAsset(assetId, user.sub);
+  }
+
+  @ApiBearerAuth()
   @Post('ads/:adId/media')
   async attach(
     @Headers('authorization') authorization: string | undefined,

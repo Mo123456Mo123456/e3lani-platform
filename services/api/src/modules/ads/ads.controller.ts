@@ -5,10 +5,10 @@ import {
   Headers,
   Param,
   Post,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { requireUserId } from '../../common/auth.util';
 import { AdsService } from './ads.service';
 
 @ApiTags('ads')
@@ -19,21 +19,21 @@ export class AdsController {
     private readonly jwt: JwtService,
   ) {}
 
-  private async userId(authorization?: string) {
-    if (!authorization?.startsWith('Bearer ')) {
-      throw new UnauthorizedException('MISSING_TOKEN');
-    }
-    const payload = await this.jwt.verifyAsync<{ sub: string }>(
-      authorization.slice('Bearer '.length),
-    );
-    return payload.sub;
+  @ApiBearerAuth()
+  @Get('mine')
+  async mine(@Headers('authorization') authorization: string | undefined) {
+    const user = await requireUserId(this.jwt, authorization);
+    return this.ads.listMine(user.sub);
   }
 
   @ApiBearerAuth()
   @Post()
-  async create(@Headers('authorization') authorization: string | undefined, @Body() body: unknown) {
-    const ownerId = await this.userId(authorization);
-    return this.ads.createDraft(ownerId, body);
+  async create(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: unknown,
+  ) {
+    const user = await requireUserId(this.jwt, authorization);
+    return this.ads.createDraft(user.sub, body);
   }
 
   @Get(':id')
@@ -47,8 +47,8 @@ export class AdsController {
     @Param('id') id: string,
     @Headers('authorization') authorization: string | undefined,
   ) {
-    const ownerId = await this.userId(authorization);
-    return this.ads.submitReview(id, ownerId);
+    const user = await requireUserId(this.jwt, authorization);
+    return this.ads.submitReview(id, user.sub);
   }
 
   @ApiBearerAuth()
@@ -58,7 +58,7 @@ export class AdsController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: unknown,
   ) {
-    const ownerId = await this.userId(authorization);
-    return this.ads.createRevision(id, ownerId, body);
+    const user = await requireUserId(this.jwt, authorization);
+    return this.ads.createRevision(id, user.sub, body);
   }
 }

@@ -51,9 +51,25 @@ export class AuthService {
         roles: ['USER'],
         locale: 'ar',
         countryCode: 'SA',
+        displayName: `معلن ${input.phone.slice(-4)}`,
       },
       update: {},
+      include: { brandProfile: true },
     });
+
+    if (!user.brandProfile) {
+      const slugBase = `brand-${user.id.replace(/-/g, '').slice(0, 10)}`;
+      await this.prisma.brandProfile.create({
+        data: {
+          userId: user.id,
+          slug: slugBase,
+          nameAr: user.displayName || `معلن ${input.phone.slice(-4)}`,
+          nameEn: `Advertiser ${input.phone.slice(-4)}`,
+          phone: input.phone,
+          whatsapp: input.phone,
+        },
+      });
+    }
 
     const refreshToken = randomUUID() + randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);

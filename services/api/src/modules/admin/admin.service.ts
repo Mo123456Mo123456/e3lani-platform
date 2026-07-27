@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdStateService } from '../../common/ad-state.service';
+import { decorateAdMedia } from '../../common/media-urls';
 
 @Injectable()
 export class AdminService {
@@ -9,8 +10,8 @@ export class AdminService {
     private readonly adState: AdStateService,
   ) {}
 
-  listPendingReview() {
-    return this.prisma.ad.findMany({
+  async listPendingReview() {
+    const rows = await this.prisma.ad.findMany({
       where: { status: 'PENDING_REVIEW', deletedAt: null },
       include: {
         currentRevision: { include: { category: true, city: true } },
@@ -19,6 +20,7 @@ export class AdminService {
       },
       orderBy: { updatedAt: 'asc' },
     });
+    return rows.map((ad) => ({ ...ad, media: decorateAdMedia(ad.media) }));
   }
 
   async approve(adId: string, actorId: string, notes?: string) {
@@ -80,6 +82,41 @@ export class AdminService {
       to: 'NEEDS_CHANGES',
       actorId,
       reason: notes,
+    });
+  }
+
+  listOrders() {
+    return this.prisma.order.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        items: true,
+        attempts: true,
+        transactions: true,
+        user: { select: { id: true, phone: true, displayName: true } },
+        ad: {
+          select: {
+            id: true,
+            status: true,
+            currentRevision: { select: { title: true } },
+          },
+        },
+      },
+    });
+  }
+
+  listPayments() {
+    return this.prisma.paymentTransaction.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        order: {
+          include: {
+            user: { select: { id: true, phone: true, displayName: true } },
+            ad: { select: { id: true, status: true } },
+          },
+        },
+      },
     });
   }
 

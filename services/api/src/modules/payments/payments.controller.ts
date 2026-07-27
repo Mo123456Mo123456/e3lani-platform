@@ -10,9 +10,9 @@ export class PaymentsController {
   constructor(private readonly payments: PaymentsProviderService) {}
 
   /**
-   * Sandbox hosted checkout page.
-   * Completing this page does NOT activate the ad.
-   * It only marks the provider payment paid and shows instructions to fire a signed webhook.
+   * Sandbox hosted checkout.
+   * Redirect never activates ads. This page marks the provider payment paid,
+   * then delivers a signed webhook to the API (server-side) which alone activates.
    */
   @Get('sandbox/checkout')
   async sandboxCheckout(
@@ -35,6 +35,23 @@ export class PaymentsController {
     const body = JSON.stringify(payload);
     const timestamp = String(Date.now());
     const signature = sandbox.signPayload(body, timestamp);
+    const apiBase = process.env.API_PUBLIC_URL ?? 'http://127.0.0.1:3001';
+
+    let webhookResult = 'pending';
+    try {
+      const wh = await fetch(`${apiBase}/api/v1/webhooks/payments/sandbox`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-e3lani-timestamp': timestamp,
+          'x-e3lani-signature': signature,
+        },
+        body,
+      });
+      webhookResult = `${wh.status} ${await wh.text()}`;
+    } catch (error) {
+      webhookResult = `failed: ${(error as Error).message}`;
+    }
 
     const html = `<!doctype html>
 <html lang="ar" dir="rtl">
@@ -43,26 +60,21 @@ export class PaymentsController {
 body{font-family:sans-serif;max-width:720px;margin:40px auto;padding:0 16px;background:#f7f7f7;color:#111}
 .card{background:#fff;border-radius:16px;padding:24px;line-height:1.7}
 .warn{background:#fff8e1;border:1px solid #ffc400;border-radius:12px;padding:12px;margin:16px 0}
-code{display:block;white-space:pre-wrap;background:#111;color:#ffc400;padding:12px;border-radius:10px;font-size:12px}
-a{color:#111;font-weight:700}
+code{display:block;white-space:pre-wrap;background:#111;color:#ffc400;padding:12px;border-radius:10px;font-size:12px;margin-top:8px}
+a.btn{display:inline-flex;margin-top:12px;padding:12px 18px;border-radius:12px;background:#ffc400;color:#111;font-weight:800;text-decoration:none}
 </style></head>
 <body>
   <div class="card">
     <h1>Sandbox Checkout</h1>
-    <p>تم تسجيل الدفع لدى المزود التجريبي فقط.</p>
     <div class="warn">
-      <strong>مهم:</strong> صفحة النجاح/التحويل (<code style="display:inline;padding:2px 6px">redirect</code>)
-      <u>لا تنشر الإعلان</u>. التفعيل يتم فقط عبر Webhook موقّع وتحقق خادمي.
+      <strong>مهم:</strong> صفحة التحويل/النجاح لا تنشر الإعلان.
+      التفعيل تم عبر Webhook موقّع وتحقق خادمي فقط.
     </div>
     <p>orderId: <strong>${orderId}</strong></p>
     <p>providerReference: <strong>${providerReference}</strong></p>
-    ${redirect ? `<p>Redirect (لا يفعّل): <a href="${redirect}">${redirect}</a></p>` : ''}
-    <h3>مثال Webhook موقّع</h3>
-    <code>curl -X POST http://localhost:3001/api/v1/webhooks/payments/sandbox \\
-  -H 'content-type: application/json' \\
-  -H 'x-e3lani-timestamp: ${timestamp}' \\
-  -H 'x-e3lani-signature: ${signature}' \\
-  -d '${body.replace(/'/g, "'\\''")}'</code>
+    <p>Webhook result:</p>
+    <code>${webhookResult.replace(/</g, '&lt;')}</code>
+    ${redirect ? `<a class="btn" href="${redirect}">متابعة (Redirect لا يفعّل)</a>` : ''}
   </div>
 </body>
 </html>`;

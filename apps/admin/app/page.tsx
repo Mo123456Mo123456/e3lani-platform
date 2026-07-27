@@ -1,50 +1,30 @@
-import Link from 'next/link';
+'use client';
 
-const links = [
-  { href: '/ads/review', label: 'مراجعة الإعلانات' },
-  { href: '/users', label: 'المستخدمون' },
-  { href: '/orders', label: 'الطلبات والمدفوعات' },
-  { href: '/pricing', label: 'التسعير' },
-  { href: '/providers', label: 'مزودو الدفع' },
-  { href: '/audit', label: 'سجل التدقيق' },
-];
+import { useEffect, useState } from 'react';
+import { api, getToken } from '../lib/api';
 
 export default function AdminHome() {
+  const [pending, setPending] = useState(0);
+  const [payments, setPayments] = useState(0);
+
+  useEffect(() => {
+    if (!getToken()) return;
+    Promise.all([api.adminReviewQueue(), api.adminPayments()])
+      .then(([queue, txs]) => {
+        setPending(queue.length);
+        setPayments(txs.length);
+      })
+      .catch(console.error);
+  }, []);
+
   return (
-    <div className="shell">
-      <aside className="side">
-        <h1>إعلاني Admin</h1>
-        <p>صلاحيات RBAC من الخادم — الواجهة لا تُخفي فقط.</p>
-        {links.map((link) => (
-          <Link key={link.href} href={link.href}>
-            {link.label}
-          </Link>
-        ))}
-      </aside>
-      <main className="content">
-        <h2 style={{ marginTop: 0 }}>لوحة المتابعة</h2>
-        <div className="cards">
-          <div className="card">
-            <strong>—</strong>
-            <span>بانتظار المراجعة</span>
-          </div>
-          <div className="card">
-            <strong>—</strong>
-            <span>مدفوعات اليوم</span>
-          </div>
-          <div className="card">
-            <strong>—</strong>
-            <span>بلاغات مفتوحة</span>
-          </div>
-          <div className="card">
-            <strong>Sandbox</strong>
-            <span>وضع الدفع الحالي</span>
-          </div>
-        </div>
-        <p style={{ marginTop: 24, color: '#777', lineHeight: 1.7 }}>
-          المراجعة تسبق الدفع دائمًا. لا تُفعَّل الإعلانات عبر Redirect؛ فقط عبر Webhook موثّق أو تحقق خادمي.
-        </p>
-      </main>
+    <div className="stack">
+      <h2 style={{ marginTop: 0 }}>لوحة المتابعة</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
+        <div className="panel"><strong style={{ fontSize: 28 }}>{pending}</strong><div className="muted">بانتظار المراجعة</div></div>
+        <div className="panel"><strong style={{ fontSize: 28 }}>{payments}</strong><div className="muted">معاملات الدفع</div></div>
+        <div className="panel"><strong style={{ fontSize: 28 }}>Sandbox</strong><div className="muted">وضع الدفع</div></div>
+      </div>
     </div>
   );
 }

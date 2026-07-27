@@ -18,20 +18,22 @@
     "db:migrate": "pnpm --filter @e3lani/api prisma:migrate",
     "db:seed": "pnpm --filter @e3lani/api prisma:seed",
     "test:integration": "node scripts/phase2-integration.mjs",
+    "test:e2e": "playwright test",
     "media-worker": "pnpm --filter @e3lani/media-worker start"
   },
   "devDependencies": {
+    "@nestjs/testing": "^10.4.15",
+    "@playwright/test": "^1.50.1",
     "@types/node": "^22.10.5",
+    "@types/supertest": "^6.0.2",
+    "ioredis": "^5.4.2",
     "prettier": "^3.4.2",
+    "sharp": "^0.33.5",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
     "turbo": "^2.3.3",
     "typescript": "^5.7.3",
-    "@nestjs/testing": "^10.4.15",
-    "supertest": "^7.0.0",
-    "@types/supertest": "^6.0.2",
-    "vitest": "^2.1.8",
-    "tsx": "^4.19.2",
-    "sharp": "^0.33.5",
-    "ioredis": "^5.4.2"
+    "vitest": "^2.1.8"
   },
   "pnpm": {
     "overrides": {
