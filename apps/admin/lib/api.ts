@@ -97,6 +97,7 @@ export const api = {
   adminCampaigns: () => request<any[]>('GET', '/admin/campaigns'),
   adminUpdateCampaignStatus: (id: string, status: string) =>
     request('PATCH', `/admin/campaigns/${id}/status`, { body: { status } }),
+  adminCampaignReport: (id: string) => request<any>('GET', `/admin/campaigns/${id}/report`),
   adminTemplates: () => request<any>('GET', '/admin/templates'),
   adminUpdateTemplates: (body: unknown) => request<any>('PATCH', '/admin/templates', { body }),
   adminFlags: () => request<any>('GET', '/admin/flags'),

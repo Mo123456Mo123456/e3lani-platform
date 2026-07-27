@@ -416,6 +416,7 @@ export class MediaService implements OnModuleInit {
           posterKey: result.posterKey,
           ...(result.width !== undefined ? { width: result.width } : {}),
           ...(result.height !== undefined ? { height: result.height } : {}),
+          ...(result.durationSec !== undefined ? { durationSec: result.durationSec } : {}),
         },
       });
       this.log.log(`Inline media ${assetId} → READY (${result.mode})`);

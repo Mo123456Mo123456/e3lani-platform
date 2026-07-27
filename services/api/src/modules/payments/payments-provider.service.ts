@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import {
+  MoyasarPaymentProvider,
   ProductionPaymentProviderStub,
   SandboxPaymentProvider,
   type PaymentProvider,
@@ -20,11 +21,8 @@ export class PaymentsProviderService implements OnModuleInit {
       );
       this.providers.set('sandbox', this.sandbox);
     } else {
-      const providerName = process.env.PAYMENT_PROVIDER ?? 'production';
-      this.providers.set(
-        providerName,
-        new ProductionPaymentProviderStub({ providerName, mode }),
-      );
+      const providerName = process.env.PAYMENT_PROVIDER ?? 'moyasar';
+      this.providers.set(providerName, this.createProductionProvider(providerName, mode));
     }
   }
 
@@ -32,9 +30,9 @@ export class PaymentsProviderService implements OnModuleInit {
     const provider = this.providers.get(name);
     const mode = process.env.PAYMENT_MODE ?? 'sandbox';
     if (!provider && mode !== 'sandbox') {
-      const stub = new ProductionPaymentProviderStub({ providerName: name, mode });
-      this.providers.set(name, stub);
-      return stub;
+      const productionProvider = this.createProductionProvider(name, mode);
+      this.providers.set(name, productionProvider);
+      return productionProvider;
     }
     if (!provider) {
       throw new Error(`Payment provider not configured: ${name}`);
@@ -51,5 +49,12 @@ export class PaymentsProviderService implements OnModuleInit {
 
   list() {
     return [...this.providers.keys()];
+  }
+
+  private createProductionProvider(providerName: string, mode: string): PaymentProvider {
+    if (providerName === 'moyasar') {
+      return new MoyasarPaymentProvider();
+    }
+    return new ProductionPaymentProviderStub({ providerName, mode });
   }
 }

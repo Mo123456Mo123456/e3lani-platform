@@ -1,4 +1,3 @@
-import { spawn } from 'child_process';
 import { createWriteStream, promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -10,6 +9,12 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+import {
+  extractPoster,
+  probeVideo,
+  transcodeTo720p,
+  validateVideoDuration,
+} from './video-processor';
 
 export type MediaJob = {
   assetId: string;
@@ -24,8 +29,6 @@ export type ProcessResult = {
   durationSec?: number;
   processedKeys: string[];
 };
-
-const MAX_VIDEO_SECONDS = 60;
 
 async function downloadToFile(client: S3Client, bucket: string, key: string, dest: string) {
   const obj = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
@@ -50,52 +53,6 @@ async function uploadFile(
       ContentType: contentType,
     }),
   );
-}
-
-function runFfmpeg(args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('ffmpeg', ['-y', ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
-    let stderr = '';
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg failed (${code}): ${stderr.slice(-500)}`));
-    });
-  });
-}
-
-function probeDurationSeconds(filePath: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      'ffprobe',
-      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', filePath],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`ffprobe failed (${code}): ${stderr.slice(-300)}`));
-        return;
-      }
-      const seconds = Number.parseFloat(stdout.trim());
-      if (!Number.isFinite(seconds) || seconds <= 0) {
-        reject(new Error('VIDEO_DURATION_UNKNOWN'));
-        return;
-      }
-      resolve(seconds);
-    });
-  });
 }
 
 export async function processMediaJob(
@@ -135,15 +92,12 @@ export async function processMediaJob(
     }
 
     // Video: enforce duration, extract poster, create 720p progressive MP4.
-    const durationSec = await probeDurationSeconds(sourcePath);
-    if (durationSec > MAX_VIDEO_SECONDS) {
-      throw new Error(`Video exceeds ${MAX_VIDEO_SECONDS} seconds`);
-    }
+    const probe = await probeVideo(sourcePath);
+    validateVideoDuration(probe.durationSec);
+    width = probe.width;
+    height = probe.height;
 
-    await runFfmpeg(['-i', sourcePath, '-ss', '00:00:00.5', '-vframes', '1', posterPath]);
-    const posterMeta = await sharp(posterPath).metadata();
-    width = posterMeta.width;
-    height = posterMeta.height;
+    await extractPoster(sourcePath, posterPath);
 
     const base = job.storageKey.replace(/^uploads\//, 'processed/').replace(/\.[^.]+$/, '');
     const posterKey = `${base}/poster.jpg`;
@@ -151,23 +105,7 @@ export async function processMediaJob(
     processedKeys.push(posterKey);
 
     const out720 = join(workDir, 'out-720.mp4');
-    await runFfmpeg([
-      '-i',
-      sourcePath,
-      '-vf',
-      'scale=-2:720',
-      '-c:v',
-      'libx264',
-      '-preset',
-      'veryfast',
-      '-crf',
-      '23',
-      '-c:a',
-      'aac',
-      '-movflags',
-      '+faststart',
-      out720,
-    ]);
+    await transcodeTo720p(sourcePath, out720);
     const key720 = `${base}/720p.mp4`;
     await uploadFile(client, bucket, key720, out720, 'video/mp4');
     processedKeys.push(key720);
@@ -175,7 +113,7 @@ export async function processMediaJob(
     return {
       posterKey,
       processedKeys,
-      durationSec: Math.round(durationSec * 100) / 100,
+      durationSec: probe.durationSec,
       ...(width !== undefined ? { width } : {}),
       ...(height !== undefined ? { height } : {}),
     };

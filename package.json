@@ -19,6 +19,7 @@
     "db:seed": "pnpm --filter @e3lani/api prisma:seed",
     "test:integration": "node scripts/phase2-integration.mjs",
     "test:staging-smoke": "node scripts/staging-smoke.mjs",
+    "test:full-staging-smoke": "node scripts/full-staging-smoke.mjs",
     "test:e2e": "playwright test",
     "media-worker": "pnpm --filter @e3lani/media-worker start"
   },

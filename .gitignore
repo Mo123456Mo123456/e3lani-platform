@@ -29,9 +29,20 @@ apps/mobile/android/app/src/main/assets/app.config
 apps/mobile/android/app/src/main/res/drawable-*/__node_modules_*
 apps/mobile/android/local.properties
 apps/mobile/android/app/.cxx/
+# Never commit signing keystores or local signing secrets
+*.keystore
+!apps/mobile/android/app/debug.keystore
+apps/mobile/android/keystore.properties
+apps/mobile/android/signing.properties
+apps/mobile/android/gradle.properties.local
+**/*-release.keystore
+**/*staging.keystore
+**/*production.keystore
 ios
 web-build
 docs/visual-evidence/*.apk
+apps/mobile/dist/*.apk
+apps/mobile/dist/*.aab
 .vercel
 *.pem
 service-account*.json

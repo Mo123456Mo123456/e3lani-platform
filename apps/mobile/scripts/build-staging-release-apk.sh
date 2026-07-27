@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Build a standalone Android staging Release APK (no Metro).
-# Output: apps/mobile/dist/e3lani-staging-release-v5.apk
+# Output: apps/mobile/dist/e3lani-staging-release-v6.apk
+# Signing: requires E3LANI_KEYSTORE_* env vars (never commit keystores).
+# See docs/ANDROID_SIGNING.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,10 +10,21 @@ ANDROID_DIR="$ROOT/android"
 DIST_DIR="$ROOT/dist"
 ASSETS_DIR="$ANDROID_DIR/app/src/main/assets"
 ENV_FILE="${ENV_FILE:-$ROOT/.env.staging}"
-APK_NAME="${APK_NAME:-e3lani-staging-release-v5.apk}"
+APK_NAME="${APK_NAME:-e3lani-staging-release-v6.apk}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing env file: $ENV_FILE" >&2
+  exit 1
+fi
+
+for var in E3LANI_KEYSTORE_FILE E3LANI_KEYSTORE_PASSWORD E3LANI_KEY_ALIAS E3LANI_KEY_PASSWORD; do
+  if [[ -z "${!var:-}" ]]; then
+    echo "Missing signing env: $var (see docs/ANDROID_SIGNING.md)" >&2
+    exit 1
+  fi
+done
+if [[ ! -f "$E3LANI_KEYSTORE_FILE" ]]; then
+  echo "Keystore file not found: $E3LANI_KEYSTORE_FILE" >&2
   exit 1
 fi
 

@@ -124,16 +124,50 @@ export const feedSearchSchema = z.object({
   take: optionalTakeQuery,
 });
 
+export const campaignTargetingSchema = z
+  .object({
+    cityIds: z.array(z.string().uuid()).optional(),
+    categoryIds: z.array(z.string().uuid()).optional(),
+  })
+  .strict();
+
+const campaignDateFields = {
+  startsAt: z.string().datetime().optional(),
+  endsAt: z.string().datetime().optional(),
+};
+
+function validCampaignDateRange(value: {
+  startsAt?: string | undefined;
+  endsAt?: string | undefined;
+}) {
+  return !value.startsAt || !value.endsAt || new Date(value.endsAt) > new Date(value.startsAt);
+}
+
 export const createCampaignSchema = z.object({
   name: z.string().trim().min(1).max(160),
   objective: z.string().trim().min(1).max(500),
   budgetTotal: z.number().positive(),
   currency: z.string().trim().length(3).default('SAR'),
-  startsAt: z.string().datetime().optional(),
-  endsAt: z.string().datetime().optional(),
-  targeting: z.record(z.unknown()).optional(),
+  ...campaignDateFields,
+  targeting: campaignTargetingSchema.optional(),
   notes: z.string().trim().max(2000).optional(),
   adIds: z.array(z.string().uuid()).optional(),
+}).refine(validCampaignDateRange, {
+  message: 'Campaign endsAt must be after startsAt',
+  path: ['endsAt'],
+});
+
+export const updateCampaignSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  objective: z.string().trim().min(1).max(500).optional(),
+  budgetTotal: z.number().positive().optional(),
+  currency: z.string().trim().length(3).optional(),
+  ...campaignDateFields,
+  targeting: campaignTargetingSchema.optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+}).refine(validCampaignDateRange, {
+  message: 'Campaign endsAt must be after startsAt',
+  path: ['endsAt'],
 });
 
 export const scheduleAdSchema = z.object({
@@ -198,5 +232,6 @@ export type CreateAppealInput = z.infer<typeof createAppealSchema>;
 export type AnalyticsEventsInput = z.infer<typeof analyticsEventsSchema>;
 export type FeedSearchInput = z.infer<typeof feedSearchSchema>;
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
+export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
 export type ScheduleAdInput = z.infer<typeof scheduleAdSchema>;
 export type ShareAdInput = z.infer<typeof shareAdSchema>;

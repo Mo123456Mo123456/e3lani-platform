@@ -3,11 +3,45 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import type { Campaign, Category, City } from '@e3lani/api-client';
-import { api, getToken } from '../../lib/api';
+import { api, apiBaseUrl, getToken } from '../../lib/api';
 import { useLocale } from '../../lib/locale';
+
+type CampaignTargeting = {
+  cityIds?: string[];
+  categoryIds?: string[];
+};
 
 function dateToIso(value: string) {
   return value ? new Date(`${value}T09:00:00+03:00`).toISOString() : undefined;
+}
+
+function describeTargeting(campaign: Campaign, isAr: boolean) {
+  const targeting = (campaign.targeting ?? {}) as CampaignTargeting;
+  const cityIds = targeting.cityIds ?? [];
+  const categoryIds = targeting.categoryIds ?? [];
+  const parts = [
+    cityIds.length ? `${isAr ? 'مدن' : 'Cities'}: ${cityIds.length}` : null,
+    categoryIds.length ? `${isAr ? 'أقسام' : 'Categories'}: ${categoryIds.length}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : isAr ? 'كل المدن والأقسام' : 'All cities and categories';
+}
+
+async function campaignTransition(id: string, action: 'pause' | 'resume'): Promise<Campaign> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiBaseUrl}/campaigns/${id}/${action}`, {
+    method: 'POST',
+    headers,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    throw new Error(
+      data && typeof data === 'object' && 'message' in data ? String(data.message) : `HTTP ${res.status}`,
+    );
+  }
+  return data as Campaign;
 }
 
 export default function EnterprisePageClient() {
@@ -56,8 +90,8 @@ export default function EnterprisePageClient() {
         startsAt: dateToIso(startsAt),
         endsAt: dateToIso(endsAt),
         targeting: {
-          ...(cityId ? { cityId } : {}),
-          ...(categoryId ? { categoryId } : {}),
+          ...(cityId ? { cityIds: [cityId] } : {}),
+          ...(categoryId ? { categoryIds: [categoryId] } : {}),
         },
         notes: notes || undefined,
       });
@@ -72,10 +106,33 @@ export default function EnterprisePageClient() {
     }
   }
 
+  async function transitionCampaign(id: string, action: 'pause' | 'resume') {
+    setError('');
+    try {
+      const updated =
+        action === 'pause' ? await campaignTransition(id, 'pause') : await campaignTransition(id, 'resume');
+      setCampaigns((current) => current.map((campaign) => (campaign.id === id ? updated : campaign)));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   return (
     <main className="container stack">
       <section className="panel stack">
         <span className="badge">{isAr ? 'للشركات والبراندات' : 'For companies and brands'}</span>
+        <div className="notice">
+          <strong>
+            {isAr
+              ? 'مسودات قانونية / Legal drafts pending counsel review'
+              : 'Legal drafts pending counsel review / مسودات قانونية'}
+          </strong>
+          <p className="muted" style={{ margin: 0 }}>
+            {isAr
+              ? 'معلومات حملات الشركات هنا مسودة قانونية بانتظار مراجعة مستشار قانوني وليست شروطًا نهائية أو نصيحة قانونية.'
+              : 'Enterprise campaign information here is an operational legal draft pending counsel review and is not final legal advice.'}
+          </p>
+        </div>
         <h1 style={{ margin: 0 }}>{isAr ? 'حملات إعلانية مرئية على إعلاني' : 'Visual campaigns on E3lani'}</h1>
         <p className="muted" style={{ margin: 0, maxWidth: 760 }}>
           {isAr
@@ -194,6 +251,22 @@ export default function EnterprisePageClient() {
                 <span className="muted">
                   {campaign.budgetTotal} {campaign.currency}
                 </span>
+                <span className="muted">{describeTargeting(campaign, isAr)}</span>
+                <span className="muted">
+                  {isAr ? 'الإعلانات' : 'Ads'}: {campaign.ads?.length ?? 0}
+                </span>
+                <div className="hero-actions">
+                  {campaign.status === 'ACTIVE' ? (
+                    <button className="btn btn-ghost" onClick={() => transitionCampaign(campaign.id, 'pause')}>
+                      {isAr ? 'إيقاف مؤقت' : 'Pause'}
+                    </button>
+                  ) : null}
+                  {campaign.status === 'PAUSED' ? (
+                    <button className="btn btn-ghost" onClick={() => transitionCampaign(campaign.id, 'resume')}>
+                      {isAr ? 'استئناف' : 'Resume'}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>

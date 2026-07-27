@@ -10,10 +10,11 @@ export default function TermsPage() {
   return (
     <main className="container stack">
       <section className="panel stack">
-        <span className="badge">Legal review draft</span>
+        <span className="badge">مسودات قانونية / Legal drafts pending counsel review</span>
         <h1 style={{ margin: 0 }}>الشروط والأحكام</h1>
         <p className="muted" style={{ margin: 0 }}>
-          هذه صياغة تشغيلية أولية وتحتاج مراجعة قانونية قبل الإطلاق النهائي.
+          هذه مسودة قانونية بانتظار مراجعة مستشار قانوني، وليست شروطًا نهائية أو نصيحة قانونية.
+          This is a legal draft pending counsel review, not final terms or legal advice.
         </p>
       </section>
       <section className="panel stack">

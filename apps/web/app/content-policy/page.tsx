@@ -19,10 +19,12 @@ export default function ContentPolicyPage() {
   return (
     <main className="container stack">
       <section className="panel stack">
-        <span className="badge">إعلاني | E3lani</span>
+        <span className="badge">مسودات قانونية / Legal drafts pending counsel review</span>
         <h1 style={{ margin: 0 }}>سياسة المحتوى</h1>
         <p className="muted" style={{ margin: 0 }}>
-          قواعد مختصرة للحفاظ على منصة إعلانات مرئية آمنة وواضحة.
+          قواعد مختصرة للحفاظ على منصة إعلانات مرئية آمنة وواضحة. هذه مسودة قانونية بانتظار
+          مراجعة مستشار قانوني، وليست سياسة نهائية أو نصيحة قانونية. This is a legal draft
+          pending counsel review, not a final policy or legal advice.
         </p>
       </section>
       <section className="panel stack">

@@ -23,10 +23,11 @@ export default function FaqPage() {
   return (
     <main className="container stack">
       <section className="panel stack">
-        <span className="badge">إعلاني | E3lani</span>
+        <span className="badge">مسودات قانونية / Legal drafts pending counsel review</span>
         <h1 style={{ margin: 0 }}>الأسئلة الشائعة</h1>
         <p className="muted" style={{ margin: 0 }}>
-          منصة الإعلانات المرئية لكل شيء
+          إجابات تشغيلية مختصرة. هذه مسودة قانونية بانتظار مراجعة مستشار قانوني، وليست سياسة
+          نهائية أو نصيحة قانونية. This is a legal draft pending counsel review, not final legal advice.
         </p>
       </section>
       <div className="grid-2">

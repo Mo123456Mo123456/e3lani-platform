@@ -4,3 +4,4 @@ export * from './routing';
 export * from './pricing-engine';
 export * from './sandbox-provider';
 export * from './providers/production-stub';
+export * from './providers/moyasar-provider';

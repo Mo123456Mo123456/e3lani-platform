@@ -12,9 +12,7 @@ import { AdStateService } from '../../common/ad-state.service';
 import { decorateAdMedia } from '../../common/media-urls';
 import { AuditService } from '../../common/audit.service';
 import {
-  ProductionModerationPlaceholderAdapter,
-  SandboxModerationAdapter,
-  moderationMode,
+  createModerationAdapter,
   type ModerationAdapter,
 } from '../../adapters/moderation/moderation-adapter';
 
@@ -27,10 +25,7 @@ export class AdsService {
     private readonly adState: AdStateService,
     private readonly audit: AuditService,
   ) {
-    this.moderation =
-      moderationMode() === 'production'
-        ? new ProductionModerationPlaceholderAdapter()
-        : new SandboxModerationAdapter();
+    this.moderation = createModerationAdapter();
   }
 
   async listMine(ownerId: string) {
@@ -122,6 +117,11 @@ export class AdsService {
       categoryId: revision.categoryId,
       countryCode: revision.countryCode,
       cityId: revision.cityId,
+      media: ad.media.map((row) => ({
+        kind: row.asset.kind === MediaKind.VIDEO ? 'video' : 'image',
+        url: row.asset.urls.source,
+        storageKey: row.asset.storageKey,
+      })),
     });
 
     const pending = await this.adState.transition({

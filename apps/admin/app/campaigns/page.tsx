@@ -6,8 +6,21 @@ import { api, getToken } from '../../lib/api';
 
 const statuses = ['PENDING_REVIEW', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED'];
 
+function formatTargeting(targeting: unknown) {
+  if (!targeting || typeof targeting !== 'object') return 'استهداف غير محدد';
+  const value = targeting as { cityIds?: string[]; categoryIds?: string[]; cityId?: string; categoryId?: string };
+  const cityIds = value.cityIds ?? (value.cityId ? [value.cityId] : []);
+  const categoryIds = value.categoryIds ?? (value.categoryId ? [value.categoryId] : []);
+  const parts = [
+    cityIds.length ? `مدن: ${cityIds.length}` : null,
+    categoryIds.length ? `أقسام: ${categoryIds.length}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'كل المدن والأقسام';
+}
+
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [reports, setReports] = useState<Record<string, any>>({});
   const [error, setError] = useState('');
 
   async function load() {
@@ -25,6 +38,11 @@ export default function CampaignsPage() {
   async function updateStatus(id: string, status: string) {
     await api.adminUpdateCampaignStatus(id, status);
     await load();
+  }
+
+  async function loadReport(id: string) {
+    const report = await api.adminCampaignReport(id);
+    setReports((current) => ({ ...current, [id]: report }));
   }
 
   return (
@@ -46,6 +64,7 @@ export default function CampaignsPage() {
             {campaign.startsAt ? `من ${formatDate(campaign.startsAt)}` : 'بدون بداية'} ·{' '}
             {campaign.endsAt ? `إلى ${formatDate(campaign.endsAt)}` : 'بدون نهاية'}
           </div>
+          <div className="muted">{formatTargeting(campaign.targeting)}</div>
           {campaign.notes ? <p>{campaign.notes}</p> : null}
           <div className="toolbar">
             {(campaign.ads || []).map((row: any) => (
@@ -53,6 +72,19 @@ export default function CampaignsPage() {
             ))}
           </div>
           <div className="toolbar">
+            {campaign.status === 'ACTIVE' ? (
+              <button className="btn btn-ghost" onClick={() => updateStatus(campaign.id, 'PAUSED')}>
+                إيقاف مؤقت
+              </button>
+            ) : null}
+            {campaign.status === 'PAUSED' ? (
+              <button className="btn btn-ghost" onClick={() => updateStatus(campaign.id, 'ACTIVE')}>
+                استئناف
+              </button>
+            ) : null}
+            <button className="btn btn-ghost" onClick={() => loadReport(campaign.id)}>
+              عرض التقرير
+            </button>
             {statuses.map((status) => (
               <button
                 key={status}
@@ -64,6 +96,14 @@ export default function CampaignsPage() {
               </button>
             ))}
           </div>
+          {reports[campaign.id] ? (
+            <div className="toolbar">
+              <StatusBadge>إعلانات: {reports[campaign.id].adCount}</StatusBadge>
+              <StatusBadge>ظهور: {reports[campaign.id].metrics?.impressions ?? 0}</StatusBadge>
+              <StatusBadge>نقرات: {reports[campaign.id].metrics?.clicks ?? 0}</StatusBadge>
+              <StatusBadge>حفظ: {reports[campaign.id].metrics?.saves ?? 0}</StatusBadge>
+            </div>
+          ) : null}
         </div>
       ))}
       {campaigns.length === 0 && !error ? <EmptyState>لا توجد حملات.</EmptyState> : null}

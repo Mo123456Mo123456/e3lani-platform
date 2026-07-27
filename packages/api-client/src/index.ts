@@ -248,6 +248,12 @@ export function createApiClient(options: ApiClientOptions) {
     brand: (slug: string) => request<BrandProfile>('GET', `/brands/${slug}`, { auth: false }),
     myCampaigns: () => request<Campaign[]>('GET', '/campaigns/mine'),
     createCampaign: (body: CreateCampaignBody) => request<Campaign>('POST', '/campaigns', { body }),
+    updateCampaign: (id: string, body: UpdateCampaignBody) =>
+      request<Campaign>('PATCH', `/campaigns/${id}`, { body }),
+    pauseCampaign: (id: string) => request<Campaign>('POST', `/campaigns/${id}/pause`),
+    resumeCampaign: (id: string) => request<Campaign>('POST', `/campaigns/${id}/resume`),
+    activateCampaign: (id: string) => request<Campaign>('POST', `/campaigns/${id}/activate`),
+    campaignReport: (id: string) => request<CampaignReport>('GET', `/campaigns/${id}/report`),
     adminReviewQueue: () => request<AdDetail[]>('GET', '/admin/ads/review'),
     adminApprove: (id: string, notes?: string) =>
       request('POST', `/admin/ads/${id}/approve`, { body: { notes } }),
@@ -398,11 +404,16 @@ export type Campaign = {
   currency: string;
   startsAt?: string | null;
   endsAt?: string | null;
-  targeting?: unknown;
+  targeting?: CampaignTargeting | null;
   notes?: string | null;
   createdAt?: string;
   updatedAt?: string;
   ads?: Array<{ adId: string; ad?: { id: string; status: string } }>;
+};
+
+export type CampaignTargeting = {
+  cityIds?: string[];
+  categoryIds?: string[];
 };
 
 export type CreateCampaignBody = {
@@ -412,9 +423,28 @@ export type CreateCampaignBody = {
   currency?: string;
   startsAt?: string;
   endsAt?: string;
-  targeting?: Record<string, unknown>;
+  targeting?: CampaignTargeting;
   notes?: string;
   adIds?: string[];
+};
+
+export type UpdateCampaignBody = Partial<
+  Pick<
+    CreateCampaignBody,
+    'name' | 'objective' | 'budgetTotal' | 'currency' | 'startsAt' | 'endsAt' | 'targeting'
+  >
+> & {
+  notes?: string | null;
+};
+
+export type CampaignReport = {
+  campaignId: string;
+  status: string;
+  budgetTotal: string | number;
+  currency: string;
+  adCount: number;
+  dateRange: { startsAt?: string | null; endsAt?: string | null };
+  metrics: { impressions: number; clicks: number; saves: number };
 };
 
 export async function uploadFileToSignedUrl(

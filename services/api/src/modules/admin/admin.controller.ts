@@ -14,6 +14,7 @@ import { CampaignStatus, Prisma, VerificationStatus } from '@prisma/client';
 import { checkStorageHealth } from '@e3lani/storage';
 import { assertRole, requireActiveUser } from '../../common/auth.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CampaignsService } from '../campaigns/campaigns.service';
 import { AdminService } from './admin.service';
 
 @ApiTags('admin')
@@ -24,6 +25,7 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    private readonly campaignsService: CampaignsService,
   ) {}
 
   private async authorize(authorization: string | undefined, roles: string[]) {
@@ -162,6 +164,13 @@ export class AdminController {
   campaigns(@Headers('authorization') authorization?: string) {
     return this.authorize(authorization, ['SUPER_ADMIN', 'CAMPAIGN_MANAGER']).then(() =>
       this.admin.listCampaignsAdmin(),
+    );
+  }
+
+  @Get('campaigns/:id/report')
+  campaignsReport(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    return this.authorize(authorization, ['SUPER_ADMIN', 'CAMPAIGN_MANAGER']).then(() =>
+      this.campaignsService.report(id),
     );
   }
 
