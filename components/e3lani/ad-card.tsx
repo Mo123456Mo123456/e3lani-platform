@@ -130,6 +130,12 @@ export function AdCard({
     await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
   };
 
+  const openAdvertiser = (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    if (!ad.advertiserSlug) return;
+    router.push({ pathname: "/advertiser/[slug]", params: { slug: ad.advertiserSlug } } as never);
+  };
+
   return (
     <Pressable
       accessible
@@ -189,7 +195,17 @@ export function AdCard({
       </View>
 
       <View style={[styles.copy, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-        <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+        <Pressable
+          accessibilityRole={ad.advertiserSlug ? "link" : undefined}
+          accessibilityLabel={advertiserName}
+          disabled={!ad.advertiserSlug}
+          onPress={openAdvertiser}
+          style={({ pressed }) => [
+            styles.brandRow,
+            { flexDirection: isRTL ? "row-reverse" : "row" },
+            pressed && styles.brandPressed,
+          ]}
+        >
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{advertiserName.slice(0, 1)}</Text>
           </View>
@@ -199,7 +215,10 @@ export function AdCard({
           {ad.verified ? (
             <MaterialIcons accessible={false} name="verified" size={18} color={BRAND.yellow} />
           ) : null}
-        </View>
+          {ad.advertiserSlug ? (
+            <MaterialIcons accessible={false} name={isRTL ? "arrow-back" : "arrow-forward"} size={15} color={BRAND.white} />
+          ) : null}
+        </Pressable>
         <Text numberOfLines={2} style={[styles.adTitle, { textAlign: isRTL ? "right" : "left" }]}>
           {ad.title}
         </Text>
@@ -254,6 +273,7 @@ const styles = StyleSheet.create({
   actionText: { color: BRAND.white, fontSize: 9, lineHeight: 13, fontWeight: "800" },
   copy: { position: "absolute", left: 17, right: 58, bottom: 18 },
   brandRow: { alignItems: "center", gap: 7, maxWidth: "100%" },
+  brandPressed: { opacity: 0.65 },
   avatar: {
     width: 34,
     height: 34,

@@ -1,6 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+import { allowsHomeFeedDistribution } from "../shared/feed-access";
+import { advertiserRouter } from "./advertiser-router";
 import {
   createCentralAd,
   createReport,
@@ -12,6 +14,7 @@ import {
   toggleFavorite,
   updateCentralProfile,
 } from "./core-data";
+import { getPublicProductConfig } from "./product-config";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 
 const publicAdId = z.string().trim().regex(/^AD[A-F0-9]{14}$/);
@@ -67,6 +70,7 @@ export const coreDataRouter = router({
         }
       }),
   }),
+  advertisers: advertiserRouter,
   ads: router({
     feed: publicProcedure
       .input(
@@ -80,6 +84,8 @@ export const coreDataRouter = router({
       )
       .query(async ({ input }) => {
         try {
+          const config = await getPublicProductConfig();
+          if (!allowsHomeFeedDistribution(config.feedAccessMode)) return [];
           return await listFeed({
             cityCode: input?.cityCode,
             categoryCode: input?.categoryCode,
