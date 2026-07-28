@@ -67,7 +67,7 @@ export default function PromoteInHome() {
             </View>
             <Text style={styles.title}>{locale === "ar" ? "روّج إعلانك في الرئيسية" : "Promote your ad in home"}</Text>
             <Text style={styles.help}>{ad.title}</Text>
-            <View style={styles.status}><StatusBadge status={ad.adStatus} /></View>
+            <View style={styles.status}><StatusBadge status={ad.status} /></View>
           </View>
 
           <View style={styles.infoCard}>
@@ -86,7 +86,7 @@ export default function PromoteInHome() {
 
           <View style={styles.checklist}>
             <Check label={locale === "ar" ? "الإعلان مملوك للحساب الحالي" : "The ad belongs to the current account"} ready={ownsAd} />
-            <Check label={locale === "ar" ? "الإعلان نشط" : "The ad is active"} ready={ad.adStatus === "active"} />
+            <Check label={locale === "ar" ? "الإعلان نشط" : "The ad is active"} ready={ad.status === "active"} />
             <Check label={locale === "ar" ? "مزود دفع إنتاجي" : "Production payment provider"} ready={Boolean(productData.data?.paymentEnabled)} />
             <Check label={locale === "ar" ? "سعر ترويج الرئيسية معتمد" : "Approved home promotion price"} ready={false} />
           </View>
