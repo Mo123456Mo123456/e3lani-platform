@@ -78,6 +78,7 @@ export default function AccountPage() {
 
   return (
     <main className="container stack">
+      <div className="brand-section-banner" aria-hidden />
       <div className="panel stack">
         <h1 style={{ margin: 0 }}>حسابي</h1>
         <p className="muted">{String(me?.phone ?? '')}</p>

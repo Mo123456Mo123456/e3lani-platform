@@ -46,6 +46,15 @@ export default function AdDetailsScreen() {
     });
   }
 
+  async function saveAd() {
+    if (!ad) return;
+    try {
+      await api.saveAd(ad.id);
+    } catch {
+      // ignore duplicate/auth edges — linking unchanged
+    }
+  }
+
   const media = ad?.media?.[0]?.asset;
   const contact = ad?.currentRevision?.contactMethods;
   const brandSlug = ad?.owner?.brandProfile?.slug;
@@ -96,15 +105,21 @@ export default function AdDetailsScreen() {
             <Text style={[styles.description, { textAlign }]}>{ad.currentRevision.description}</Text>
           ) : null}
           <View style={[styles.actions, { flexDirection: rowDirection }]}>
-            <Pressable
-              style={styles.primary}
-              onPress={() => {
-                if (contact?.storeUrl) void Linking.openURL(contact.storeUrl);
-                else if (contact?.whatsapp) void Linking.openURL(`https://wa.me/${contact.whatsapp.replace('+', '')}`);
-                else if (contact?.phone) void Linking.openURL(`tel:${contact.phone}`);
-              }}
-            >
-              <Text style={styles.primaryText}>{t('feed.contact')}</Text>
+            {contact?.whatsapp ? (
+              <Pressable
+                style={styles.primary}
+                onPress={() => void Linking.openURL(`https://wa.me/${contact.whatsapp!.replace('+', '')}`)}
+              >
+                <Text style={styles.primaryText}>{locale === 'ar' ? 'واتساب' : 'WhatsApp'}</Text>
+              </Pressable>
+            ) : null}
+            {contact?.phone ? (
+              <Pressable style={styles.secondary} onPress={() => void Linking.openURL(`tel:${contact.phone}`)}>
+                <Text style={styles.secondaryText}>{locale === 'ar' ? 'اتصال' : 'Call'}</Text>
+              </Pressable>
+            ) : null}
+            <Pressable style={styles.secondary} onPress={() => void saveAd()}>
+              <Text style={styles.secondaryText}>{t('nav.saved')}</Text>
             </Pressable>
             <Pressable style={styles.secondary} onPress={() => void shareAd()}>
               <Text style={styles.secondaryText}>{t('common.share')}</Text>
@@ -112,6 +127,11 @@ export default function AdDetailsScreen() {
             {brandSlug ? (
               <Pressable style={styles.secondary} onPress={() => router.push(`/brands/${brandSlug}` as never)}>
                 <Text style={styles.secondaryText}>{t('ad.openBrand')}</Text>
+              </Pressable>
+            ) : null}
+            {!contact?.whatsapp && !contact?.phone && contact?.storeUrl ? (
+              <Pressable style={styles.primary} onPress={() => void Linking.openURL(contact.storeUrl!)}>
+                <Text style={styles.primaryText}>{t('feed.visitStore')}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -122,23 +142,30 @@ export default function AdDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: 20 },
+  root: { flex: 1, backgroundColor: colors.black, paddingHorizontal: 20 },
   header: { alignItems: 'center', gap: 12, marginBottom: 14 },
-  back: { backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  backText: { color: colors.black, fontWeight: '800' },
-  title: { flex: 1, color: colors.black, fontSize: 26, fontWeight: '800' },
-  empty: { color: colors.gray, marginTop: 24 },
+  back: {
+    backgroundColor: colors.charcoal,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,196,0,0.25)',
+  },
+  backText: { color: colors.primary, fontWeight: '800' },
+  title: { flex: 1, color: colors.white, fontSize: 26, fontWeight: '800' },
+  empty: { color: 'rgba(255,255,255,0.55)', marginTop: 24 },
   mediaBox: {
     height: 430,
     borderRadius: 22,
-    backgroundColor: colors.black,
+    backgroundColor: colors.charcoal,
     overflow: 'hidden',
     marginBottom: 16,
   },
   advertiser: { color: colors.primary, fontWeight: '800' },
-  adTitle: { color: colors.black, fontWeight: '800', fontSize: 24, marginTop: 6 },
-  city: { color: colors.gray, marginTop: 4 },
-  description: { color: colors.black, lineHeight: 22, marginTop: 12 },
+  adTitle: { color: colors.white, fontWeight: '800', fontSize: 24, marginTop: 6 },
+  city: { color: 'rgba(255,255,255,0.65)', marginTop: 4 },
+  description: { color: 'rgba(255,255,255,0.9)', lineHeight: 22, marginTop: 12 },
   actions: { gap: 8, flexWrap: 'wrap', marginTop: 18 },
   primary: {
     backgroundColor: colors.primary,
@@ -150,12 +177,14 @@ const styles = StyleSheet.create({
   },
   primaryText: { color: colors.black, fontWeight: '800' },
   secondary: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.charcoal,
     borderRadius: 14,
     minHeight: 50,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,196,0,0.28)',
   },
-  secondaryText: { color: colors.black, fontWeight: '800' },
+  secondaryText: { color: colors.white, fontWeight: '800' },
 });

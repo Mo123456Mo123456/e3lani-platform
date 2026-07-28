@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a standalone Android staging Release APK (no Metro).
-# Output: apps/mobile/dist/e3lani-staging-release-v7.apk
+# Output: apps/mobile/dist/e3lani-staging-release-v10.apk
 # Signing: requires E3LANI_KEYSTORE_* env vars (never commit keystores).
 # See docs/ANDROID_SIGNING.md
 set -euo pipefail
@@ -10,7 +10,7 @@ ANDROID_DIR="$ROOT/android"
 DIST_DIR="$ROOT/dist"
 ASSETS_DIR="$ANDROID_DIR/app/src/main/assets"
 ENV_FILE="${ENV_FILE:-$ROOT/.env.staging}"
-APK_NAME="${APK_NAME:-e3lani-staging-release-v7.apk}"
+APK_NAME="${APK_NAME:-e3lani-staging-release-v10.apk}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing env file: $ENV_FILE" >&2

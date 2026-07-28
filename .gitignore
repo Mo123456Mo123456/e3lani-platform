@@ -27,6 +27,7 @@ apps/mobile/android/build/
 apps/mobile/android/app/src/main/assets/index.android.bundle
 apps/mobile/android/app/src/main/assets/app.config
 apps/mobile/android/app/src/main/res/drawable-*/__node_modules_*
+apps/mobile/android/app/src/main/res/drawable-*/assets_branding_*
 apps/mobile/android/local.properties
 apps/mobile/android/app/.cxx/
 # Never commit signing keystores or local signing secrets

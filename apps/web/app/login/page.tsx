@@ -48,8 +48,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="container">
-      <div className="panel stack" style={{ maxWidth: 480, margin: '0 auto' }}>
+    <main className="brand-hero-page">
+      <div className="brand-hero-scrim" aria-hidden />
+      <div className="panel stack brand-hero-card" style={{ maxWidth: 480, margin: '0 auto' }}>
         <h1 style={{ margin: 0 }}>دخول إعلاني</h1>
         <p className="muted">دخول تجريبي بالرمز — المراجعة قبل الدفع.</p>
         {step === 'phone' ? (

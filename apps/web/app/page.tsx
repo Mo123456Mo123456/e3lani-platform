@@ -10,7 +10,8 @@ export default function HomePage() {
   const publishPrice = DEFAULT_SA_PRICING.AD_PUBLISH_30D;
 
   return (
-    <main className="container home-hero">
+    <main className="container">
+      <section className="home-hero">
       <div className="stack" style={{ maxWidth: 760 }}>
         <div className="brand hero-brand">
           <svg width="56" height="56" viewBox="0 0 64 64" aria-hidden>
@@ -35,11 +36,12 @@ export default function HomePage() {
           <Link className="btn btn-dark" href="/ads/new">
             {isAr ? 'أنشئ إعلانًا' : 'Create an ad'}
           </Link>
-          <Link className="btn btn-ghost" href="/login">
+          <Link className="btn btn-ghost" href="/login" style={{ borderColor: 'rgba(255,255,255,0.35)', color: '#fff' }}>
             {isAr ? 'دخول' : 'Login'}
           </Link>
         </div>
       </div>
+      </section>
     </main>
   );
 }

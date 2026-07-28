@@ -59,8 +59,8 @@ android {
         applicationId 'sa.e3lani.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 7
-        versionName "0.1.7-staging"
+        versionCode 10
+        versionName "0.1.10-staging"
         // Ensure JS/assets are bundled for release; never rely on Metro.
         resValue "string", "BuildConfig_APP_ENV", (System.getenv("EXPO_PUBLIC_APP_ENV") ?: "staging")
     }

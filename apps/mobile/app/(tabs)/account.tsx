@@ -1,13 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AdDetail } from '@e3lani/api-client';
+import { BrandAtmosphere } from '../../src/components/BrandBackground';
+import { BrandHeader } from '../../src/components/BrandHeader';
 import { LogoMark } from '../../src/components/LogoMark';
 import { api, getToken, setAuthTokens } from '../../src/lib/api';
 import { useLocale } from '../../src/lib/locale';
 import { statusLabel } from '../../src/lib/status';
 import { colors } from '../../src/theme';
+
+function formatCompact(n: number) {
+  if (n >= 1000) {
+    const v = n / 1000;
+    return `${v.toFixed(v >= 10 ? 0 : 1)}K`;
+  }
+  return String(n);
+}
 
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
@@ -17,6 +27,7 @@ export default function AccountScreen() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [actioningId, setActioningId] = useState('');
+  const [showAds, setShowAds] = useState(true);
 
   const load = useCallback(() => {
     if (!getToken()) {
@@ -37,6 +48,14 @@ export default function AccountScreen() {
     void load();
   }, [load]);
 
+  const stats = useMemo(() => {
+    return {
+      ads: ads.length,
+      views: 0,
+      contacts: 0,
+    };
+  }, [ads]);
+
   async function runAction(ad: AdDetail, action: 'pause' | 'resume' | 'extend' | 'republish') {
     setActioningId(`${ad.id}:${action}`);
     try {
@@ -53,81 +72,139 @@ export default function AccountScreen() {
     }
   }
 
+  const menu: Array<{
+    key: string;
+    label: string;
+    onPress: () => void;
+    danger?: boolean;
+  }> = [
+    {
+      key: 'ads',
+      label: t('account.myAds'),
+      onPress: () => setShowAds(true),
+    },
+    {
+      key: 'saved',
+      label: t('nav.saved'),
+      onPress: () => router.push('/saved' as never),
+    },
+    {
+      key: 'notifications',
+      label: t('nav.notifications'),
+      onPress: () => router.push('/notifications' as never),
+    },
+    {
+      key: 'locale',
+      label: locale === 'ar' ? 'English' : 'العربية',
+      onPress: toggleLocale,
+    },
+    {
+      key: 'logout',
+      label: t('account.logout'),
+      danger: true,
+      onPress: () => {
+        setAuthTokens(null);
+        router.push('/login');
+      },
+    },
+  ];
+
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 }}
-    >
+    <View style={styles.root}>
+      <BrandAtmosphere variant="header" overlay="soft" height={insets.top + 170} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100, paddingHorizontal: 20 }}
+      >
+      <BrandHeader title={t('account.title')} subtitle={phone || t('account.loginPrompt')} markSize={48} />
+
       <View style={[styles.profile, { flexDirection: rowDirection }]}>
         <View style={styles.avatar}>
-          <LogoMark size={28} />
+          <LogoMark size={40} framed />
         </View>
         <View style={styles.profileText}>
-          <Text style={[styles.name, { textAlign }]}>{t('account.title')}</Text>
+          <Text style={[styles.name, { textAlign }]}>{locale === 'ar' ? 'حساب المعلن' : 'Advertiser account'}</Text>
           <Text style={[styles.meta, { textAlign }]}>{phone || t('account.loginPrompt')}</Text>
         </View>
       </View>
 
-      <View style={[styles.topActions, { flexDirection: rowDirection }]}>
-        <Pressable style={styles.secondaryBtn} onPress={() => router.push('/notifications' as never)}>
-          <Text style={styles.secondaryBtnText}>{t('nav.notifications')}</Text>
-        </Pressable>
-        <Pressable style={styles.secondaryBtn} onPress={toggleLocale}>
-          <Text style={styles.secondaryBtnText}>{locale === 'ar' ? 'English' : 'العربية'}</Text>
-        </Pressable>
-        <Pressable
-          style={styles.logout}
-          onPress={() => {
-            setAuthTokens(null);
-            router.push('/login');
-          }}
-        >
-          <Text style={styles.logoutText}>{t('account.logout')}</Text>
-        </Pressable>
+      <View style={[styles.statsRow, { flexDirection: rowDirection }]}>
+        <StatCard label={t('account.myAds')} value={String(stats.ads)} />
+        <StatCard label={t('account.views')} value={formatCompact(stats.views)} />
+        <StatCard label={t('account.clicks')} value={formatCompact(stats.contacts)} />
       </View>
 
-      <Text style={[styles.section, { textAlign }]}>{t('account.myAds')}</Text>
-      {loading ? <ActivityIndicator color={colors.primary} /> : null}
-      <View style={styles.list}>
-        {ads.map((ad) => (
-          <View key={ad.id} style={styles.row}>
-            <Text style={[styles.rowTitle, { textAlign }]}>{ad.currentRevision?.title}</Text>
-            <Text style={[styles.rowMeta, { textAlign }]}>{statusLabel(ad.status, locale)}</Text>
-            <View style={[styles.adActions, { flexDirection: rowDirection }]}>
-              {ad.status === 'ACTIVE' ? (
-                <ActionButton
-                  label={t('account.pause')}
-                  busy={actioningId === `${ad.id}:pause`}
-                  onPress={() => void runAction(ad, 'pause')}
-                />
-              ) : null}
-              {ad.status === 'PAUSED' ? (
-                <ActionButton
-                  label={t('account.resume')}
-                  busy={actioningId === `${ad.id}:resume`}
-                  onPress={() => void runAction(ad, 'resume')}
-                />
-              ) : null}
-              {['ACTIVE', 'PAUSED'].includes(ad.status) ? (
-                <ActionButton
-                  label={t('account.extend')}
-                  busy={actioningId === `${ad.id}:extend`}
-                  onPress={() => void runAction(ad, 'extend')}
-                />
-              ) : null}
-              {ad.status === 'EXPIRED' ? (
-                <ActionButton
-                  label={t('account.republish')}
-                  busy={actioningId === `${ad.id}:republish`}
-                  onPress={() => void runAction(ad, 'republish')}
-                />
-              ) : null}
-            </View>
-          </View>
+      <View style={styles.menu}>
+        {menu.map((item) => (
+          <Pressable
+            key={item.key}
+            style={[styles.menuRow, { flexDirection: rowDirection }]}
+            onPress={item.onPress}
+          >
+            <Text style={[styles.menuLabel, item.danger && styles.menuDanger]}>{item.label}</Text>
+            <Text style={[styles.menuChevron, item.danger && styles.menuDanger]}>‹</Text>
+          </Pressable>
         ))}
-        {!loading && ads.length === 0 ? <Text style={[styles.meta, { textAlign }]}>{t('account.noAds')}</Text> : null}
       </View>
-    </ScrollView>
+
+      {showAds ? (
+        <>
+          <Text style={[styles.section, { textAlign }]}>{t('account.myAds')}</Text>
+          {loading ? <ActivityIndicator color={colors.primary} /> : null}
+          <View style={styles.list}>
+            {ads.map((ad) => (
+              <View key={ad.id} style={styles.row}>
+                <Text style={[styles.rowTitle, { textAlign }]}>{ad.currentRevision?.title}</Text>
+                <Text style={[styles.rowMeta, { textAlign }]}>{statusLabel(ad.status, locale)}</Text>
+                <View style={[styles.adActions, { flexDirection: rowDirection }]}>
+                  {ad.status === 'ACTIVE' ? (
+                    <ActionButton
+                      label={t('account.pause')}
+                      busy={actioningId === `${ad.id}:pause`}
+                      onPress={() => void runAction(ad, 'pause')}
+                    />
+                  ) : null}
+                  {ad.status === 'PAUSED' ? (
+                    <ActionButton
+                      label={t('account.resume')}
+                      busy={actioningId === `${ad.id}:resume`}
+                      onPress={() => void runAction(ad, 'resume')}
+                    />
+                  ) : null}
+                  {['ACTIVE', 'PAUSED'].includes(ad.status) ? (
+                    <ActionButton
+                      label={t('account.extend')}
+                      busy={actioningId === `${ad.id}:extend`}
+                      onPress={() => void runAction(ad, 'extend')}
+                    />
+                  ) : null}
+                  {ad.status === 'EXPIRED' ? (
+                    <ActionButton
+                      label={t('account.republish')}
+                      busy={actioningId === `${ad.id}:republish`}
+                      onPress={() => void runAction(ad, 'republish')}
+                    />
+                  ) : null}
+                </View>
+              </View>
+            ))}
+            {!loading && ads.length === 0 ? (
+              <Text style={[styles.meta, { textAlign }]}>{t('account.noAds')}</Text>
+            ) : null}
+          </View>
+        </>
+      ) : null}
+      </ScrollView>
+    </View>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -148,41 +225,57 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: 20 },
+  root: { flex: 1, backgroundColor: colors.black },
+  scroll: { flex: 1, backgroundColor: 'transparent' },
   profile: { alignItems: 'center', gap: 12, marginBottom: 16 },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.surface,
+    width: 72,
+    height: 72,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.primary,
   },
   profileText: { flex: 1 },
-  name: { color: colors.black, fontSize: 22, fontWeight: '800' },
-  meta: { color: colors.gray, marginTop: 4 },
-  topActions: { gap: 8, flexWrap: 'wrap', marginBottom: 18 },
-  logout: {
-    backgroundColor: colors.black,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
+  name: { color: colors.white, fontSize: 18, fontWeight: '800' },
+  meta: { color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  statsRow: { gap: 10, marginBottom: 18 },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.charcoal,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,196,0,0.2)',
   },
-  logoutText: { color: colors.white, fontWeight: '800' },
-  secondaryBtn: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
+  statValue: { color: colors.primary, fontSize: 22, fontWeight: '800' },
+  statLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '700', marginTop: 4 },
+  menu: { gap: 8, marginBottom: 22 },
+  menuRow: {
+    minHeight: 54,
+    borderRadius: 14,
+    backgroundColor: colors.charcoal,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  secondaryBtnText: { color: colors.black, fontWeight: '800' },
-  section: { color: colors.black, fontWeight: '800', fontSize: 16, marginBottom: 10 },
+  menuLabel: { color: colors.white, fontWeight: '700', fontSize: 15 },
+  menuChevron: { color: colors.primary, fontSize: 22, fontWeight: '700' },
+  menuDanger: { color: colors.primary },
+  section: { color: colors.primary, fontWeight: '800', fontSize: 16, marginBottom: 10 },
   list: { gap: 8 },
-  row: { backgroundColor: colors.surface, borderRadius: 14, padding: 14 },
-  rowTitle: { fontWeight: '700' },
-  rowMeta: { color: colors.gray, marginTop: 4 },
+  row: {
+    backgroundColor: colors.charcoal,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  rowTitle: { fontWeight: '700', color: colors.white },
+  rowMeta: { color: 'rgba(255,255,255,0.55)', marginTop: 4 },
   adActions: { marginTop: 12, flexWrap: 'wrap', gap: 8 },
   actionBtn: {
     backgroundColor: colors.primary,

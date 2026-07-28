@@ -17,6 +17,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { Image } from 'react-native';
 import type { AdDetail } from '@e3lani/api-client';
 import { ConnectionError } from '../../src/components/ConnectionError';
+import { BrandAtmosphere, BrandBackground } from '../../src/components/BrandBackground';
 import { LogoMark } from '../../src/components/LogoMark';
 import { api } from '../../src/lib/api';
 import { useLocale } from '../../src/lib/locale';
@@ -79,6 +80,7 @@ export default function FeedScreen() {
 
   return (
     <View style={styles.root}>
+      <BrandAtmosphere variant="header" overlay="soft" height={insets.top + 168} />
       <View
         style={[
           styles.header,
@@ -87,7 +89,7 @@ export default function FeedScreen() {
         pointerEvents={chromeHidden ? 'none' : 'auto'}
       >
         <View style={[styles.brandRow, { flexDirection: rowDirection }]}>
-          <LogoMark size={28} />
+          <LogoMark size={40} framed />
           <View>
             <Text style={[styles.brand, { textAlign }]}>إعلاني | E3lani</Text>
             <Text style={[styles.tagline, { textAlign }]}>{t('brand.tagline')}</Text>
@@ -121,6 +123,7 @@ export default function FeedScreen() {
       {error && items.length === 0 ? <ConnectionError message={error} onRetry={() => void load()} dark /> : null}
       {!loading && !error && items.length === 0 ? (
         <View style={styles.emptyState}>
+          <BrandBackground variant="empty" overlay="dark" height={220} style={styles.emptyBrand} />
           <Text style={styles.emptyTitle}>{t('feed.emptyTitle')}</Text>
           <Text style={styles.empty}>{t('feed.emptyBody')}</Text>
           <Pressable style={styles.emptyButton} onPress={() => void load()}>
@@ -179,9 +182,24 @@ export default function FeedScreen() {
                 ]}
                 pointerEvents={chromeHidden ? 'none' : 'auto'}
               >
-                <Text style={styles.brandName}>
-                  {brandName}
-                </Text>
+                <View style={styles.sideRail}>
+                  <Pressable style={styles.sideBtn} onPress={() => void shareAd(item)}>
+                    <Text style={styles.sideBtnText}>{t('common.share')}</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.sideBtn}
+                    onPress={() => {
+                      void api.saveAd(item.id).catch(() => undefined);
+                    }}
+                  >
+                    <Text style={styles.sideBtnText}>{t('nav.saved')}</Text>
+                  </Pressable>
+                  <Pressable style={styles.sideBtn} onPress={() => router.push(`/ads/${item.id}` as never)}>
+                    <Text style={styles.sideBtnText}>{t('feed.details')}</Text>
+                  </Pressable>
+                </View>
+
+                <Text style={styles.brandName}>{brandName}</Text>
                 <Text style={[styles.offerTitle, { textAlign }]}>{item.currentRevision?.title}</Text>
                 <Text style={[styles.city, { textAlign }]}>
                   {locale === 'ar' ? item.currentRevision?.city?.nameAr : item.currentRevision?.city?.nameEn}
@@ -195,19 +213,21 @@ export default function FeedScreen() {
                   <Pressable
                     style={styles.cta}
                     onPress={() => {
-                      if (contact?.storeUrl) void Linking.openURL(contact.storeUrl);
-                      else if (contact?.whatsapp)
+                      if (contact?.whatsapp)
                         void Linking.openURL(`https://wa.me/${contact.whatsapp.replace('+', '')}`);
+                      else if (contact?.storeUrl) void Linking.openURL(contact.storeUrl);
                       else if (contact?.phone) void Linking.openURL(`tel:${contact.phone}`);
                     }}
                   >
-                    <Text style={styles.ctaText}>{contact?.storeUrl ? t('feed.visitStore') : t('feed.contact')}</Text>
-                  </Pressable>
-                  <Pressable style={styles.secondaryCta} onPress={() => void shareAd(item)}>
-                    <Text style={styles.secondaryCtaText}>{t('common.share')}</Text>
-                  </Pressable>
-                  <Pressable style={styles.secondaryCta} onPress={() => router.push(`/ads/${item.id}` as never)}>
-                    <Text style={styles.secondaryCtaText}>{t('feed.details')}</Text>
+                    <Text style={styles.ctaText}>
+                      {contact?.whatsapp
+                        ? locale === 'ar'
+                          ? 'واتساب'
+                          : 'WhatsApp'
+                        : contact?.storeUrl
+                          ? t('feed.visitStore')
+                          : t('feed.contact')}
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -247,6 +267,24 @@ const styles = StyleSheet.create({
   tabUnderline: { marginTop: 4, height: 3, width: 22, borderRadius: 2, backgroundColor: colors.primary },
   slide: { width: '100%' },
   overlay: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 16 },
+  sideRail: {
+    position: 'absolute',
+    right: 12,
+    bottom: 160,
+    gap: 10,
+    zIndex: 5,
+  },
+  sideBtn: {
+    backgroundColor: 'rgba(17,17,17,0.72)',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,196,0,0.35)',
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  sideBtnText: { color: colors.primary, fontSize: 11, fontWeight: '800' },
   brandName: { color: colors.primary, fontWeight: '700', textAlign: 'right' },
   offerTitle: { color: colors.white, fontSize: 24, fontWeight: '800', marginTop: 6 },
   city: { color: 'rgba(255,255,255,0.85)', marginTop: 4 },
@@ -261,17 +299,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaText: { color: colors.black, fontSize: 17, fontWeight: '800' },
-  secondaryCta: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 14,
-    minHeight: 52,
+  emptyState: {
+    marginTop: 108,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
+    gap: 10,
+    zIndex: 2,
   },
-  secondaryCtaText: { color: colors.white, fontSize: 14, fontWeight: '800' },
-  emptyState: { marginTop: 120, paddingHorizontal: 24, alignItems: 'center', gap: 10 },
+  emptyBrand: { width: '100%', borderRadius: 20, marginBottom: 8, overflow: 'hidden' },
   emptyTitle: { color: colors.white, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   empty: { color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 21 },
   emptyButton: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
