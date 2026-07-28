@@ -4,10 +4,11 @@ export type AdStatus="draft"|"awaiting_payment"|"pending_review"|"changes_reques
 export type ContactType="store"|"product"|"whatsapp"|"phone"; export type PromotionCode="highlight_3"|"highlight_7"|"top_category"|"city_targeting";
 export type Category={id:string;ar:string;en:string;icon:string}; export type City={id:string;ar:string;en:string;region:string};
 export type AdMedia={id:string;kind:"image"|"video";uri:string;mediaAssetId?:number;processingStatus?:"processing"|"ready"|"failed";localAsset?:"poster"|"wordmark"|"icon"}; export type AdContact={type:ContactType;value:string};
-export type Ad={id:string;ownerId:string;brandId?:string;title:string;description:string;categoryId:string;cityId:string;media:AdMedia[];contacts:AdContact[];status:AdStatus;revision:number;verified:boolean;featured:boolean;sponsored:boolean;createdAt:string;activatedAt?:string;expiresAt?:string;lastRepublishedAt?:string;promotions:PromotionCode[]};
+export type Metrics={impressions:number;views:number;saves:number;shares:number;contacts:number};
+export type Ad={id:string;ownerId:string;brandId?:string;title:string;description:string;categoryId:string;cityId:string;media:AdMedia[];contacts:AdContact[];status:AdStatus;revision:number;verified:boolean;featured:boolean;sponsored:boolean;createdAt:string;activatedAt?:string;expiresAt?:string;lastRepublishedAt?:string;promotions:PromotionCode[];advertiserName?:string;advertiserSlug?:string;advertiserAvatarUrl?:string;metrics?:Metrics};
 export type UserProfile={id:string;name:string;phone:string;email?:string;cityId:string;accountType:AccountType;role:StaffRole;bio?:string};
 export type BrandProfile={id:string;ownerId:string;name:string;slug:string;bio:string;website?:string;logoAsset?:"wordmark"|"icon";verified:boolean;verificationStatus:"unverified"|"pending"|"verified"|"rejected"};
-export type Metrics={impressions:number;views:number;saves:number;shares:number;contacts:number}; export type NotificationItem={id:string;title:string;body:string;read:boolean;createdAt:string;kind:"payment"|"review"|"expiry"|"system"};
+export type NotificationItem={id:string;title:string;body:string;read:boolean;createdAt:string;kind:"payment"|"review"|"expiry"|"system"};
 export type ReportItem={id:string;adId:string;reason:string;details?:string;status:"open"|"resolved";createdAt:string}; export type Order={id:string;adId:string;items:PromotionCode[];totalHalalas:number;status:"pending"|"paid"|"failed"|"refunded";provider:"sandbox"|"external";createdAt:string};
 export type Invoice={id:string;orderId:string;number:string;totalHalalas:number;issuedAt:string}; export type AuditLog={id:string;actor:string;action:string;target:string;reason:string;createdAt:string};
 export const REPUBLISH_COOLDOWN_MS=72*60*60*1000;

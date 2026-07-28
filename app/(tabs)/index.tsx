@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -14,31 +14,78 @@ import {
 import { AdCard } from "@/components/e3lani/ad-card";
 import { EmptyState, Pill } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
+import { createIdempotencyKey, getOrCreateAnonymousId } from "@/lib/analytics-identity";
+import { centralAdToClientAd } from "@/lib/central-data-adapter";
 import { BRAND, type Ad } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { trpc } from "@/lib/trpc";
+
+const DEMO_DATA_ENABLED = process.env.EXPO_PUBLIC_ENABLE_DEMO_DATA === "true";
 
 export default function Home() {
   const { height, width } = useWindowDimensions();
-  const { ads, blockedOwners, ready, recordMetric } = useE3lani();
+  const { ads: demoAds, blockedOwners } = useE3lani();
   const { isRTL, t } = useI18n();
   const [tab, setTab] = useState("forYou");
   const [active, setActive] = useState("");
+  const anonymousId = useRef("");
   const seen = useRef(new Set<string>());
+  const eventMutation = trpc.data.events.record.useMutation();
+  const sessionQuery = trpc.auth.me.useQuery(undefined, { retry: false });
+  const feedQuery = trpc.data.ads.feed.useQuery({ limit: 30 }, { retry: 1 });
+  const favoritesQuery = trpc.data.favorites.list.useQuery(
+    { limit: 100 },
+    { enabled: Boolean(sessionQuery.data), retry: false },
+  );
+  const toggleFavoriteMutation = trpc.data.favorites.toggle.useMutation({
+    onSuccess: async () => {
+      await favoritesQuery.refetch();
+    },
+  });
+  const eventMutateRef = useRef(eventMutation.mutate);
+  eventMutateRef.current = eventMutation.mutate;
+
+  useEffect(() => {
+    let mounted = true;
+    void getOrCreateAnonymousId().then((value) => {
+      if (mounted) anonymousId.current = value;
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const centralAds = useMemo(
+    () => (feedQuery.data ?? []).map(centralAdToClientAd),
+    [feedQuery.data],
+  );
+  const sourceAds = feedQuery.isError && DEMO_DATA_ENABLED ? demoAds : centralAds;
+  const savedIds = useMemo(
+    () => new Set((favoritesQuery.data ?? []).map((item) => item.id)),
+    [favoritesQuery.data],
+  );
+
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 70 }).current;
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: { item: Ad }[] }) => {
       const id = viewableItems[0]?.item.id ?? "";
       setActive(id);
-      if (id && !seen.current.has(id)) {
-        seen.current.add(id);
-        recordMetric(id, "impressions");
-        recordMetric(id, "views");
+      if (!id || seen.current.has(id) || !anonymousId.current) return;
+      seen.current.add(id);
+      for (const eventType of ["impression", "view"] as const) {
+        eventMutateRef.current({
+          publicAdId: id,
+          anonymousId: anonymousId.current,
+          eventType,
+          idempotencyKey: createIdempotencyKey(eventType, id),
+        });
       }
     },
   ).current;
+
   const itemHeight = Math.min(Math.max(height - 238, 430), 680);
-  const visible = ads
+  const visible = sourceAds
     .filter((ad) => ad.status === "active" && !blockedOwners.includes(ad.ownerId))
     .sort((a, b) =>
       tab === "latest"
@@ -46,7 +93,26 @@ export default function Home() {
         : Number(b.sponsored) - Number(a.sponsored),
     );
 
-  if (!ready) {
+  const toggleSave = async (ad: Ad) => {
+    if (!sessionQuery.data) {
+      router.push("/login" as never);
+      return;
+    }
+    await toggleFavoriteMutation.mutateAsync({ publicAdId: ad.id });
+  };
+
+  const trackShare = async (ad: Ad) => {
+    const identity = anonymousId.current || (await getOrCreateAnonymousId());
+    anonymousId.current = identity;
+    await eventMutation.mutateAsync({
+      publicAdId: ad.id,
+      anonymousId: identity,
+      eventType: "share",
+      idempotencyKey: createIdempotencyKey("share", ad.id),
+    });
+  };
+
+  if (feedQuery.isLoading) {
     return (
       <ScreenContainer>
         <View style={styles.center}>
@@ -81,32 +147,50 @@ export default function Home() {
           <Pill key={key} label={t(key)} active={tab === key} onPress={() => setTab(key)} />
         ))}
       </View>
-      <FlatList
-        data={visible}
-        keyExtractor={(ad) => ad.id}
-        renderItem={({ item }) => (
-          <View style={{ height: itemHeight, justifyContent: "center" }}>
-            <AdCard ad={item} height={itemHeight - 12} active={active === item.id} />
-          </View>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            icon="campaign"
-            title={t("empty")}
-            text={t("emptyHelp")}
-            actionLabel={t("createAd")}
-            onAction={() => router.push("/create-ad" as never)}
-          />
-        }
-        contentContainerStyle={[styles.list, width > 700 && styles.web]}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={itemHeight}
-        decelerationRate="fast"
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        initialNumToRender={2}
-        windowSize={3}
-      />
+      {feedQuery.isError && !DEMO_DATA_ENABLED ? (
+        <EmptyState
+          icon="cloud-off"
+          title={t("error")}
+          text={t("emptyHelp")}
+          actionLabel={t("retry")}
+          onAction={() => void feedQuery.refetch()}
+        />
+      ) : (
+        <FlatList
+          data={visible}
+          keyExtractor={(ad) => ad.id}
+          renderItem={({ item }) => (
+            <View style={{ height: itemHeight, justifyContent: "center" }}>
+              <AdCard
+                ad={item}
+                height={itemHeight - 12}
+                active={active === item.id}
+                saved={savedIds.has(item.id)}
+                metrics={item.metrics}
+                onToggleSave={toggleSave}
+                onShareTracked={trackShare}
+              />
+            </View>
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              icon="campaign"
+              title={t("empty")}
+              text={t("emptyHelp")}
+              actionLabel={t("createAd")}
+              onAction={() => router.push("/create-ad" as never)}
+            />
+          }
+          contentContainerStyle={[styles.list, width > 700 && styles.web]}
+          showsVerticalScrollIndicator={false}
+          snapToInterval={itemHeight}
+          decelerationRate="fast"
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          initialNumToRender={2}
+          windowSize={3}
+        />
+      )}
     </ScreenContainer>
   );
 }

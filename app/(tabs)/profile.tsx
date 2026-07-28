@@ -1,12 +1,13 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
+import { clearUserInfo, removeSessionToken } from "@/lib/_core/auth";
 import { BRAND } from "@/lib/e3lani-data";
-import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { trpc } from "@/lib/trpc";
 
 const rows = [
   { key: "myAds", icon: "campaign", route: "/account/my-ads" },
@@ -17,9 +18,33 @@ const rows = [
 ] as const;
 
 export default function Profile() {
-  const { user, logout } = useE3lani();
   const { locale, t, toggleLocale } = useI18n();
+  const utils = trpc.useUtils();
+  const sessionQuery = trpc.auth.me.useQuery(undefined, { retry: false });
+  const logoutMutation = trpc.auth.logout.useMutation();
+  const user = sessionQuery.data;
   const staff = Boolean(user && ["reviewer", "finance", "support", "admin", "owner"].includes(user.role));
+
+  const logout = async () => {
+    try {
+      await logoutMutation.mutateAsync();
+    } catch {
+      // Continue local cleanup even when the server is temporarily unreachable.
+    }
+    await Promise.all([removeSessionToken(), clearUserInfo()]);
+    await utils.invalidate();
+    router.replace("/(tabs)/profile" as never);
+  };
+
+  if (sessionQuery.isLoading) {
+    return (
+      <ScreenContainer>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={BRAND.yellowDark} />
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer className="px-4">
@@ -27,20 +52,40 @@ export default function Profile() {
         <ScreenTitle title={t("account")} />
         <View
           accessible
-          accessibilityLabel={user ? `${user.name}, ${user.phone}` : t("welcome")}
+          accessibilityLabel={user ? `${user.name ?? t("account")}, ${user.email ?? ""}` : t("welcome")}
           style={styles.card}
         >
           <View accessible={false} style={styles.avatar}>
             <MaterialIcons accessible={false} name="person" size={39} color={BRAND.black} />
           </View>
           <Text style={styles.name}>{user?.name ?? t("welcome")}</Text>
-          <Text style={styles.help}>{user?.phone ?? t("loginHelp")}</Text>
-          {!user ? (
+          <Text style={styles.help}>{user?.email ?? (user ? user.openId : t("loginHelp"))}</Text>
+          {user ? (
+            <View style={styles.sessionBadge}>
+              <MaterialIcons name="verified-user" size={17} color={BRAND.success} />
+              <Text style={styles.sessionText}>
+                {locale === "ar" ? "جلسة خادم موثقة" : "Verified server session"}
+              </Text>
+            </View>
+          ) : (
             <View style={styles.full}>
               <PrimaryButton label={t("signIn")} icon="login" onPress={() => router.push("/login" as never)} />
             </View>
-          ) : null}
+          )}
         </View>
+
+        {sessionQuery.isError ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void sessionQuery.refetch()}
+            style={styles.errorCard}
+          >
+            <MaterialIcons name="cloud-off" size={22} color={BRAND.error} />
+            <Text style={styles.errorText}>
+              {locale === "ar" ? "تعذر التحقق من جلسة الحساب. اضغط لإعادة المحاولة." : "The account session could not be verified. Tap to retry."}
+            </Text>
+          </Pressable>
+        ) : null}
 
         {user
           ? rows.map((item) => {
@@ -93,7 +138,17 @@ export default function Profile() {
             accessible
             accessibilityRole="button"
             accessibilityLabel={t("logout")}
-            onPress={logout}
+            disabled={logoutMutation.isPending}
+            onPress={() => {
+              Alert.alert(
+                t("logout"),
+                locale === "ar" ? "هل تريد إنهاء الجلسة على هذا الجهاز؟" : "End the session on this device?",
+                [
+                  { text: t("close"), style: "cancel" },
+                  { text: t("logout"), style: "destructive", onPress: () => void logout() },
+                ],
+              );
+            }}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
           >
             <MaterialIcons accessible={false} name="logout" size={23} color={BRAND.error} />
@@ -106,6 +161,7 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   page: { paddingBottom: 35 },
   card: {
     marginTop: 18,
@@ -127,6 +183,10 @@ const styles = StyleSheet.create({
   name: { marginTop: 13, color: BRAND.black, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   help: { marginTop: 4, color: BRAND.muted, fontSize: 13, lineHeight: 20, textAlign: "center" },
   full: { width: "100%", marginTop: 17 },
+  sessionBadge: { marginTop: 13, minHeight: 34, paddingHorizontal: 11, borderRadius: 12, backgroundColor: "#EAF7EF", flexDirection: "row-reverse", alignItems: "center", gap: 6 },
+  sessionText: { color: BRAND.success, fontSize: 11, fontWeight: "900" },
+  errorCard: { marginTop: 10, padding: 13, borderRadius: 16, backgroundColor: "#FFF0EF", flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  errorText: { flex: 1, color: BRAND.error, fontSize: 12, lineHeight: 19, textAlign: "right" },
   row: {
     minHeight: 58,
     marginTop: 9,

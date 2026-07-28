@@ -2,17 +2,13 @@ name: Quality checks
 
 on:
   push:
-    branches:
-      - fix/free-launch-and-user-role
   pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: quality-${{ github.ref }}
+  group: quality-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:

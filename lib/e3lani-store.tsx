@@ -41,7 +41,12 @@ import {
   stripRoleFromPublicProfile,
 } from "../shared/user-role-policy";
 
+const DEMO_DATA_ENABLED = process.env.EXPO_PUBLIC_ENABLE_DEMO_DATA === "true";
+const PREFERENCES_KEY = "e3lani.preferences.v2";
+const LEGACY_STORE_KEY = "e3lani.store.v1";
+
 type PublicUserProfileInput = Omit<Partial<UserProfile>, "role">;
+type LocalPreferences = { blockedOwners: string[] };
 
 type NewAd = {
   title: string;
@@ -95,54 +100,60 @@ type Value = State & {
 };
 
 const zero: Metrics = { impressions: 0, views: 0, saves: 0, shares: 0, contacts: 0 };
-
-const initial: State = {
-  ready: false,
-  loadError: null,
-  user: null,
-  brand: seedBrand,
-  ads: seedAds,
-  savedIds: [],
-  blockedOwners: [],
-  metrics: {
-    AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
-    AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
-  },
-  notifications: [
-    {
-      id: "N1",
-      title: "مرحبًا بك في إعلاني",
-      body: "اكتشف الإعلانات المرئية أو ابدأ نشر إعلانك.",
-      read: false,
-      createdAt: new Date().toISOString(),
-      kind: "system",
-    },
-  ],
-  reports: [],
-  orders: [],
-  invoices: [],
-  audit: [],
+const demoMetrics: Record<string, Metrics> = {
+  AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
+  AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
 };
 
+function initialState(): State {
+  return {
+    ready: false,
+    loadError: null,
+    user: null,
+    brand: DEMO_DATA_ENABLED ? seedBrand : null,
+    ads: DEMO_DATA_ENABLED ? seedAds : [],
+    savedIds: [],
+    blockedOwners: [],
+    metrics: DEMO_DATA_ENABLED ? demoMetrics : {},
+    notifications: DEMO_DATA_ENABLED
+      ? [
+          {
+            id: "N1",
+            title: "وضع العرض التجريبي",
+            body: "هذه بيانات عرض محلية وليست بيانات إنتاج.",
+            read: false,
+            createdAt: new Date().toISOString(),
+            kind: "system",
+          },
+        ]
+      : [],
+    reports: [],
+    orders: [],
+    invoices: [],
+    audit: [],
+  };
+}
+
 const C = createContext<Value | null>(null);
-const KEY = "e3lani.store.v1";
 const uid = (prefix: string) =>
   `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
 export function E3laniProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<State>(initial);
+  const [state, setState] = useState<State>(() => initialState());
 
   const loadStoredState = useCallback(async () => {
     setState((current) => ({ ...current, ready: false, loadError: null }));
     try {
-      const raw = await AsyncStorage.getItem(KEY);
-      const stored = raw ? (JSON.parse(raw) as Partial<State>) : {};
-      const storedUser = stored.user
-        ? { ...stored.user, role: DEFAULT_PUBLIC_USER_ROLE }
-        : stored.user;
-      setState({ ...initial, ...stored, user: storedUser ?? null, ready: true, loadError: null });
+      const raw = await AsyncStorage.getItem(PREFERENCES_KEY);
+      const preferences = raw ? (JSON.parse(raw) as Partial<LocalPreferences>) : {};
+      const blockedOwners = Array.isArray(preferences.blockedOwners)
+        ? preferences.blockedOwners.filter((value): value is string => typeof value === "string")
+        : [];
+
+      await AsyncStorage.removeItem(LEGACY_STORE_KEY).catch(() => undefined);
+      setState({ ...initialState(), blockedOwners, ready: true, loadError: null });
     } catch {
-      setState((current) => ({ ...current, ready: true, loadError: "storage_load_failed" }));
+      setState({ ...initialState(), ready: true, loadError: "storage_load_failed" });
     }
   }, []);
 
@@ -152,11 +163,9 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!state.ready || state.loadError) return;
-    const persisted: Partial<State> = { ...state };
-    delete persisted.ready;
-    delete persisted.loadError;
-    AsyncStorage.setItem(KEY, JSON.stringify(persisted)).catch(() => undefined);
-  }, [state]);
+    const preferences: LocalPreferences = { blockedOwners: state.blockedOwners };
+    AsyncStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences)).catch(() => undefined);
+  }, [state.blockedOwners, state.loadError, state.ready]);
 
   const value = useMemo<Value>(
     () => ({
@@ -166,12 +175,12 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         setState((current) => ({
           ...current,
           user: {
-            id: "U1",
-            name: "معلن إعلاني",
+            id: "DEMO_USER",
+            name: "مستخدم عرض تجريبي",
             phone: "+966500000000",
-            email: "user@e3lani.local",
+            email: "demo@e3lani.local",
             cityId: "riyadh",
-            accountType: "brand",
+            accountType: "viewer",
             ...safeProfile,
             role: DEFAULT_PUBLIC_USER_ROLE,
           },
@@ -192,31 +201,23 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           ...current,
           brand: current.brand
             ? { ...current.brand, ...data }
-            : { ...seedBrand, ownerId: current.user?.id ?? "U1", ...data },
+            : { ...seedBrand, ownerId: current.user?.id ?? "DEMO_USER", ...data },
         })),
       requestVerification: () =>
         setState((current) => ({
           ...current,
           brand: current.brand ? { ...current.brand, verificationStatus: "pending" } : current.brand,
-          notifications: [
-            {
-              id: uid("N"),
-              title: "تم استلام طلب التوثيق",
-              body: "سيتم مراجعته يدويًا.",
-              read: false,
-              createdAt: new Date().toISOString(),
-              kind: "review",
-            },
-            ...current.notifications,
-          ],
         })),
       createAd: (data, requestedMode = DEFAULT_FEED_ACCESS_MODE) => {
+        if (!DEMO_DATA_ENABLED) {
+          throw new Error("LOCAL_AD_CREATION_DISABLED");
+        }
         const feedAccessMode = resolveFeedAccessMode(requestedMode);
         const paidPublishing = requiresPaymentForPublishing(feedAccessMode);
         const effectivePromotions = paidPublishing ? data.promotions : [];
         const ad: Ad = {
-          id: uid("AD"),
-          ownerId: state.user?.id ?? "U1",
+          id: uid("DEMO_AD"),
+          ownerId: state.user?.id ?? "DEMO_USER",
           brandId: state.brand?.id,
           ...data,
           description: data.description?.trim() ?? "",
@@ -232,23 +233,11 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           ...current,
           ads: [ad, ...current.ads],
           metrics: { ...current.metrics, [ad.id]: { ...zero } },
-          notifications: paidPublishing
-            ? current.notifications
-            : [
-                {
-                  id: uid("N"),
-                  title: "تم إرسال إعلانك للمراجعة",
-                  body: "النشر مجاني حاليًا، وسيظهر الإعلان بعد اجتياز المراجعة.",
-                  read: false,
-                  createdAt: new Date().toISOString(),
-                  kind: "review",
-                },
-                ...current.notifications,
-              ],
         }));
         return ad;
       },
-      toggleSave: (id) =>
+      toggleSave: (id) => {
+        if (!DEMO_DATA_ENABLED) return;
         setState((current) => {
           const has = current.savedIds.includes(id);
           const metrics = current.metrics[id] ?? zero;
@@ -262,21 +251,25 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
               [id]: { ...metrics, saves: Math.max(0, metrics.saves + (has ? -1 : 1)) },
             },
           };
-        }),
-      recordMetric: (id, key) =>
+        });
+      },
+      recordMetric: (id, key) => {
+        if (!DEMO_DATA_ENABLED) return;
         setState((current) => {
           const metrics = current.metrics[id] ?? zero;
           return {
             ...current,
             metrics: { ...current.metrics, [id]: { ...metrics, [key]: metrics[key] + 1 } },
           };
-        }),
-      submitReport: (id, reason, details) =>
+        });
+      },
+      submitReport: (id, reason, details) => {
+        if (!DEMO_DATA_ENABLED) return;
         setState((current) => ({
           ...current,
           reports: [
             {
-              id: uid("R"),
+              id: uid("DEMO_REPORT"),
               adId: id,
               reason,
               details,
@@ -285,7 +278,8 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             },
             ...current.reports,
           ],
-        })),
+        }));
+      },
       toggleBlock: (id) =>
         setState((current) => ({
           ...current,
@@ -293,14 +287,15 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             ? current.blockedOwners.filter((ownerId) => ownerId !== id)
             : [...current.blockedOwners, id],
         })),
-      setAdStatus: (id, status, reason = "إجراء المعلن") =>
+      setAdStatus: (id, status, reason = "إجراء تجريبي") => {
+        if (!DEMO_DATA_ENABLED) return;
         setState((current) => ({
           ...current,
           ads: current.ads.map((ad) => (ad.id === id ? { ...ad, status } : ad)),
           audit: [
             {
-              id: uid("A"),
-              actor: current.user?.name ?? "النظام",
+              id: uid("DEMO_AUDIT"),
+              actor: current.user?.name ?? "وضع العرض",
               action: `ad.${status}`,
               target: id,
               reason,
@@ -308,21 +303,27 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             },
             ...current.audit,
           ],
-        })),
-      extendAd: (id) =>
+        }));
+      },
+      extendAd: (id) => {
+        if (!DEMO_DATA_ENABLED) return;
         setState((current) => ({
           ...current,
           ads: current.ads.map((ad) => (ad.id === id ? extendAdPeriod(ad) : ad)),
-        })),
-      republishAd: (id) =>
+        }));
+      },
+      republishAd: (id) => {
+        if (!DEMO_DATA_ENABLED) return;
         setState((current) => {
           const now = new Date().toISOString();
           return {
             ...current,
             ads: current.ads.map((ad) => (ad.id === id ? republishExpiredAd(ad, now) : ad)),
           };
-        }),
-      moderateAd: (id, decision, reason) =>
+        });
+      },
+      moderateAd: (id, decision, reason) => {
+        if (!DEMO_DATA_ENABLED) return;
         setState((current) => {
           const now = new Date().toISOString();
           const target = current.ads.find((ad) => ad.id === id);
@@ -332,8 +333,8 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             ads: current.ads.map((ad) => (ad.id === id ? moderatePendingAd(ad, decision, now) : ad)),
             audit: [
               {
-                id: uid("A"),
-                actor: current.user?.name ?? "المراجع",
+                id: uid("DEMO_AUDIT"),
+                actor: current.user?.name ?? "مراجع العرض",
                 action: `moderation.${decision}`,
                 target: id,
                 reason,
@@ -341,25 +342,16 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
               },
               ...current.audit,
             ],
-            notifications: [
-              {
-                id: uid("N"),
-                title: decision === "approved" ? "تم قبول إعلانك" : "تحديث على مراجعة إعلانك",
-                body: reason,
-                read: false,
-                createdAt: now,
-                kind: "review",
-              },
-              ...current.notifications,
-            ],
           };
-        }),
+        });
+      },
       markNotificationsRead: () =>
         setState((current) => ({
           ...current,
           notifications: current.notifications.map((notification) => ({ ...notification, read: true })),
         })),
-      resolveReport: (id, resolution) =>
+      resolveReport: (id, resolution) => {
+        if (!DEMO_DATA_ENABLED) return;
         setState((current) => ({
           ...current,
           reports: current.reports.map((report) =>
@@ -367,8 +359,8 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           ),
           audit: [
             {
-              id: uid("A"),
-              actor: current.user?.name ?? "الدعم",
+              id: uid("DEMO_AUDIT"),
+              actor: current.user?.name ?? "دعم العرض",
               action: "report.resolve",
               target: id,
               reason: resolution,
@@ -376,11 +368,12 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             },
             ...current.audit,
           ],
-        })),
+        }));
+      },
       retryLoad: () => {
         void loadStoredState();
       },
-      continueWithFreshState: () => setState({ ...initial, ready: true, loadError: null }),
+      continueWithFreshState: () => setState({ ...initialState(), ready: true, loadError: null }),
     }),
     [loadStoredState, state],
   );
