@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import type { Express } from "express";
+import type { Express, Response as ExpressResponse } from "express";
 
 import { getS3ObjectResponse } from "../s3-multipart";
 import { ENV } from "./env";
@@ -14,7 +14,7 @@ const FORWARDED_HEADERS = [
   "last-modified",
 ] as const;
 
-async function proxyS3Object(key: string, range: string | undefined, res: Parameters<Express["get"]>[1] extends never ? never : any) {
+async function proxyS3Object(key: string, range: string | undefined, res: ExpressResponse) {
   const objectKey = key.slice("s3/".length);
   if (!objectKey) {
     res.status(400).send("Missing S3 object key");
