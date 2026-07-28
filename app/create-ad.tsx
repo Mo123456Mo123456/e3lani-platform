@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { MediaView } from "@/components/e3lani/ad-card";
@@ -24,8 +24,14 @@ import {
 } from "@/lib/media-upload";
 import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
+import {
+  requiresPaymentForPublishing,
+  resolveFeedAccessMode,
+} from "@/shared/feed-access";
+import { validateSaudiWhatsapp } from "@/shared/contact-validation";
 
 type UploadStatus = "queued" | "processing" | "uploading" | "verifying" | "ready" | "failed";
+type StepKey = "media" | "data" | "contact" | "promotion" | "preview";
 
 type UploadItem = {
   id: string;
@@ -42,7 +48,7 @@ export default function CreateAd() {
   const store = useE3lani();
   const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
-  const [step, setStep] = useState(1);
+  const [stepIndex, setStepIndex] = useState(0);
   const [media, setMedia] = useState<AdMedia[]>([]);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [title, setTitle] = useState("");
@@ -50,7 +56,7 @@ export default function CreateAd() {
   const [categoryId, setCategoryId] = useState("");
   const [cityId, setCityId] = useState("");
   const [storeUrl, setStoreUrl] = useState("");
-  const [whatsapp, setWhatsapp] = useState("+966");
+  const [whatsapp, setWhatsapp] = useState("");
   const [phone, setPhone] = useState("");
   const [productUrl, setProductUrl] = useState("");
   const [promotions, setPromotions] = useState<PromotionCode[]>([]);
@@ -59,11 +65,6 @@ export default function CreateAd() {
   const prepareUploadMutation = trpc.media.prepareUpload.useMutation();
   const completeUploadMutation = trpc.media.completeUpload.useMutation();
   const deleteMediaMutation = trpc.media.delete.useMutation();
-
-  useEffect(() => {
-    if (!categoryId && productData.categories[0]) setCategoryId(productData.categories[0].id);
-    if (!cityId && productData.cities[0]) setCityId(productData.cities[0].id);
-  }, [categoryId, cityId, productData.categories, productData.cities]);
 
   const updateUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
     setUploads((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -194,6 +195,31 @@ export default function CreateAd() {
     );
   }
 
+  const feedAccessMode = resolveFeedAccessMode(productData.config.feedAccessMode);
+  const publishingRequiresPayment = requiresPaymentForPublishing(feedAccessMode);
+  const launchFree = feedAccessMode === "LAUNCH_FREE";
+  const steps: StepKey[] = publishingRequiresPayment
+    ? ["media", "data", "contact", "promotion", "preview"]
+    : ["media", "data", "contact", "preview"];
+  const currentStep = steps[stepIndex];
+
+  if (publishingRequiresPayment && !productData.config.paymentEnabled) {
+    return (
+      <ScreenContainer>
+        <View style={styles.gate}>
+          <MaterialIcons name="payments" size={44} color={BRAND.warning} />
+          <Text style={styles.gateTitle}>
+            {locale === "ar" ? "النشر المدفوع غير متاح حاليًا" : "Paid publishing is currently unavailable"}
+          </Text>
+          <Text style={styles.gateBody}>
+            {locale === "ar" ? "الدفع معطل من الخادم، لذلك لن يتم إنشاء أي عملية دفع تجريبية." : "Payment is disabled by the server, so no test payment will be created."}
+          </Text>
+          <PrimaryButton label={t("back")} icon="arrow-back" onPress={() => router.back()} />
+        </View>
+      </ScreenContainer>
+    );
+  }
+
   const pickMedia = async () => {
     const policy = productData.config?.mediaPolicy;
     if (!policy) return Alert.alert(t("error"));
@@ -247,15 +273,6 @@ export default function CreateAd() {
     if (item.status === "ready" || item.status === "failed") cancelledUploads.current.delete(item.id);
   };
 
-  const contacts: AdContact[] = (
-    [
-      { type: "store", value: storeUrl },
-      { type: "product", value: productUrl },
-      { type: "whatsapp", value: whatsapp },
-      { type: "phone", value: phone },
-    ] as { type: ContactType; value: string }[]
-  ).filter((item) => item.value.trim());
-
   const togglePromotion = (code: PromotionCode) => {
     setPromotions((current) => {
       if (current.includes(code)) return current.filter((value) => value !== code);
@@ -265,32 +282,119 @@ export default function CreateAd() {
     });
   };
 
-  const next = () => {
-    if (step === 1 && uploads.some((item) => item.status !== "ready")) {
-      return Alert.alert(locale === "ar" ? "انتظر اكتمال رفع جميع الوسائط أو أعد محاولة الملفات المتعثرة." : "Wait for all uploads to finish or retry failed files.");
+  const buildContacts = (): AdContact[] | null => {
+    const result: AdContact[] = (
+      [
+        { type: "store", value: storeUrl.trim() },
+        { type: "product", value: productUrl.trim() },
+        { type: "phone", value: phone.trim() },
+      ] as { type: ContactType; value: string }[]
+    ).filter((item) => item.value);
+
+    if (whatsapp.trim()) {
+      const validated = validateSaudiWhatsapp(whatsapp);
+      if (!validated.valid) {
+        Alert.alert(
+          locale === "ar" ? "رقم واتساب غير صحيح" : "Invalid WhatsApp number",
+          locale === "ar" ? "أدخل رقمًا سعوديًا كاملًا مثل +9665XXXXXXXX. لا يمكن قبول +966 فقط." : "Enter a complete Saudi number such as +9665XXXXXXXX. +966 alone is not accepted.",
+        );
+        return null;
+      }
+      result.push({ type: "whatsapp", value: validated.normalized });
     }
-    if (step === 1 && !media.length) return Alert.alert(t("mediaHelp"));
-    if (step === 2 && (title.trim().length < 4 || description.trim().length < 20)) return Alert.alert(t("error"));
-    if (step === 3 && !contacts.length) return Alert.alert(t("contact"));
-    if (step < 5) {
-      setStep((current) => current + 1);
-      return;
+
+    if (!result.length) {
+      Alert.alert(
+        locale === "ar" ? "وسيلة التواصل مطلوبة" : "Contact method required",
+        locale === "ar" ? "أضف رابط متجر أو منتج أو رقم واتساب أو اتصال." : "Add a store link, product link, WhatsApp number, or phone number.",
+      );
+      return null;
     }
-    const ad = store.createAd({
-      title: title.trim(),
-      description: description.trim(),
-      categoryId,
-      cityId,
-      contacts,
-      promotions,
-      media,
-    });
-    router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
+
+    return result;
   };
 
-  const quote = productData.calculateQuote(promotions);
+  const validateStep = (): boolean => {
+    if (currentStep === "media") {
+      if (uploads.some((item) => item.status !== "ready")) {
+        Alert.alert(locale === "ar" ? "انتظر اكتمال رفع جميع الوسائط أو أعد محاولة الملفات المتعثرة." : "Wait for all uploads to finish or retry failed files.");
+        return false;
+      }
+      if (!media.length) {
+        Alert.alert(t("mediaHelp"));
+        return false;
+      }
+    }
+
+    if (currentStep === "data") {
+      if (title.trim().length < 4) {
+        Alert.alert(locale === "ar" ? "عنوان الإعلان قصير" : "Ad title is too short");
+        return false;
+      }
+      if (!categoryId) {
+        Alert.alert(locale === "ar" ? "اختر القسم" : "Choose a category");
+        return false;
+      }
+      if (!cityId) {
+        Alert.alert(locale === "ar" ? "اختر المدينة" : "Choose a city");
+        return false;
+      }
+    }
+
+    if (currentStep === "contact" && !buildContacts()) return false;
+    return true;
+  };
+
+  const submit = () => {
+    const contacts = buildContacts();
+    if (!contacts) return;
+    const ad = store.createAd(
+      {
+        title: title.trim(),
+        description: description.trim(),
+        categoryId,
+        cityId,
+        contacts,
+        promotions: publishingRequiresPayment ? promotions : [],
+        media,
+      },
+      feedAccessMode,
+    );
+
+    if (publishingRequiresPayment) {
+      router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
+      return;
+    }
+
+    Alert.alert(
+      locale === "ar" ? "تم إرسال إعلانك للمراجعة" : "Your ad was sent for review",
+      locale === "ar" ? "النشر مجاني حاليًا. لا توجد شاشة دفع أو سعر، وسيظهر الإعلان بعد الموافقة." : "Publishing is currently free. There is no payment screen or price, and the ad will appear after approval.",
+      [
+        {
+          text: locale === "ar" ? "عرض الإعلان" : "View ad",
+          onPress: () => router.replace({ pathname: "/ad/[id]", params: { id: ad.id } } as never),
+        },
+      ],
+    );
+  };
+
+  const next = () => {
+    if (!validateStep()) return;
+    if (stepIndex < steps.length - 1) {
+      setStepIndex((current) => current + 1);
+      return;
+    }
+    submit();
+  };
+
+  const quote = publishingRequiresPayment ? productData.calculateQuote(promotions) : null;
   const city = productData.cities.find((item) => item.id === cityId);
   const cityName = locale === "ar" ? city?.ar : city?.en;
+  const finalLabel = publishingRequiresPayment
+    ? t("pay")
+    : locale === "ar"
+      ? "إرسال للمراجعة مجانًا"
+      : "Send for free review";
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -299,16 +403,26 @@ export default function CreateAd() {
           <MaterialIcons name="close" size={27} color={BRAND.black} />
         </Pressable>
         <Text style={styles.headerTitle}>{t("postTitle")}</Text>
-        <Text style={styles.step}>{step}/5</Text>
+        <Text style={styles.step}>{stepIndex + 1}/{steps.length}</Text>
       </View>
       <View style={styles.progressDots}>
-        {[1, 2, 3, 4, 5].map((value) => (
-          <View key={value} style={[styles.dot, { backgroundColor: value <= step ? BRAND.yellowDark : BRAND.border }]} />
+        {steps.map((value, index) => (
+          <View key={value} style={[styles.dot, { backgroundColor: index <= stepIndex ? BRAND.yellowDark : BRAND.border }]} />
         ))}
       </View>
 
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-        {step === 1 ? (
+        {launchFree ? (
+          <View accessible accessibilityRole="summary" style={styles.freeBanner}>
+            <MaterialIcons name="celebration" size={24} color={BRAND.black} />
+            <View style={styles.freeBannerCopy}>
+              <Text style={styles.freeBannerTitle}>{locale === "ar" ? "النشر مجاني حاليًا" : "Publishing is currently free"}</Text>
+              <Text style={styles.freeBannerText}>{locale === "ar" ? "لن يظهر سعر أو دفع، وسيُرسل إعلانك مباشرة إلى المراجعة." : "No price or payment will be shown. Your ad goes directly to review."}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {currentStep === "media" ? (
           <View>
             <ScreenTitle title={t("media")} subtitle={t("mediaHelp")} />
             <View style={styles.pick}><PrimaryButton label={t("addMedia")} icon="photo-library" onPress={pickMedia} /></View>
@@ -356,11 +470,11 @@ export default function CreateAd() {
           </View>
         ) : null}
 
-        {step === 2 ? (
+        {currentStep === "data" ? (
           <View>
-            <ScreenTitle title={t("data")} />
+            <ScreenTitle title={t("data")} subtitle={locale === "ar" ? "اختر القسم والمدينة بنفسك. الوصف اختياري." : "Choose the category and city yourself. Description is optional."} />
             <Field label={t("adTitle")} value={title} onChangeText={setTitle} maxLength={120} />
-            <Field label={t("description")} value={description} onChangeText={setDescription} multiline maxLength={4000} />
+            <Field label={`${t("description")} (${locale === "ar" ? "اختياري" : "optional"})`} value={description} onChangeText={setDescription} multiline maxLength={4000} />
             <Text style={styles.label}>{t("category")}</Text>
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
               {productData.categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={categoryId === item.id} onPress={() => setCategoryId(item.id)} />)}
@@ -372,17 +486,17 @@ export default function CreateAd() {
           </View>
         ) : null}
 
-        {step === 3 ? (
+        {currentStep === "contact" ? (
           <View>
-            <ScreenTitle title={t("contact")} />
+            <ScreenTitle title={t("contact")} subtitle={locale === "ar" ? "أضف وسيلة واحدة على الأقل. رقم واتساب يجب أن يكون كاملًا." : "Add at least one contact method. WhatsApp must be a complete number."} />
             <Field label={t("store")} value={storeUrl} onChangeText={setStoreUrl} keyboardType="url" autoCapitalize="none" />
             <Field label={t("product")} value={productUrl} onChangeText={setProductUrl} keyboardType="url" autoCapitalize="none" />
-            <Field label={t("whatsapp")} value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" />
+            <Field label={t("whatsapp")} value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" placeholder="+9665XXXXXXXX" />
             <Field label={t("phone")} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
           </View>
         ) : null}
 
-        {step === 4 ? (
+        {currentStep === "promotion" && publishingRequiresPayment ? (
           <View>
             <ScreenTitle title={t("promotion")} />
             {productData.promotions.map((option) => {
@@ -403,23 +517,25 @@ export default function CreateAd() {
                 </Pressable>
               );
             })}
-            <View style={styles.quote}>
-              <Text style={styles.quoteLabel}>{t("total")}</Text>
-              <Text style={styles.quoteTotal}>{(quote.totalHalalas / 100).toFixed(2)} {t("sar")}</Text>
-              <Text style={styles.quoteVat}>{t("vatIncluded")}: {(quote.vatHalalas / 100).toFixed(2)} {t("sar")}</Text>
-            </View>
+            {quote ? (
+              <View style={styles.quote}>
+                <Text style={styles.quoteLabel}>{t("total")}</Text>
+                <Text style={styles.quoteTotal}>{(quote.totalHalalas / 100).toFixed(2)} {t("sar")}</Text>
+                <Text style={styles.quoteVat}>{t("vatIncluded")}: {(quote.vatHalalas / 100).toFixed(2)} {t("sar")}</Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
-        {step === 5 ? (
+        {currentStep === "preview" ? (
           <View>
-            <ScreenTitle title={t("preview")} />
+            <ScreenTitle title={t("preview")} subtitle={launchFree ? (locale === "ar" ? "سيُرسل الإعلان مباشرة للمراجعة دون دفع." : "The ad will be sent directly to review without payment.") : undefined} />
             <View style={styles.preview}>
               <MediaView media={media[0]} active />
               <View style={styles.scrim} />
               <View style={styles.previewCopy}>
                 <Text style={styles.previewTitle}>{title}</Text>
-                <Text numberOfLines={3} style={styles.previewDescription}>{description}</Text>
+                {description ? <Text numberOfLines={3} style={styles.previewDescription}>{description}</Text> : null}
                 <Text style={styles.previewMeta}>{cityName}</Text>
               </View>
             </View>
@@ -429,10 +545,15 @@ export default function CreateAd() {
 
       <View style={[styles.footer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <View style={styles.footerBack}>
-          {step > 1 ? <OutlineButton label={t("previous")} icon="arrow-forward" onPress={() => setStep((current) => current - 1)} /> : null}
+          {stepIndex > 0 ? <OutlineButton label={t("previous")} icon="arrow-forward" onPress={() => setStepIndex((current) => current - 1)} /> : null}
         </View>
         <View style={styles.footerNext}>
-          <PrimaryButton disabled={step === 1 && uploads.some((item) => item.status !== "ready")} label={step === 5 ? t("pay") : t("next")} icon={step === 5 ? "payments" : "arrow-back"} onPress={next} />
+          <PrimaryButton
+            disabled={currentStep === "media" && uploads.some((item) => item.status !== "ready")}
+            label={currentStep === "preview" ? finalLabel : t("next")}
+            icon={currentStep === "preview" ? (publishingRequiresPayment ? "payments" : "send") : "arrow-back"}
+            onPress={next}
+          />
         </View>
       </View>
     </ScreenContainer>
@@ -441,7 +562,8 @@ export default function CreateAd() {
 
 const styles = StyleSheet.create({
   gate: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 18 },
-  gateTitle: { color: BRAND.black, fontSize: 22, lineHeight: 30, fontWeight: "900" },
+  gateTitle: { color: BRAND.black, fontSize: 22, lineHeight: 30, fontWeight: "900", textAlign: "center" },
+  gateBody: { maxWidth: 480, color: BRAND.muted, fontSize: 14, lineHeight: 22, textAlign: "center" },
   header: { minHeight: 58, paddingHorizontal: 12, alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: BRAND.border },
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: BRAND.black, fontSize: 17, lineHeight: 24, fontWeight: "900" },
@@ -449,6 +571,10 @@ const styles = StyleSheet.create({
   progressDots: { height: 24, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8 },
   dot: { width: 26, height: 5, borderRadius: 3 },
   page: { width: "100%", maxWidth: 720, alignSelf: "center", padding: 18, paddingBottom: 35 },
+  freeBanner: { marginBottom: 18, borderWidth: 1, borderColor: BRAND.yellowDark, borderRadius: 20, padding: 14, backgroundColor: "#FFF8D6", flexDirection: "row-reverse", alignItems: "center", gap: 12 },
+  freeBannerCopy: { flex: 1 },
+  freeBannerTitle: { color: BRAND.black, fontSize: 15, lineHeight: 21, fontWeight: "900", textAlign: "right" },
+  freeBannerText: { marginTop: 3, color: BRAND.charcoal, fontSize: 12, lineHeight: 19, textAlign: "right" },
   pick: { marginTop: 18 },
   mediaList: { gap: 9, paddingTop: 15 },
   uploadCard: { width: 154, borderRadius: 17, padding: 6, backgroundColor: BRAND.surface, borderWidth: 1, borderColor: BRAND.border },
@@ -477,9 +603,9 @@ const styles = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,.32)" },
   previewCopy: { position: "absolute", left: 18, right: 18, bottom: 18 },
   previewTitle: { color: BRAND.white, fontSize: 25, lineHeight: 34, fontWeight: "900", textAlign: "right" },
-  previewDescription: { marginTop: 7, color: "#EEE", fontSize: 14, lineHeight: 22, textAlign: "right" },
-  previewMeta: { marginTop: 8, color: BRAND.yellow, fontSize: 12, fontWeight: "900", textAlign: "right" },
-  footer: { minHeight: 78, borderTopWidth: 1, borderTopColor: BRAND.border, padding: 11, gap: 9, alignItems: "center" },
-  footerBack: { flex: 0.8 },
-  footerNext: { flex: 1.3 },
+  previewDescription: { marginTop: 7, color: BRAND.white, fontSize: 14, lineHeight: 22, textAlign: "right" },
+  previewMeta: { marginTop: 10, color: BRAND.yellow, fontSize: 12, fontWeight: "900", textAlign: "right" },
+  footer: { minHeight: 80, borderTopWidth: 1, borderTopColor: BRAND.border, paddingHorizontal: 15, paddingVertical: 10, alignItems: "center", justifyContent: "space-between", gap: 12, backgroundColor: BRAND.white },
+  footerBack: { flex: 1 },
+  footerNext: { flex: 1, alignItems: "flex-end" },
 });
