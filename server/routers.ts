@@ -9,6 +9,14 @@ import { coreDataRouter } from "./core-data-router";
 import * as db from "./db";
 import { completeMediaUpload, prepareMediaUpload } from "./media-service";
 import { getPublicProductConfig } from "./product-config";
+import {
+  abortResumableVideoUpload,
+  completeResumableVideoUpload,
+  getResumableVideoCapabilities,
+  getResumableVideoStatus,
+  prepareResumableVideoUpload,
+  signResumableVideoPart,
+} from "./resumable-video-service";
 
 const mediaMetadataInput = z.object({
   fileName: z.string().trim().min(1).max(180),
@@ -19,6 +27,14 @@ const mediaMetadataInput = z.object({
   durationMs: z.number().int().nonnegative().max(30 * 60 * 1000).nullable().optional(),
 });
 
+const resumableVideoMetadataInput = mediaMetadataInput.extend({
+  mimeType: z.literal("video/mp4"),
+});
+
+const resumableTicketInput = z.object({
+  ticket: z.string().min(64).max(8192),
+});
+
 function mediaError(error: unknown): never {
   const message = error instanceof Error ? error.message : "MEDIA_OPERATION_FAILED";
   if (message.endsWith("_NOT_FOUND")) {
@@ -27,10 +43,14 @@ function mediaError(error: unknown): never {
   if (message === "MEDIA_ASSET_IN_USE") {
     throw new TRPCError({ code: "CONFLICT", message });
   }
+  if (message === "S3_MULTIPART_NOT_CONFIGURED") {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message });
+  }
   if (
-    message.startsWith("MEDIA_") &&
+    (message.startsWith("MEDIA_") || message.startsWith("S3_MULTIPART_")) &&
     !message.includes("DATABASE") &&
-    !message.includes("SIGNING")
+    !message.includes("SIGNING") &&
+    !message.includes("SECRET_UNAVAILABLE")
   ) {
     throw new TRPCError({ code: "BAD_REQUEST", message });
   }
@@ -96,6 +116,7 @@ export const appRouter = router({
   }),
   media: router({
     policy: publicProcedure.query(() => db.getPublicMediaPolicy()),
+    resumableCapabilities: publicProcedure.query(() => getResumableVideoCapabilities()),
     prepareUpload: protectedProcedure.input(mediaMetadataInput).mutation(async ({ ctx, input }) => {
       try {
         return await prepareMediaUpload(ctx.user.id, input);
@@ -108,6 +129,51 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         try {
           return await completeMediaUpload(ctx.user.id, input.ticket);
+        } catch (error) {
+          return mediaError(error);
+        }
+      }),
+    prepareResumableVideo: protectedProcedure
+      .input(resumableVideoMetadataInput)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await prepareResumableVideoUpload(ctx.user.id, input);
+        } catch (error) {
+          return mediaError(error);
+        }
+      }),
+    resumableVideoStatus: protectedProcedure
+      .input(resumableTicketInput)
+      .query(async ({ ctx, input }) => {
+        try {
+          return await getResumableVideoStatus(ctx.user.id, input.ticket);
+        } catch (error) {
+          return mediaError(error);
+        }
+      }),
+    signResumableVideoPart: protectedProcedure
+      .input(resumableTicketInput.extend({ partNumber: z.number().int().min(1).max(10_000) }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await signResumableVideoPart(ctx.user.id, input.ticket, input.partNumber);
+        } catch (error) {
+          return mediaError(error);
+        }
+      }),
+    completeResumableVideo: protectedProcedure
+      .input(resumableTicketInput)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await completeResumableVideoUpload(ctx.user.id, input.ticket);
+        } catch (error) {
+          return mediaError(error);
+        }
+      }),
+    abortResumableVideo: protectedProcedure
+      .input(resumableTicketInput)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await abortResumableVideoUpload(ctx.user.id, input.ticket);
         } catch (error) {
           return mediaError(error);
         }
