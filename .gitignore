@@ -32,7 +32,26 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.*
 .env*.local
+
+# Test and coverage output
+coverage/
+.nyc_output/
+
+# Local databases and user data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+uploads/
+
+# Release artifacts
+*.apk
+*.aab
+*.ipa
+*.zip
 
 # typescript
 *.tsbuildinfo
@@ -62,7 +81,9 @@ Thumbs.db
 *.tgz
 *.tar.gz
 .cache/
+.pnpm-store/
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 .project-config.json
+!.github/
