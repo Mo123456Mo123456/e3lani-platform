@@ -28,12 +28,12 @@ const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "إعلاني | E3lani",
+  appName: "إعلاني",
   appSlug: "e3lani",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
-  scheme: schemeFromBundleId,
+  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663180143275/pIqWEvNDzFwBLQuC.png",
+  scheme: "e3lani",
   iosBundleId: bundleId,
   androidPackage: bundleId,
 };
@@ -56,7 +56,7 @@ const config: ExpoConfig = {
   },
   android: {
     adaptiveIcon: {
-      backgroundColor: "#E6F4FE",
+      backgroundColor: "#111111",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
@@ -107,7 +107,7 @@ const config: ExpoConfig = {
         resizeMode: "contain",
         backgroundColor: "#ffffff",
         dark: {
-          backgroundColor: "#000000",
+          backgroundColor: "#111111",
         },
       },
     ],
@@ -124,6 +124,10 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+  extra: {
+    brandName: "إعلاني | E3lani",
+    defaultLocale: "ar-SA",
   },
 };
 

@@ -8,6 +8,9 @@ import "react-native-reanimated";
 import { Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { I18nProvider } from "@/lib/i18n";
+import { E3laniProvider } from "@/lib/e3lani-store";
+import { AppStateGate } from "@/components/e3lani/app-state-gate";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -89,7 +92,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="oauth/callback" />
           </Stack>
-          <StatusBar style="auto" />
+          <StatusBar style="dark" />
         </QueryClientProvider>
       </trpc.Provider>
     </GestureHandlerRootView>
@@ -100,20 +103,16 @@ export default function RootLayout() {
   if (shouldOverrideSafeArea) {
     return (
       <ThemeProvider>
-        <SafeAreaProvider initialMetrics={providerInitialMetrics}>
-          <SafeAreaFrameContext.Provider value={frame}>
-            <SafeAreaInsetsContext.Provider value={insets}>
-              {content}
-            </SafeAreaInsetsContext.Provider>
-          </SafeAreaFrameContext.Provider>
-        </SafeAreaProvider>
+        <I18nProvider><E3laniProvider><SafeAreaProvider initialMetrics={providerInitialMetrics}>
+          <SafeAreaFrameContext.Provider value={frame}><SafeAreaInsetsContext.Provider value={insets}><AppStateGate>{content}</AppStateGate></SafeAreaInsetsContext.Provider></SafeAreaFrameContext.Provider>
+        </SafeAreaProvider></E3laniProvider></I18nProvider>
       </ThemeProvider>
     );
   }
 
   return (
     <ThemeProvider>
-      <SafeAreaProvider initialMetrics={providerInitialMetrics}>{content}</SafeAreaProvider>
+      <I18nProvider><E3laniProvider><SafeAreaProvider initialMetrics={providerInitialMetrics}><AppStateGate>{content}</AppStateGate></SafeAreaProvider></E3laniProvider></I18nProvider>
     </ThemeProvider>
   );
 }

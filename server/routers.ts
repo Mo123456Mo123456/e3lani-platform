@@ -16,13 +16,35 @@ export const appRouter = router({
       } as const;
     }),
   }),
-
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  product: router({
+    config: publicProcedure.query(() => ({
+      appName: "إعلاني | E3lani",
+      currency: "SAR",
+      finalBasePriceHalalas: 5900,
+      vatBasisPoints: 1500,
+      activeDurationDays: 30,
+      republishCooldownHours: 72,
+      paymentMode: "sandbox" as const,
+      paymentDisclaimer: "Sandbox only. Production requires a live provider and server-side receipt verification.",
+    })),
+    catalog: publicProcedure.query(() => ({
+      categories: [
+        { id: "cars", nameAr: "السيارات", nameEn: "Cars" },
+        { id: "real-estate", nameAr: "العقارات", nameEn: "Real estate" },
+        { id: "electronics", nameAr: "الإلكترونيات", nameEn: "Electronics" },
+        { id: "furniture", nameAr: "الأثاث", nameEn: "Furniture" },
+        { id: "services", nameAr: "الخدمات", nameEn: "Services" },
+        { id: "brands", nameAr: "البراندات", nameEn: "Brands" },
+      ],
+      cities: [
+        { id: "riyadh", nameAr: "الرياض", nameEn: "Riyadh" },
+        { id: "jeddah", nameAr: "جدة", nameEn: "Jeddah" },
+        { id: "dammam", nameAr: "الدمام", nameEn: "Dammam" },
+        { id: "makkah", nameAr: "مكة المكرمة", nameEn: "Makkah" },
+        { id: "madinah", nameAr: "المدينة المنورة", nameEn: "Madinah" },
+      ],
+    })),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
