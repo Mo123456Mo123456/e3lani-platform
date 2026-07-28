@@ -1,14 +1,17 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { ScreenTitle } from "@/components/e3lani/ui";
+import { PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
-import { BRAND, categories } from "@/lib/e3lani-data";
+import { BRAND } from "@/lib/e3lani-data";
 import { useI18n } from "@/lib/i18n";
+import { useProductData } from "@/lib/use-product-data";
 
 export default function Categories() {
   const { locale, isRTL, t } = useI18n();
+  const productData = useProductData();
+
   return (
     <ScreenContainer className="px-5">
       <ScreenTitle
@@ -19,8 +22,16 @@ export default function Categories() {
             : "Choose a category to find relevant ads quickly."
         }
       />
+      {productData.isLoading ? (
+        <View style={styles.state}><ActivityIndicator color={BRAND.yellowDark} size="large" /></View>
+      ) : productData.isError ? (
+        <View accessible accessibilityRole="alert" style={styles.state}>
+          <Text style={styles.stateText}>{locale === "ar" ? "تعذر تحميل التصنيفات" : "Categories could not be loaded"}</Text>
+          <PrimaryButton label={t("retry")} icon="refresh" onPress={productData.retry} />
+        </View>
+      ) : (
       <FlatList
-        data={categories}
+        data={productData.categories}
         numColumns={2}
         keyExtractor={(item) => item.id}
         columnWrapperStyle={styles.row}
@@ -50,11 +61,14 @@ export default function Categories() {
           );
         }}
       />
+      )}
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  state: { flex: 1, minHeight: 300, alignItems: "center", justifyContent: "center", gap: 16 },
+  stateText: { color: BRAND.black, fontSize: 15, lineHeight: 22, fontWeight: "800", textAlign: "center" },
   list: { paddingTop: 18, paddingBottom: 32, gap: 11 },
   row: { gap: 11 },
   card: {

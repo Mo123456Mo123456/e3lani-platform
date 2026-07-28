@@ -8,7 +8,12 @@ export type User = {
   name: string | null;
   email: string | null;
   loginMethod: string | null;
-  lastSignedIn: Date;
+  role: "user" | "reviewer" | "finance" | "support" | "admin" | "owner";
+  accountType: "viewer" | "advertiser" | "brand";
+  status: "active" | "suspended" | "deleted";
+  preferredLanguage: "ar" | "en";
+  cityId: number | null;
+  lastSignedIn: string | Date;
 };
 
 export async function getSessionToken(): Promise<string | null> {

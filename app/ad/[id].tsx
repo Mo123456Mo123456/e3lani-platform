@@ -7,9 +7,10 @@ import { Alert, FlatList, Pressable, Share, StyleSheet, Text, View } from "react
 import { MediaView } from "@/components/e3lani/ad-card";
 import { OutlineButton, PrimaryButton, StatusBadge } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
-import { BRAND, categories, cities, type ContactType } from "@/lib/e3lani-data";
+import { BRAND, type ContactType } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { useProductData } from "@/lib/use-product-data";
 
 const urls = (type: ContactType, value: string) =>
   type === "whatsapp"
@@ -23,6 +24,7 @@ const urls = (type: ContactType, value: string) =>
 export default function Detail() {
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const store = useE3lani();
+  const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
   const ad = store.ads.find((item) => item.id === id);
   const recordedAdId = useRef("");
@@ -46,8 +48,8 @@ export default function Detail() {
     );
   }
 
-  const city = cities.find((item) => item.id === ad.cityId);
-  const category = categories.find((item) => item.id === ad.categoryId);
+  const city = productData.cities.find((item) => item.id === ad.cityId);
+  const category = productData.categories.find((item) => item.id === ad.categoryId);
   const saved = store.savedIds.includes(ad.id);
 
   const share = async () => {
@@ -136,12 +138,12 @@ export default function Detail() {
                 <View style={s.metaCard}>
                   <MaterialIcons name="location-on" size={22} color={BRAND.yellowDark} />
                   <Text style={s.muted}>{t("city")}</Text>
-                  <Text style={s.metaValue}>{locale === "ar" ? city?.ar : city?.en}</Text>
+                  <Text style={s.metaValue}>{(locale === "ar" ? city?.ar : city?.en) ?? "—"}</Text>
                 </View>
                 <View style={s.metaCard}>
                   <MaterialIcons name="category" size={22} color={BRAND.yellowDark} />
                   <Text style={s.muted}>{t("category")}</Text>
-                  <Text style={s.metaValue}>{locale === "ar" ? category?.ar : category?.en}</Text>
+                  <Text style={s.metaValue}>{(locale === "ar" ? category?.ar : category?.en) ?? "—"}</Text>
                 </View>
               </View>
 

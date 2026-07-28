@@ -1,18 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { MediaView } from "@/components/e3lani/ad-card";
 import { Field, OutlineButton, Pill, PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
 import {
   BRAND,
-  calculateQuote,
-  categories,
-  cities,
-  promotionPrices,
   type AdContact,
   type AdMedia,
   type ContactType,
@@ -20,29 +16,143 @@ import {
 } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import {
+  preferredMediaUrl,
+  preparePickedMedia,
+  startSignedUpload,
+  type UploadController,
+} from "@/lib/media-upload";
+import { trpc } from "@/lib/trpc";
+import { useProductData } from "@/lib/use-product-data";
 
-const promotionOptions: { code: PromotionCode; ar: string; en: string }[] = [
-  { code: "highlight_3", ar: "إبراز 3 أيام", en: "3-day highlight" },
-  { code: "highlight_7", ar: "إبراز 7 أيام", en: "7-day highlight" },
-  { code: "top_category", ar: "أعلى القسم", en: "Top of category" },
-  { code: "city_targeting", ar: "استهداف مدينة", en: "City targeting" },
-];
+type UploadStatus = "queued" | "processing" | "uploading" | "verifying" | "ready" | "failed";
+
+type UploadItem = {
+  id: string;
+  source: ImagePicker.ImagePickerAsset;
+  previewUri: string;
+  kind: "image" | "video";
+  status: UploadStatus;
+  progress: number;
+  mediaAssetId?: number;
+  error?: string;
+};
 
 export default function CreateAd() {
   const store = useE3lani();
+  const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
   const [step, setStep] = useState(1);
   const [media, setMedia] = useState<AdMedia[]>([]);
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [categoryId, setCategoryId] = useState(categories[0].id);
-  const [cityId, setCityId] = useState(cities[0].id);
+  const [categoryId, setCategoryId] = useState("");
+  const [cityId, setCityId] = useState("");
   const [storeUrl, setStoreUrl] = useState("");
   const [whatsapp, setWhatsapp] = useState("+966");
   const [phone, setPhone] = useState("");
-  const [product, setProduct] = useState("");
+  const [productUrl, setProductUrl] = useState("");
   const [promotions, setPromotions] = useState<PromotionCode[]>([]);
-  const [progress, setProgress] = useState<number | null>(null);
+  const uploadControllers = useRef(new Map<string, UploadController>());
+  const cancelledUploads = useRef(new Set<string>());
+  const prepareUploadMutation = trpc.media.prepareUpload.useMutation();
+  const completeUploadMutation = trpc.media.completeUpload.useMutation();
+  const deleteMediaMutation = trpc.media.delete.useMutation();
+
+  useEffect(() => {
+    if (!categoryId && productData.categories[0]) setCategoryId(productData.categories[0].id);
+    if (!cityId && productData.cities[0]) setCityId(productData.cities[0].id);
+  }, [categoryId, cityId, productData.categories, productData.cities]);
+
+  const updateUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
+    setUploads((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }, []);
+
+  const mediaMessage = useCallback(
+    (code: string) => {
+      const messages: Record<string, [string, string]> = {
+        MEDIA_TYPE_NOT_ALLOWED: ["الصيغة غير مدعومة. استخدم JPG أو PNG أو WebP أو MP4.", "Unsupported format. Use JPG, PNG, WebP, or MP4."],
+        MEDIA_SIZE_EXCEEDED: ["حجم الملف أكبر من الحد المسموح.", "The file is larger than the allowed limit."],
+        MEDIA_SIZE_INVALID: ["تعذر قراءة حجم الملف.", "The file size could not be read."],
+        MEDIA_SIZE_MISMATCH: ["لم يكتمل نقل الملف كما يجب. أعد المحاولة.", "The transferred file is incomplete. Please retry."],
+        MEDIA_UPLOAD_CANCELLED: ["أُلغي الرفع.", "Upload cancelled."],
+        MEDIA_UPLOAD_NOT_FOUND: ["لم يصل الملف إلى التخزين. أعد المحاولة.", "The file did not reach storage. Please retry."],
+        MEDIA_CONTENT_MISMATCH: ["محتوى الملف لا يطابق صيغته.", "The file contents do not match its format."],
+        MEDIA_UPLOAD_FAILED: ["تعذر رفع الملف. تحقق من الشبكة ثم أعد المحاولة.", "Upload failed. Check the network and retry."],
+        MEDIA_TICKET_EXPIRED: ["انتهت مهلة الرفع. أعد المحاولة.", "The upload expired. Please retry."],
+      };
+      return messages[code]?.[locale === "ar" ? 0 : 1] ?? (locale === "ar" ? "تعذرت معالجة الوسائط." : "Media processing failed.");
+    },
+    [locale],
+  );
+
+  const uploadAsset = useCallback(
+    async (item: UploadItem) => {
+      const policy = productData.config?.mediaPolicy;
+      if (!policy) return;
+      cancelledUploads.current.delete(item.id);
+      try {
+        updateUpload(item.id, { status: "processing", progress: 0.04, error: undefined });
+        const prepared = await preparePickedMedia(item.source, policy);
+        if (cancelledUploads.current.has(item.id)) throw new Error("MEDIA_UPLOAD_CANCELLED");
+        updateUpload(item.id, {
+          previewUri: prepared.uri,
+          kind: prepared.kind,
+          status: "uploading",
+          progress: 0.08,
+        });
+        const ticket = await prepareUploadMutation.mutateAsync({
+          fileName: prepared.fileName,
+          mimeType: prepared.mimeType,
+          bytes: prepared.bytes,
+          width: prepared.width,
+          height: prepared.height,
+          durationMs: prepared.durationMs,
+        });
+        if (cancelledUploads.current.has(item.id)) throw new Error("MEDIA_UPLOAD_CANCELLED");
+        const controller = startSignedUpload({
+          uploadUrl: ticket.uploadUrl,
+          headers: ticket.headers,
+          media: prepared,
+          onProgress: (fraction) => updateUpload(item.id, { progress: 0.08 + fraction * 0.78 }),
+        });
+        uploadControllers.current.set(item.id, controller);
+        await controller.promise;
+        uploadControllers.current.delete(item.id);
+        if (cancelledUploads.current.has(item.id)) throw new Error("MEDIA_UPLOAD_CANCELLED");
+        updateUpload(item.id, { status: "verifying", progress: 0.9 });
+        const asset = await completeUploadMutation.mutateAsync({ ticket: ticket.ticket });
+        if (cancelledUploads.current.has(item.id)) {
+          await deleteMediaMutation.mutateAsync({ mediaAssetId: asset.id }).catch(() => undefined);
+          throw new Error("MEDIA_UPLOAD_CANCELLED");
+        }
+        const uri = preferredMediaUrl(asset.originalUrl, asset.variants);
+        const saved: AdMedia = {
+          id: `media-${asset.id}`,
+          mediaAssetId: asset.id,
+          kind: asset.mediaType,
+          uri,
+          processingStatus: "ready",
+        };
+        setMedia((current) => [...current.filter((value) => value.id !== saved.id), saved]);
+        updateUpload(item.id, {
+          previewUri: uri,
+          kind: asset.mediaType,
+          mediaAssetId: asset.id,
+          status: "ready",
+          progress: 1,
+        });
+        cancelledUploads.current.delete(item.id);
+      } catch (error) {
+        uploadControllers.current.delete(item.id);
+        if (cancelledUploads.current.delete(item.id)) return;
+        const code = error instanceof Error ? error.message : "MEDIA_UPLOAD_FAILED";
+        updateUpload(item.id, { status: "failed", error: mediaMessage(code) });
+      }
+    },
+    [completeUploadMutation, deleteMediaMutation, mediaMessage, prepareUploadMutation, productData.config?.mediaPolicy, updateUpload],
+  );
 
   if (!store.user) {
     return (
@@ -56,36 +166,91 @@ export default function CreateAd() {
     );
   }
 
+  if (productData.isLoading) {
+    return (
+      <ScreenContainer>
+        <View style={styles.gate}>
+          <ActivityIndicator color={BRAND.yellowDark} size="large" />
+          <Text style={styles.gateTitle}>{t("postTitle")}</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (
+    productData.isError ||
+    !productData.config ||
+    !productData.categories.length ||
+    !productData.cities.length
+  ) {
+    return (
+      <ScreenContainer>
+        <View style={styles.gate}>
+          <MaterialIcons name="cloud-off" size={44} color={BRAND.error} />
+          <Text style={styles.gateTitle}>{t("error")}</Text>
+          <PrimaryButton label={t("retry")} icon="refresh" onPress={productData.retry} />
+        </View>
+      </ScreenContainer>
+    );
+  }
+
   const pickMedia = async () => {
+    const policy = productData.config?.mediaPolicy;
+    if (!policy) return Alert.alert(t("error"));
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsMultipleSelection: true,
-      selectionLimit: 5,
-      quality: 0.9,
+      selectionLimit: policy.maxImages,
+      quality: 1,
       videoMaxDuration: 60,
     });
     if (result.canceled) return;
-    const selected = result.assets.slice(0, 5).map(
-      (asset, index): AdMedia => ({
-        id: `M${Date.now()}${index}`,
-        kind: asset.type === "video" ? "video" : "image",
-        uri: asset.uri,
-      }),
-    );
-    if (selected.some((item) => item.kind === "video") && selected.length > 1) {
-      Alert.alert(t("mediaHelp"));
-      return;
+    const incomingHasVideo = result.assets.some((asset) => asset.type === "video");
+    const existingHasVideo = uploads.some((item) => item.kind === "video");
+    if (
+      (incomingHasVideo && (result.assets.length > policy.maxVideos || uploads.length > 0)) ||
+      (existingHasVideo && result.assets.length > 0)
+    ) {
+      return Alert.alert(locale === "ar" ? "اختر فيديو واحدًا أو مجموعة صور، وليس كليهما." : "Choose one video or a set of images, not both.");
     }
-    setProgress(35);
-    setMedia(selected);
-    setTimeout(() => setProgress(100), 180);
-    setTimeout(() => setProgress(null), 450);
+    if (!incomingHasVideo && uploads.length + result.assets.length > policy.maxImages) {
+      return Alert.alert(locale === "ar" ? `الحد الأقصى ${policy.maxImages} صور.` : `The maximum is ${policy.maxImages} images.`);
+    }
+
+    const selected: UploadItem[] = result.assets.map((asset, index) => ({
+      id: `upload-${Date.now()}-${index}`,
+      source: asset,
+      previewUri: asset.uri,
+      kind: asset.type === "video" ? "video" : "image",
+      status: "queued",
+      progress: 0,
+    }));
+    setUploads((current) => [...current, ...selected]);
+    selected.forEach((item) => void uploadAsset(item));
+  };
+
+  const removeUpload = async (item: UploadItem) => {
+    cancelledUploads.current.add(item.id);
+    const controller = uploadControllers.current.get(item.id);
+    if (controller) await controller.cancel().catch(() => undefined);
+    uploadControllers.current.delete(item.id);
+    if (item.mediaAssetId) {
+      try {
+        await deleteMediaMutation.mutateAsync({ mediaAssetId: item.mediaAssetId });
+      } catch {
+        Alert.alert(t("error"));
+        return;
+      }
+    }
+    setUploads((current) => current.filter((value) => value.id !== item.id));
+    setMedia((current) => current.filter((value) => value.mediaAssetId !== item.mediaAssetId));
+    if (item.status === "ready" || item.status === "failed") cancelledUploads.current.delete(item.id);
   };
 
   const contacts: AdContact[] = (
     [
       { type: "store", value: storeUrl },
-      { type: "product", value: product },
+      { type: "product", value: productUrl },
       { type: "whatsapp", value: whatsapp },
       { type: "phone", value: phone },
     ] as { type: ContactType; value: string }[]
@@ -101,6 +266,9 @@ export default function CreateAd() {
   };
 
   const next = () => {
+    if (step === 1 && uploads.some((item) => item.status !== "ready")) {
+      return Alert.alert(locale === "ar" ? "انتظر اكتمال رفع جميع الوسائط أو أعد محاولة الملفات المتعثرة." : "Wait for all uploads to finish or retry failed files.");
+    }
     if (step === 1 && !media.length) return Alert.alert(t("mediaHelp"));
     if (step === 2 && (title.trim().length < 4 || description.trim().length < 20)) return Alert.alert(t("error"));
     if (step === 3 && !contacts.length) return Alert.alert(t("contact"));
@@ -120,8 +288,9 @@ export default function CreateAd() {
     router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
   };
 
-  const quote = calculateQuote(promotions);
-  const cityName = locale === "ar" ? cities.find((item) => item.id === cityId)?.ar : cities.find((item) => item.id === cityId)?.en;
+  const quote = productData.calculateQuote(promotions);
+  const city = productData.cities.find((item) => item.id === cityId);
+  const cityName = locale === "ar" ? city?.ar : city?.en;
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -143,14 +312,46 @@ export default function CreateAd() {
           <View>
             <ScreenTitle title={t("media")} subtitle={t("mediaHelp")} />
             <View style={styles.pick}><PrimaryButton label={t("addMedia")} icon="photo-library" onPress={pickMedia} /></View>
-            {progress !== null ? (
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${progress}%` }]} />
-                <Text style={styles.progressText}>{progress}%</Text>
-              </View>
-            ) : null}
             <ScrollView horizontal contentContainerStyle={styles.mediaList} showsHorizontalScrollIndicator={false}>
-              {media.map((item) => <View key={item.id} style={styles.thumb}><MediaView media={item} /></View>)}
+              {uploads.map((item) => {
+                const label = item.status === "processing"
+                  ? locale === "ar" ? "معالجة" : "Processing"
+                  : item.status === "uploading"
+                    ? locale === "ar" ? "رفع" : "Uploading"
+                    : item.status === "verifying"
+                      ? locale === "ar" ? "تحقق" : "Verifying"
+                      : item.status === "ready"
+                        ? locale === "ar" ? "جاهز" : "Ready"
+                        : item.status === "failed"
+                          ? locale === "ar" ? "تعثر" : "Failed"
+                          : locale === "ar" ? "انتظار" : "Queued";
+                return (
+                  <View key={item.id} style={styles.uploadCard}>
+                    <View style={styles.thumb}>
+                      <MediaView media={{ id: item.id, kind: item.kind, uri: item.previewUri }} />
+                      {item.status !== "ready" && item.status !== "failed" ? (
+                        <View style={styles.uploadOverlay}><ActivityIndicator color={BRAND.yellow} /></View>
+                      ) : null}
+                    </View>
+                    <View style={styles.uploadMeta}>
+                      <Text numberOfLines={1} style={[styles.uploadStatus, item.status === "failed" && styles.uploadFailed]}>{label}</Text>
+                      <Text style={styles.uploadPercent}>{Math.round(item.progress * 100)}%</Text>
+                    </View>
+                    <View style={styles.uploadTrack}><View style={[styles.uploadFill, { width: `${Math.round(item.progress * 100)}%` }]} /></View>
+                    {item.error ? <Text numberOfLines={2} style={styles.uploadError}>{item.error}</Text> : null}
+                    <View style={styles.uploadActions}>
+                      {item.status === "failed" ? (
+                        <Pressable accessibilityRole="button" onPress={() => void uploadAsset(item)} style={styles.iconAction}>
+                          <MaterialIcons name="refresh" size={20} color={BRAND.black} />
+                        </Pressable>
+                      ) : null}
+                      <Pressable accessibilityRole="button" onPress={() => void removeUpload(item)} style={styles.iconAction}>
+                        <MaterialIcons name={item.status === "ready" ? "delete-outline" : "close"} size={20} color={BRAND.error} />
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
             </ScrollView>
           </View>
         ) : null}
@@ -162,11 +363,11 @@ export default function CreateAd() {
             <Field label={t("description")} value={description} onChangeText={setDescription} multiline maxLength={4000} />
             <Text style={styles.label}>{t("category")}</Text>
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
-              {categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={categoryId === item.id} onPress={() => setCategoryId(item.id)} />)}
+              {productData.categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={categoryId === item.id} onPress={() => setCategoryId(item.id)} />)}
             </ScrollView>
             <Text style={styles.label}>{t("city")}</Text>
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
-              {cities.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={cityId === item.id} onPress={() => setCityId(item.id)} />)}
+              {productData.cities.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={cityId === item.id} onPress={() => setCityId(item.id)} />)}
             </ScrollView>
           </View>
         ) : null}
@@ -175,7 +376,7 @@ export default function CreateAd() {
           <View>
             <ScreenTitle title={t("contact")} />
             <Field label={t("store")} value={storeUrl} onChangeText={setStoreUrl} keyboardType="url" autoCapitalize="none" />
-            <Field label={t("product")} value={product} onChangeText={setProduct} keyboardType="url" autoCapitalize="none" />
+            <Field label={t("product")} value={productUrl} onChangeText={setProductUrl} keyboardType="url" autoCapitalize="none" />
             <Field label={t("whatsapp")} value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" />
             <Field label={t("phone")} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
           </View>
@@ -184,13 +385,13 @@ export default function CreateAd() {
         {step === 4 ? (
           <View>
             <ScreenTitle title={t("promotion")} />
-            {promotionOptions.map((option) => {
+            {productData.promotions.map((option) => {
               const active = promotions.includes(option.code);
               return (
                 <Pressable
                   accessible
                   accessibilityRole="checkbox"
-                  accessibilityLabel={`${locale === "ar" ? option.ar : option.en}، ${promotionPrices[option.code] / 100} ${t("sar")}`}
+                  accessibilityLabel={`${locale === "ar" ? option.ar : option.en}، ${option.priceHalalas / 100} ${t("sar")}`}
                   accessibilityState={{ checked: active }}
                   key={option.code}
                   onPress={() => togglePromotion(option.code)}
@@ -198,7 +399,7 @@ export default function CreateAd() {
                 >
                   <MaterialIcons accessible={false} name={active ? "check-circle" : "radio-button-unchecked"} size={24} color={active ? BRAND.yellowDark : BRAND.muted} />
                   <Text style={styles.promotionName}>{locale === "ar" ? option.ar : option.en}</Text>
-                  <Text style={styles.promotionPrice}>{promotionPrices[option.code] / 100} {t("sar")}</Text>
+                  <Text style={styles.promotionPrice}>{(option.priceHalalas / 100).toFixed(2)} {t("sar")}</Text>
                 </Pressable>
               );
             })}
@@ -231,7 +432,7 @@ export default function CreateAd() {
           {step > 1 ? <OutlineButton label={t("previous")} icon="arrow-forward" onPress={() => setStep((current) => current - 1)} /> : null}
         </View>
         <View style={styles.footerNext}>
-          <PrimaryButton label={step === 5 ? t("pay") : t("next")} icon={step === 5 ? "payments" : "arrow-back"} onPress={next} />
+          <PrimaryButton disabled={step === 1 && uploads.some((item) => item.status !== "ready")} label={step === 5 ? t("pay") : t("next")} icon={step === 5 ? "payments" : "arrow-back"} onPress={next} />
         </View>
       </View>
     </ScreenContainer>
@@ -249,11 +450,19 @@ const styles = StyleSheet.create({
   dot: { width: 26, height: 5, borderRadius: 3 },
   page: { width: "100%", maxWidth: 720, alignSelf: "center", padding: 18, paddingBottom: 35 },
   pick: { marginTop: 18 },
-  track: { height: 34, marginTop: 13, borderRadius: 12, overflow: "hidden", backgroundColor: BRAND.border, justifyContent: "center" },
-  fill: { ...StyleSheet.absoluteFillObject, backgroundColor: BRAND.yellow },
-  progressText: { color: BRAND.black, textAlign: "center", fontSize: 11, fontWeight: "900" },
   mediaList: { gap: 9, paddingTop: 15 },
-  thumb: { width: 145, height: 185, borderRadius: 17, overflow: "hidden", backgroundColor: BRAND.charcoal },
+  uploadCard: { width: 154, borderRadius: 17, padding: 6, backgroundColor: BRAND.surface, borderWidth: 1, borderColor: BRAND.border },
+  thumb: { width: 140, height: 164, borderRadius: 13, overflow: "hidden", backgroundColor: BRAND.charcoal },
+  uploadOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,.45)", alignItems: "center", justifyContent: "center" },
+  uploadMeta: { marginTop: 7, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 5 },
+  uploadStatus: { flex: 1, color: BRAND.black, fontSize: 11, lineHeight: 16, fontWeight: "900", textAlign: "right" },
+  uploadFailed: { color: BRAND.error },
+  uploadPercent: { color: BRAND.muted, fontSize: 10, fontWeight: "800" },
+  uploadTrack: { height: 5, marginTop: 5, borderRadius: 3, overflow: "hidden", backgroundColor: BRAND.border },
+  uploadFill: { height: 5, borderRadius: 3, backgroundColor: BRAND.yellowDark },
+  uploadError: { minHeight: 30, marginTop: 5, color: BRAND.error, fontSize: 9, lineHeight: 14, textAlign: "right" },
+  uploadActions: { minHeight: 36, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 6 },
+  iconAction: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: BRAND.white },
   label: { marginTop: 15, marginBottom: 7, color: BRAND.black, fontSize: 14, lineHeight: 20, fontWeight: "900", textAlign: "right" },
   chips: { gap: 7 },
   promotion: { minHeight: 62, marginTop: 9, borderWidth: 1, borderColor: BRAND.border, borderRadius: 17, paddingHorizontal: 14, backgroundColor: BRAND.surface, flexDirection: "row-reverse", alignItems: "center", gap: 9 },

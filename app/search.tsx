@@ -1,18 +1,20 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { AdCard } from "@/components/e3lani/ad-card";
-import { EmptyState, Pill } from "@/components/e3lani/ui";
+import { EmptyState, Pill, PrimaryButton } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
-import { BRAND, categories, cities } from "@/lib/e3lani-data";
+import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { useProductData } from "@/lib/use-product-data";
 
 export default function Search() {
   const params = useLocalSearchParams<{ category?: string }>();
   const { ads, blockedOwners } = useE3lani();
+  const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState(params.category ?? "");
@@ -66,14 +68,25 @@ export default function Search() {
           ) : null}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-          <Pill label={locale === "ar" ? "كل الأقسام" : "All categories"} active={!category} onPress={() => setCategory("")} />
-          {categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={category === item.id} onPress={() => setCategory(item.id)} />)}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-          <Pill label={locale === "ar" ? "كل المدن" : "All cities"} active={!city} onPress={() => setCity("")} />
-          {cities.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={city === item.id} onPress={() => setCity(item.id)} />)}
-        </ScrollView>
+        {productData.isLoading ? (
+          <View style={styles.catalogState}><ActivityIndicator color={BRAND.yellowDark} /></View>
+        ) : productData.isError ? (
+          <View accessible accessibilityRole="alert" style={styles.catalogError}>
+            <Text style={styles.catalogErrorText}>{locale === "ar" ? "تعذر تحميل فلاتر البحث" : "Search filters could not be loaded"}</Text>
+            <PrimaryButton label={t("retry")} icon="refresh" onPress={productData.retry} />
+          </View>
+        ) : (
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+              <Pill label={locale === "ar" ? "كل الأقسام" : "All categories"} active={!category} onPress={() => setCategory("")} />
+              {productData.categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={category === item.id} onPress={() => setCategory(item.id)} />)}
+            </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+              <Pill label={locale === "ar" ? "كل المدن" : "All cities"} active={!city} onPress={() => setCity("")} />
+              {productData.cities.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={city === item.id} onPress={() => setCity(item.id)} />)}
+            </ScrollView>
+          </>
+        )}
 
         {data.length ? (
           <FlatList data={data} keyExtractor={(ad) => ad.id} contentContainerStyle={styles.list} renderItem={({ item }) => <View style={styles.item}><AdCard ad={item} height={430} /></View>} />
@@ -94,6 +107,9 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 50, color: BRAND.black, fontSize: 14, lineHeight: 20 },
   clear: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   pressed: { opacity: 0.6 },
+  catalogState: { minHeight: 96, alignItems: "center", justifyContent: "center" },
+  catalogError: { minHeight: 112, paddingVertical: 12, alignItems: "center", justifyContent: "center", gap: 10 },
+  catalogErrorText: { color: BRAND.muted, fontSize: 13, lineHeight: 20, textAlign: "center" },
   chips: { gap: 7, paddingVertical: 8 },
   list: { paddingTop: 7, paddingBottom: 25 },
   item: { marginBottom: 13 },

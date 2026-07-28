@@ -130,6 +130,11 @@ export async function getMe(): Promise<{
   name: string | null;
   email: string | null;
   loginMethod: string | null;
+  role: "user" | "reviewer" | "finance" | "support" | "admin" | "owner";
+  accountType: "viewer" | "advertiser" | "brand";
+  status: "active" | "suspended" | "deleted";
+  preferredLanguage: "ar" | "en";
+  cityId: number | null;
   lastSignedIn: string;
 } | null> {
   try {

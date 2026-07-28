@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "d9965ff8-4ea7-44f2-bb55-d32c0c8e6c23",
-  "prevId": "3c3a03ea-b871-416a-b531-aa772cca8b00",
+  "id": "bf1b2b54-49e1-4fa5-96ec-42074a5fa054",
+  "prevId": "d9965ff8-4ea7-44f2-bb55-d32c0c8e6c23",
   "tables": {
     "business_profiles": {
       "name": "business_profiles",
@@ -1818,7 +1818,16 @@
           "default": "(now())"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "pricing_rules_version_code_unique": {
+          "name": "pricing_rules_version_code_unique",
+          "columns": [
+            "pricingVersionId",
+            "code"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
         "pricing_rules_pricingVersionId_pricing_versions_id_fk": {
           "name": "pricing_rules_pricingVersionId_pricing_versions_id_fk",

@@ -1,8 +1,22 @@
-import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const.js";
+import { COOKIE_NAME, SESSION_TTL_MS } from "../../shared/const.js";
+import { createHmac } from "node:crypto";
 import type { Express, Request, Response } from "express";
-import { getUserByOpenId, upsertUser } from "../db";
+import {
+  checkAuthRateLimit,
+  clearAuthRateLimit,
+  getUserByOpenId,
+  recordAuthFailure,
+  upsertUser,
+} from "../db";
 import { getSessionCookieOptions } from "./cookies";
+import { ENV } from "./env";
 import { sdk } from "./sdk";
+
+const AUTH_RATE_LIMIT_POLICY = {
+  maxAttempts: 6,
+  windowMs: 10 * 60 * 1000,
+  blockMs: 15 * 60 * 1000,
+} as const;
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -29,15 +43,8 @@ async function syncUser(userInfo: {
     lastSignedIn,
   });
   const saved = await getUserByOpenId(userInfo.openId);
-  return (
-    saved ?? {
-      openId: userInfo.openId,
-      name: userInfo.name,
-      email: userInfo.email,
-      loginMethod: userInfo.loginMethod ?? null,
-      lastSignedIn,
-    }
-  );
+  if (!saved) throw new Error("Failed to persist authenticated user");
+  return saved;
 }
 
 function buildUserResponse(
@@ -49,6 +56,11 @@ function buildUserResponse(
         email?: string | null;
         loginMethod?: string | null;
         lastSignedIn?: Date | null;
+        role?: string;
+        accountType?: string;
+        status?: string;
+        preferredLanguage?: string;
+        cityId?: number | null;
       },
 ) {
   return {
@@ -57,8 +69,36 @@ function buildUserResponse(
     name: user?.name ?? null,
     email: user?.email ?? null,
     loginMethod: user?.loginMethod ?? null,
+    role: (user as any)?.role ?? "user",
+    accountType: (user as any)?.accountType ?? "viewer",
+    status: (user as any)?.status ?? "active",
+    preferredLanguage: (user as any)?.preferredLanguage ?? "ar",
+    cityId: (user as any)?.cityId ?? null,
     lastSignedIn: (user?.lastSignedIn ?? new Date()).toISOString(),
   };
+}
+
+function getRequestIp(req: Request) {
+  const forwarded = req.headers["x-forwarded-for"];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0];
+  return first?.trim() || req.ip || req.socket.remoteAddress || "unknown";
+}
+
+function getRateLimitKey(req: Request, scope: string) {
+  return createHmac("sha256", ENV.cookieSecret)
+    .update(`${scope}:${getRequestIp(req)}`)
+    .digest("hex");
+}
+
+async function enforceRateLimit(req: Request, res: Response, scope: string) {
+  const keyHash = getRateLimitKey(req, scope);
+  const result = await checkAuthRateLimit(scope, keyHash);
+  if (!result.allowed) {
+    res.setHeader("Retry-After", String(result.retryAfterSeconds));
+    res.status(429).json({ error: "Too many authentication attempts" });
+    return null;
+  }
+  return keyHash;
 }
 
 export function registerOAuthRoutes(app: Express) {
@@ -71,17 +111,18 @@ export function registerOAuthRoutes(app: Express) {
       return;
     }
 
+    const rateKey = await enforceRateLimit(req, res, "oauth_web");
+    if (!rateKey) return;
+
     try {
       const tokenResponse = await sdk.exchangeCodeForToken(code, state);
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
-      await syncUser(userInfo);
-      const sessionToken = await sdk.createSessionToken(userInfo.openId!, {
-        name: userInfo.name || "",
-        expiresInMs: ONE_YEAR_MS,
-      });
+      const user = await syncUser(userInfo);
+      const session = await sdk.createManagedSession(user, req, "web");
+      await clearAuthRateLimit("oauth_web", rateKey);
 
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.cookie(COOKIE_NAME, session.token, { ...cookieOptions, maxAge: SESSION_TTL_MS });
 
       // Redirect to the frontend URL (Expo web on port 8081)
       // Cookie is set with parent domain so it works across both 3000 and 8081 subdomains
@@ -91,6 +132,7 @@ export function registerOAuthRoutes(app: Express) {
         "http://localhost:8081";
       res.redirect(302, frontendUrl);
     } catch (error) {
+      await recordAuthFailure("oauth_web", rateKey, AUTH_RATE_LIMIT_POLICY);
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
     }
@@ -105,30 +147,36 @@ export function registerOAuthRoutes(app: Express) {
       return;
     }
 
+    const rateKey = await enforceRateLimit(req, res, "oauth_native");
+    if (!rateKey) return;
+
     try {
       const tokenResponse = await sdk.exchangeCodeForToken(code, state);
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
       const user = await syncUser(userInfo);
-
-      const sessionToken = await sdk.createSessionToken(userInfo.openId!, {
-        name: userInfo.name || "",
-        expiresInMs: ONE_YEAR_MS,
-      });
+      const session = await sdk.createManagedSession(user, req, "native");
+      await clearAuthRateLimit("oauth_native", rateKey);
 
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.cookie(COOKIE_NAME, session.token, { ...cookieOptions, maxAge: SESSION_TTL_MS });
 
       res.json({
-        app_session_id: sessionToken,
+        app_session_id: session.token,
         user: buildUserResponse(user),
       });
     } catch (error) {
+      await recordAuthFailure("oauth_native", rateKey, AUTH_RATE_LIMIT_POLICY);
       console.error("[OAuth] Mobile exchange failed", error);
       res.status(500).json({ error: "OAuth mobile exchange failed" });
     }
   });
 
-  app.post("/api/auth/logout", (req: Request, res: Response) => {
+  app.post("/api/auth/logout", async (req: Request, res: Response) => {
+    try {
+      await sdk.revokeRequestSession(req);
+    } catch (error) {
+      console.warn("[Auth] Failed to revoke session during logout", String(error));
+    }
     const cookieOptions = getSessionCookieOptions(req);
     res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
     res.json({ success: true });
@@ -140,7 +188,10 @@ export function registerOAuthRoutes(app: Express) {
       const user = await sdk.authenticateRequest(req);
       res.json({ user: buildUserResponse(user) });
     } catch (error) {
-      console.error("[Auth] /api/auth/me failed:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== "Invalid session cookie") {
+        console.warn("[Auth] /api/auth/me rejected:", message);
+      }
       res.status(401).json({ error: "Not authenticated", user: null });
     }
   });
@@ -149,6 +200,9 @@ export function registerOAuthRoutes(app: Express) {
   // Used by iframe preview: frontend receives token via postMessage, then calls this endpoint
   // to get a proper Set-Cookie response from the backend (3000-xxx domain)
   app.post("/api/auth/session", async (req: Request, res: Response) => {
+    const rateKey = await enforceRateLimit(req, res, "session_exchange");
+    if (!rateKey) return;
+
     try {
       // Authenticate using Bearer token from Authorization header
       const user = await sdk.authenticateRequest(req);
@@ -163,10 +217,12 @@ export function registerOAuthRoutes(app: Express) {
 
       // Set cookie for this domain (3000-xxx)
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: SESSION_TTL_MS });
+      await clearAuthRateLimit("session_exchange", rateKey);
 
       res.json({ success: true, user: buildUserResponse(user) });
     } catch (error) {
+      await recordAuthFailure("session_exchange", rateKey, AUTH_RATE_LIMIT_POLICY);
       console.error("[Auth] /api/auth/session failed:", error);
       res.status(401).json({ error: "Invalid token" });
     }

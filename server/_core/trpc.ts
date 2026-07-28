@@ -1,6 +1,7 @@
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from "../../shared/const.js";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
+import type { User } from "../../drizzle/schema";
 import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({
@@ -17,6 +18,10 @@ const requireUser = t.middleware(async (opts) => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
+  if (ctx.user.status !== "active" || ctx.user.deletedAt) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Account is not active (10003)" });
+  }
+
   return next({
     ctx: {
       ...ctx,
@@ -27,19 +32,34 @@ const requireUser = t.middleware(async (opts) => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
-export const adminProcedure = t.procedure.use(
-  t.middleware(async (opts) => {
-    const { ctx, next } = opts;
+type UserRole = User["role"];
 
-    if (!ctx.user || ctx.user.role !== "admin") {
-      throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
-    }
+function procedureForRoles(...allowedRoles: UserRole[]) {
+  return protectedProcedure.use(
+    t.middleware(async ({ ctx, next }) => {
+      const user = ctx.user;
+      if (!user || !allowedRoles.includes(user.role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+      }
+      return next({
+        ctx: {
+          ...ctx,
+          user,
+        },
+      });
+    }),
+  );
+}
 
-    return next({
-      ctx: {
-        ...ctx,
-        user: ctx.user,
-      },
-    });
-  }),
+export const reviewerProcedure = procedureForRoles("reviewer", "admin", "owner");
+export const financeProcedure = procedureForRoles("finance", "admin", "owner");
+export const supportProcedure = procedureForRoles("support", "admin", "owner");
+export const staffProcedure = procedureForRoles(
+  "reviewer",
+  "finance",
+  "support",
+  "admin",
+  "owner",
 );
+export const adminProcedure = procedureForRoles("admin", "owner");
+export const ownerProcedure = procedureForRoles("owner");

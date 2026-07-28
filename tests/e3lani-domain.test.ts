@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BASE_PRICE_HALALAS,
   REPUBLISH_COOLDOWN_MS,
-  calculateQuote,
   canRepublish,
   extendAdPeriod,
   moderatePendingAd,
@@ -12,6 +10,20 @@ import {
   type Ad,
   type AdStatus,
 } from "../lib/e3lani-data";
+import { calculateProductQuote } from "../lib/product-pricing";
+
+const calculateQuote = (items: Parameters<typeof calculateProductQuote>[0]["items"]) =>
+  calculateProductQuote({
+    items,
+    basePriceHalalas: 5900,
+    vatBasisPoints: 1500,
+    pricingRules: [
+      { code: "highlight_3", priceHalalas: 1500 },
+      { code: "highlight_7", priceHalalas: 2900 },
+      { code: "top_category", priceHalalas: 3900 },
+      { code: "city_targeting", priceHalalas: 1200 },
+    ],
+  });
 
 function makeAd(status: AdStatus, overrides: Partial<Ad> = {}): Ad {
   return {
@@ -38,7 +50,7 @@ describe("حساب سعر الإعلان", () => {
   it("يعيد سعر النشر الأساسي وضريبة القيمة المضافة المضمنة", () => {
     expect(calculateQuote([])).toEqual({
       items: [],
-      totalHalalas: BASE_PRICE_HALALAS,
+      totalHalalas: 5900,
       vatHalalas: 770,
     });
   });

@@ -1,0 +1,1 @@
+ALTER TABLE `ad_media` ADD CONSTRAINT `ad_media_asset_uq` UNIQUE(`revisionId`,`mediaAssetId`);

@@ -12,9 +12,10 @@ import {
   type GestureResponderEvent,
 } from "react-native";
 
-import { BRAND, cities, type Ad, type AdMedia } from "@/lib/e3lani-data";
+import { BRAND, type Ad, type AdMedia } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { useProductData } from "@/lib/use-product-data";
 
 const localAssets = {
   poster: require("@/assets/images/e3lani-poster.png"),
@@ -80,7 +81,8 @@ export function MediaView({
 export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: number; active?: boolean }) {
   const { locale, isRTL, t } = useI18n();
   const { brand, savedIds, toggleSave, recordMetric, metrics } = useE3lani();
-  const city = cities.find((item) => item.id === ad.cityId);
+  const productData = useProductData();
+  const city = productData.cities.find((item) => item.id === ad.cityId);
   const saved = savedIds.includes(ad.id);
   const metric = metrics[ad.id];
   const saves = metric?.saves?.toLocaleString() ?? "0";
@@ -176,7 +178,7 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
         </Text>
         <View style={[styles.location, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <MaterialIcons accessible={false} name="location-on" size={16} color={BRAND.white} />
-          <Text style={styles.locationText}>{locale === "ar" ? city?.ar : city?.en}</Text>
+          <Text style={styles.locationText}>{(locale === "ar" ? city?.ar : city?.en) ?? "—"}</Text>
         </View>
         <View accessible={false} style={styles.cta}>
           <Text style={styles.ctaText}>{t("details")}</Text>

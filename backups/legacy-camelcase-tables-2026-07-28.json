@@ -1,0 +1,28 @@
+{
+  "createdAt": "2026-07-28T00:00:00.000Z",
+  "purpose": "Definition-only recovery backup for four removed, empty legacy CamelCase tables.",
+  "backupMode": "reconstructed-from-versioned-migration",
+  "definitionSource": "git HEAD:drizzle/0001_clumsy_lethal_legion.sql",
+  "tables": [
+    "adContacts",
+    "adEvents",
+    "adMedia",
+    "adRevisions"
+  ],
+  "preDeletionVerification": {
+    "rowCounts": {
+      "adContacts": 0,
+      "adEvents": 0,
+      "adMedia": 0,
+      "adRevisions": 0
+    },
+    "foreignKeyDependencies": [],
+    "applicationCodeReferencesOutsideDrizzleSchema": 0
+  },
+  "activeCentralTablesUnaffected": [
+    "ad_contacts",
+    "ad_events",
+    "ad_media",
+    "ad_revisions"
+  ]
+}

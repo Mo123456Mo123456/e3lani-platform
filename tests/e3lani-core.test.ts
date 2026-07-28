@@ -1,24 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { BASE_PRICE_HALALAS, REPUBLISH_COOLDOWN_MS, calculateQuote, canRepublish, seedAds } from "../lib/e3lani-data";
+import { REPUBLISH_COOLDOWN_MS, canRepublish, seedAds } from "../lib/e3lani-data";
+import { calculateProductQuote } from "../lib/product-pricing";
+
+const pricingRules = [
+  { code: "highlight_3" as const, priceHalalas: 1500 },
+  { code: "highlight_7" as const, priceHalalas: 2900 },
+  { code: "top_category" as const, priceHalalas: 3900 },
+  { code: "city_targeting" as const, priceHalalas: 1200 },
+];
+
+const quote = (items: Parameters<typeof calculateProductQuote>[0]["items"]) =>
+  calculateProductQuote({ items, basePriceHalalas: 5900, vatBasisPoints: 1500, pricingRules });
 
 describe("E3lani commercial rules", () => {
   it("uses a final base publishing price of 59 SAR", () => {
-    const quote = calculateQuote([]);
-    expect(quote.totalHalalas).toBe(BASE_PRICE_HALALAS);
-    expect(quote.totalHalalas).toBe(5900);
-    expect(quote.vatHalalas).toBe(770);
+    const result = quote([]);
+    expect(result.totalHalalas).toBe(5900);
+    expect(result.vatHalalas).toBe(770);
   });
 
   it("adds promotions once and includes VAT in the total", () => {
-    const quote = calculateQuote(["highlight_3", "city_targeting", "highlight_3"]);
-    expect(quote.items).toEqual(["highlight_3", "city_targeting"]);
-    expect(quote.totalHalalas).toBe(8600);
-    expect(quote.vatHalalas).toBe(Math.round(8600 * 15 / 115));
+    const result = quote(["highlight_3", "city_targeting", "highlight_3"]);
+    expect(result.items).toEqual(["highlight_3", "city_targeting"]);
+    expect(result.totalHalalas).toBe(8600);
+    expect(result.vatHalalas).toBe(Math.round(8600 * 15 / 115));
   });
 
   it("rejects mutually exclusive highlight durations", () => {
-    expect(() => calculateQuote(["highlight_3", "highlight_7"])).toThrow("HIGHLIGHT_OPTIONS_CONFLICT");
+    expect(() => quote(["highlight_3", "highlight_7"])).toThrow("HIGHLIGHT_OPTIONS_CONFLICT");
   });
 
   it("enforces the 72-hour republish cooldown", () => {

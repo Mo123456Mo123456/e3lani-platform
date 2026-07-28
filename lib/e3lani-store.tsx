@@ -10,13 +10,11 @@ import {
 } from "react";
 
 import {
-  calculateQuote,
   extendAdPeriod,
   moderatePendingAd,
   republishExpiredAd,
   seedAds,
   seedBrand,
-  transitionToPendingReview,
   type Ad,
   type AdContact,
   type AdMedia,
@@ -70,7 +68,6 @@ type Value = State & {
   submitReport: (id: string, reason: string, details?: string) => void;
   toggleBlock: (id: string) => void;
   setAdStatus: (id: string, status: AdStatus, reason?: string) => void;
-  checkoutSandbox: (id: string, items: PromotionCode[]) => Order;
   extendAd: (id: string) => void;
   republishAd: (id: string) => void;
   moderateAd: (
@@ -271,46 +268,6 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             ...current.audit,
           ],
         })),
-      checkoutSandbox: (id, items) => {
-        const quote = calculateQuote(items);
-        const totalHalalas = quote.totalHalalas;
-        const order: Order = {
-          id: uid("ORD"),
-          adId: id,
-          items,
-          totalHalalas,
-          status: "paid",
-          provider: "sandbox",
-          createdAt: new Date().toISOString(),
-        };
-        const invoice: Invoice = {
-          id: uid("INV"),
-          orderId: order.id,
-          number: `INV-${new Date().getFullYear()}-${String(state.invoices.length + 1).padStart(5, "0")}`,
-          totalHalalas,
-          issuedAt: new Date().toISOString(),
-        };
-        setState((current) => ({
-          ...current,
-          orders: [order, ...current.orders],
-          invoices: [invoice, ...current.invoices],
-          ads: current.ads.map((ad) =>
-            ad.id === id ? transitionToPendingReview(ad, quote.items) : ad,
-          ),
-          notifications: [
-            {
-              id: uid("N"),
-              title: "تم تأكيد الدفع التجريبي",
-              body: "وصل إعلانك إلى قائمة المراجعة. لا توجد حركة مالية حقيقية.",
-              read: false,
-              createdAt: new Date().toISOString(),
-              kind: "payment",
-            },
-            ...current.notifications,
-          ],
-        }));
-        return order;
-      },
       extendAd: (id) =>
         setState((current) => ({
           ...current,

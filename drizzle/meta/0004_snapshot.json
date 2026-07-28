@@ -1,9 +1,215 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "d9965ff8-4ea7-44f2-bb55-d32c0c8e6c23",
-  "prevId": "3c3a03ea-b871-416a-b531-aa772cca8b00",
+  "id": "7d4a7cbb-1df5-4c1a-8860-c927c1f64d60",
+  "prevId": "605023f1-14e6-41c1-afd9-21547460abed",
   "tables": {
+    "auth_rate_limits": {
+      "name": "auth_rate_limits",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "varchar(48)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "keyHash": {
+          "name": "keyHash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "windowStartedAt": {
+          "name": "windowStartedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "blockedUntil": {
+          "name": "blockedUntil",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "auth_rate_limits_scope_key_unique": {
+          "name": "auth_rate_limits_scope_key_unique",
+          "columns": [
+            "scope",
+            "keyHash"
+          ],
+          "isUnique": true
+        },
+        "auth_rate_limits_blocked_idx": {
+          "name": "auth_rate_limits_blocked_idx",
+          "columns": [
+            "blockedUntil"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "auth_rate_limits_id": {
+          "name": "auth_rate_limits_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "auth_sessions": {
+      "name": "auth_sessions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tokenId": {
+          "name": "tokenId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "clientType": {
+          "name": "clientType",
+          "type": "enum('web','native')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "userAgentHash": {
+          "name": "userAgentHash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ipHash": {
+          "name": "ipHash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "lastSeenAt": {
+          "name": "lastSeenAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revokedAt": {
+          "name": "revokedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "auth_sessions_tokenId_unique": {
+          "name": "auth_sessions_tokenId_unique",
+          "columns": [
+            "tokenId"
+          ],
+          "isUnique": true
+        },
+        "auth_sessions_user_active_idx": {
+          "name": "auth_sessions_user_active_idx",
+          "columns": [
+            "userId",
+            "revokedAt",
+            "expiresAt"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "auth_sessions_userId_users_id_fk": {
+          "name": "auth_sessions_userId_users_id_fk",
+          "tableFrom": "auth_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "auth_sessions_id": {
+          "name": "auth_sessions_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
     "business_profiles": {
       "name": "business_profiles",
       "columns": {
@@ -1818,7 +2024,16 @@
           "default": "(now())"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "pricing_rules_version_code_unique": {
+          "name": "pricing_rules_version_code_unique",
+          "columns": [
+            "pricingVersionId",
+            "code"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
         "pricing_rules_pricingVersionId_pricing_versions_id_fk": {
           "name": "pricing_rules_pricingVersionId_pricing_versions_id_fk",
@@ -2419,6 +2634,14 @@
           "columns": [
             "revisionId",
             "sortOrder"
+          ],
+          "isUnique": true
+        },
+        "ad_media_asset_uq": {
+          "name": "ad_media_asset_uq",
+          "columns": [
+            "revisionId",
+            "mediaAssetId"
           ],
           "isUnique": true
         }

@@ -1,7 +1,8 @@
-import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const.js";
+import { AXIOS_TIMEOUT_MS, COOKIE_NAME, SESSION_TTL_MS } from "../../shared/const.js";
 import { ForbiddenError } from "../../shared/_core/errors.js";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
+import { createHmac, randomUUID } from "node:crypto";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
@@ -22,7 +23,16 @@ export type SessionPayload = {
   openId: string;
   appId: string;
   name: string;
+  tokenId: string;
 };
+
+type VerifiedSession = SessionPayload & {
+  expiresAt: Date;
+  legacy: boolean;
+};
+
+const SESSION_ISSUER = "e3lani-api";
+const LEGACY_SESSION_CUTOFF_SECONDS = 1_787_788_800;
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
 const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
@@ -147,16 +157,48 @@ class SDKServer {
    */
   async createSessionToken(
     openId: string,
-    options: { expiresInMs?: number; name?: string } = {},
+    options: { expiresInMs?: number; name?: string; tokenId?: string } = {},
   ): Promise<string> {
     return this.signSession(
       {
         openId,
         appId: ENV.appId,
         name: options.name || "",
+        tokenId: options.tokenId ?? randomUUID(),
       },
       options,
     );
+  }
+
+  async createManagedSession(
+    user: User,
+    req: Request,
+    clientType: db.AuthClientType,
+    options: { expiresInMs?: number } = {},
+  ) {
+    const expiresInMs = options.expiresInMs ?? SESSION_TTL_MS;
+    const expiresAt = new Date(Date.now() + expiresInMs);
+    const tokenId = randomUUID();
+    const token = await this.signSession(
+      {
+        openId: user.openId,
+        appId: ENV.appId,
+        name: user.name || "",
+        tokenId,
+      },
+      { expiresInMs },
+    );
+
+    await db.createAuthSession({
+      userId: user.id,
+      tokenId,
+      clientType,
+      userAgentHash: this.hashPrivateValue(req.get("user-agent") ?? null),
+      ipHash: this.hashPrivateValue(this.getRequestIp(req)),
+      expiresAt,
+    });
+
+    return { token, tokenId, expiresAt };
   }
 
   async signSession(
@@ -164,7 +206,7 @@ class SDKServer {
     options: { expiresInMs?: number } = {},
   ): Promise<string> {
     const issuedAt = Date.now();
-    const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
+    const expiresInMs = options.expiresInMs ?? SESSION_TTL_MS;
     const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
     const secretKey = this.getSessionSecret();
 
@@ -174,13 +216,17 @@ class SDKServer {
       name: payload.name,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setIssuedAt()
+      .setIssuer(SESSION_ISSUER)
+      .setAudience(ENV.appId)
+      .setJti(payload.tokenId)
       .setExpirationTime(expirationSeconds)
       .sign(secretKey);
   }
 
   async verifySession(
     cookieValue: string | undefined | null,
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<VerifiedSession | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -191,22 +237,38 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { openId, appId, name, iss, aud, jti, exp } = payload as Record<string, unknown>;
 
-      if (!isNonEmptyString(openId) || !isNonEmptyString(appId) || !isNonEmptyString(name)) {
+      if (!isNonEmptyString(openId) || !isNonEmptyString(appId) || appId !== ENV.appId) {
         console.warn("[Auth] Session payload missing required fields");
+        return null;
+      }
+
+      if (typeof exp !== "number") return null;
+      const isManaged = isNonEmptyString(jti);
+      if (isManaged && (iss !== SESSION_ISSUER || aud !== ENV.appId)) return null;
+      if (!isManaged && Math.floor(Date.now() / 1000) >= LEGACY_SESSION_CUTOFF_SECONDS) {
+        console.warn("[Auth] Legacy session is outside the migration window");
         return null;
       }
 
       return {
         openId,
         appId,
-        name,
+        name: typeof name === "string" ? name : "",
+        tokenId: isManaged ? jti : "",
+        expiresAt: new Date(exp * 1000),
+        legacy: !isManaged,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
       return null;
     }
+  }
+
+  async revokeRequestSession(req: Request) {
+    const session = await this.verifySession(this.getRequestSessionToken(req));
+    if (session?.tokenId) await db.revokeAuthSession(session.tokenId);
   }
 
   async getUserInfoWithJwt(jwtToken: string): Promise<GetUserInfoWithJwtResponse> {
@@ -232,15 +294,7 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<AuthenticatedUser> {
-    // Regular authentication flow
-    const authHeader = req.headers.authorization || req.headers.Authorization;
-    let token: string | undefined;
-    if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
-      token = authHeader.slice("Bearer ".length).trim();
-    }
-
-    const cookies = this.parseCookies(req.headers.cookie);
-    const sessionCookie = token || cookies.get(COOKIE_NAME);
+    const sessionCookie = this.getRequestSessionToken(req);
     const session = await this.verifySession(sessionCookie);
 
     if (!session) {
@@ -282,12 +336,54 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
+    if (user.status !== "active" || user.deletedAt) {
+      throw ForbiddenError("Account is not active");
+    }
+
+    if (!session.legacy) {
+      const authSession = await db.getAuthSession(session.tokenId);
+      if (
+        !authSession ||
+        authSession.userId !== user.id ||
+        authSession.revokedAt ||
+        authSession.expiresAt.getTime() <= Date.now()
+      ) {
+        throw ForbiddenError("Session is no longer active");
+      }
+      if (Date.now() - authSession.lastSeenAt.getTime() >= 5 * 60 * 1000) {
+        await db.touchAuthSession(session.tokenId);
+      }
+    }
+
     await db.upsertUser({
       openId: user.openId,
       lastSignedIn: signedInAt,
     });
 
-    return user;
+    return {
+      ...user,
+      sessionTokenId: session.tokenId || undefined,
+      isLegacySession: session.legacy,
+    };
+  }
+
+  private getRequestSessionToken(req: Request) {
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+      return authHeader.slice("Bearer ".length).trim();
+    }
+    return this.parseCookies(req.headers.cookie).get(COOKIE_NAME);
+  }
+
+  private getRequestIp(req: Request) {
+    const forwarded = req.headers["x-forwarded-for"];
+    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0];
+    return first?.trim() || req.ip || req.socket.remoteAddress || null;
+  }
+
+  private hashPrivateValue(value: string | null) {
+    if (!value) return null;
+    return createHmac("sha256", ENV.cookieSecret).update(value).digest("hex");
   }
 }
 
@@ -297,6 +393,8 @@ const CRON_OPEN_ID_PREFIX = "cron_";
 export type AuthenticatedUser = User & {
   taskUid?: string;
   isCron?: boolean;
+  sessionTokenId?: string;
+  isLegacySession?: boolean;
 };
 
 function buildCronUser(userInfo: GetUserInfoWithJwtResponse): AuthenticatedUser {
