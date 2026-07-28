@@ -5,3 +5,6 @@ expo-env.d.ts
 *.apk
 *.aab
 dist/
+# Metro/Expo resource dump generated during release embed
+android/app/src/main/res/drawable-mdpi/
+android/app/src/main/res/drawable-mdpi/
