@@ -50,10 +50,11 @@ const promotions = [
 
 const settings = [
   ["platform.identity", { country: "SA", currency: "SAR", locales: ["ar", "en"], defaultLocale: "ar" }, 1],
-  ["ads.policy", { freePostEnabled: true, paidDistributionEnabled: true, paidDistributionRequiresReview: true, defaultActiveDays: 30, maxImages: 10, maxVideos: 1, republishCooldownHours: 72 }, 1],
+  ["feed.access", { mode: "LAUNCH_FREE" }, 1],
+  ["ads.policy", { freePostEnabled: true, paidDistributionEnabled: false, paidDistributionRequiresReview: true, defaultActiveDays: 30, maxImages: 10, maxVideos: 1, republishCooldownHours: 72 }, 1],
   ["media.policy", { imageMaxBytes: 5242880, videoMaxBytes: 52428800, allowedImageMimeTypes: ["image/jpeg", "image/png", "image/webp"], allowedVideoMimeTypes: ["video/mp4"], requirePrimaryImage: true }, 1],
   ["contact.policy", { allowedTypes: ["store", "product", "whatsapp", "phone"], verifyPhoneBeforePublish: true }, 1],
-  ["payment.policy", { currency: "SAR", paymentProviders: ["sandbox"], refundWindowHours: 24 }, 1],
+  ["payment.policy", { enabled: false, currency: "SAR", paymentProviders: [], refundWindowHours: 24 }, 1],
   ["privacy.policyVersions", { terms: "2026-07", privacy: "2026-07", content: "2026-07", refund: "2026-07" }, 1],
   ["moderation.rules", { manualReviewFor: ["strict_category", "paid_distribution", "reported_content"], autoRejectEnabled: false, maxOpenReportsBeforePause: 3 }, 0],
   ["security.policy", { sessionMaxAgeDays: 30, rateLimits: { readPerMinute: 120, writePerMinute: 30 }, maxFailedPaymentsPerHour: 5 }, 0],

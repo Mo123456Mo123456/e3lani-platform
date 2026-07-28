@@ -29,10 +29,23 @@ import {
   type ReportItem,
   type UserProfile,
 } from "./e3lani-data";
+import {
+  DEFAULT_FEED_ACCESS_MODE,
+  initialAdStatusForMode,
+  requiresPaymentForPublishing,
+  resolveFeedAccessMode,
+  type FeedAccessMode,
+} from "../shared/feed-access";
+import {
+  DEFAULT_PUBLIC_USER_ROLE,
+  stripRoleFromPublicProfile,
+} from "../shared/user-role-policy";
+
+type PublicUserProfileInput = Omit<Partial<UserProfile>, "role">;
 
 type NewAd = {
   title: string;
-  description: string;
+  description?: string;
   categoryId: string;
   cityId: string;
   media: AdMedia[];
@@ -57,12 +70,12 @@ type State = {
 };
 
 type Value = State & {
-  login: (profile?: Partial<UserProfile>) => void;
+  login: (profile?: PublicUserProfileInput) => void;
   logout: () => void;
-  updateProfile: (data: Partial<UserProfile>) => void;
+  updateProfile: (data: PublicUserProfileInput) => void;
   upsertBrand: (data: Partial<BrandProfile>) => void;
   requestVerification: () => void;
-  createAd: (data: NewAd) => Ad;
+  createAd: (data: NewAd, feedAccessMode?: FeedAccessMode) => Ad;
   toggleSave: (id: string) => void;
   recordMetric: (id: string, key: keyof Metrics) => void;
   submitReport: (id: string, reason: string, details?: string) => void;
@@ -115,6 +128,7 @@ const C = createContext<Value | null>(null);
 const KEY = "e3lani.store.v1";
 const uid = (prefix: string) =>
   `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
 export function E3laniProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(initial);
 
@@ -123,7 +137,10 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
     try {
       const raw = await AsyncStorage.getItem(KEY);
       const stored = raw ? (JSON.parse(raw) as Partial<State>) : {};
-      setState({ ...initial, ...stored, ready: true, loadError: null });
+      const storedUser = stored.user
+        ? { ...stored.user, role: DEFAULT_PUBLIC_USER_ROLE }
+        : stored.user;
+      setState({ ...initial, ...stored, user: storedUser ?? null, ready: true, loadError: null });
     } catch {
       setState((current) => ({ ...current, ready: true, loadError: "storage_load_failed" }));
     }
@@ -144,26 +161,32 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Value>(
     () => ({
       ...state,
-      login: (profile) =>
+      login: (profile) => {
+        const safeProfile = stripRoleFromPublicProfile(profile);
         setState((current) => ({
           ...current,
           user: {
             id: "U1",
             name: "معلن إعلاني",
             phone: "+966500000000",
-            email: "owner@e3lani.sa",
+            email: "user@e3lani.local",
             cityId: "riyadh",
             accountType: "brand",
-            role: "owner",
-            ...profile,
+            ...safeProfile,
+            role: DEFAULT_PUBLIC_USER_ROLE,
           },
-        })),
+        }));
+      },
       logout: () => setState((current) => ({ ...current, user: null })),
-      updateProfile: (data) =>
+      updateProfile: (data) => {
+        const safeProfile = stripRoleFromPublicProfile(data);
         setState((current) => ({
           ...current,
-          user: current.user ? { ...current.user, ...data } : current.user,
-        })),
+          user: current.user
+            ? { ...current.user, ...safeProfile, role: DEFAULT_PUBLIC_USER_ROLE }
+            : current.user,
+        }));
+      },
       upsertBrand: (data) =>
         setState((current) => ({
           ...current,
@@ -187,23 +210,41 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             ...current.notifications,
           ],
         })),
-      createAd: (data) => {
+      createAd: (data, requestedMode = DEFAULT_FEED_ACCESS_MODE) => {
+        const feedAccessMode = resolveFeedAccessMode(requestedMode);
+        const paidPublishing = requiresPaymentForPublishing(feedAccessMode);
+        const effectivePromotions = paidPublishing ? data.promotions : [];
         const ad: Ad = {
           id: uid("AD"),
           ownerId: state.user?.id ?? "U1",
           brandId: state.brand?.id,
           ...data,
-          status: "awaiting_payment",
+          description: data.description?.trim() ?? "",
+          promotions: effectivePromotions,
+          status: initialAdStatusForMode(feedAccessMode),
           revision: 1,
           verified: Boolean(state.brand?.verified),
-          featured: data.promotions.length > 0,
-          sponsored: data.promotions.length > 0,
+          featured: effectivePromotions.length > 0,
+          sponsored: effectivePromotions.length > 0,
           createdAt: new Date().toISOString(),
         };
         setState((current) => ({
           ...current,
           ads: [ad, ...current.ads],
           metrics: { ...current.metrics, [ad.id]: { ...zero } },
+          notifications: paidPublishing
+            ? current.notifications
+            : [
+                {
+                  id: uid("N"),
+                  title: "تم إرسال إعلانك للمراجعة",
+                  body: "النشر مجاني حاليًا، وسيظهر الإعلان بعد اجتياز المراجعة.",
+                  read: false,
+                  createdAt: new Date().toISOString(),
+                  kind: "review",
+                },
+                ...current.notifications,
+              ],
         }));
         return ad;
       },
