@@ -7,6 +7,7 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
 import * as db from "./db";
 import { completeMediaUpload, prepareMediaUpload } from "./media-service";
+import { getPublicProductConfig } from "./product-config";
 
 const mediaMetadataInput = z.object({
   fileName: z.string().trim().min(1).max(180),
@@ -88,7 +89,7 @@ export const appRouter = router({
     }),
   }),
   product: router({
-    config: publicProcedure.query(() => db.getPublicProductConfig()),
+    config: publicProcedure.query(() => getPublicProductConfig()),
     catalog: publicProcedure.query(() => db.getPublicCatalog()),
   }),
   media: router({
