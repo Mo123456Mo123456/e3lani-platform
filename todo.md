@@ -86,7 +86,7 @@
 - [x] إنشاء مرجع PDF شامل لملفات الكود النصية وتقرير PDF منسق عن التطبيق والتحقق منهما وتسليمهما
 - [ ] توحيد نقطة الأساس المرجعية ومراجعة ملف TXT كاملًا وتوثيق نطاق الإصلاحات قبل أي تغيير
 - [ ] تدقيق الأسرار وسجل Git وإكمال `.gitignore` و`.env.example` وREADME وCHANGELOG دون تضمين بيانات حساسة
-- [ ] إنشاء مستودع GitHub خاص `e3lani-platform` واستيراد النسخة الحالية في Commit مستقل ووضع Tag `pre-production-review`
+- [x] إنشاء مستودع GitHub خاص `e3lani-platform` واستيراد النسخة الحالية في Commit مستقل ووضع Tag `pre-production-review`
 - [ ] إنشاء `develop` وسياسة الفروع وقوالب Pull Requests وGitHub Actions للفحص والاختبارات والبناء
 - [ ] تنفيذ `fix/centralize-data` ونقل مصادر البيانات النهائية من AsyncStorage إلى الخادم وقاعدة البيانات
 - [ ] تنفيذ `fix/default-user-role` وتقوية المصادقة وOTP والجلسات والصلاحيات الخادمية
