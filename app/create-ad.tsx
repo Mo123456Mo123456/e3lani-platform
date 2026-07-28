@@ -14,7 +14,6 @@ import {
   type ContactType,
   type PromotionCode,
 } from "@/lib/e3lani-data";
-import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
 import {
   preferredMediaUrl,
@@ -45,7 +44,6 @@ type UploadItem = {
 };
 
 export default function CreateAd() {
-  const store = useE3lani();
   const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
   const [stepIndex, setStepIndex] = useState(0);
@@ -62,9 +60,11 @@ export default function CreateAd() {
   const [promotions, setPromotions] = useState<PromotionCode[]>([]);
   const uploadControllers = useRef(new Map<string, UploadController>());
   const cancelledUploads = useRef(new Set<string>());
+  const sessionQuery = trpc.auth.me.useQuery(undefined, { retry: false });
   const prepareUploadMutation = trpc.media.prepareUpload.useMutation();
   const completeUploadMutation = trpc.media.completeUpload.useMutation();
   const deleteMediaMutation = trpc.media.delete.useMutation();
+  const createAdMutation = trpc.data.ads.create.useMutation();
 
   const updateUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
     setUploads((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -155,24 +155,29 @@ export default function CreateAd() {
     [completeUploadMutation, deleteMediaMutation, mediaMessage, prepareUploadMutation, productData.config?.mediaPolicy, updateUpload],
   );
 
-  if (!store.user) {
-    return (
-      <ScreenContainer>
-        <View style={styles.gate}>
-          <MaterialIcons name="lock" size={44} color={BRAND.yellowDark} />
-          <Text style={styles.gateTitle}>{t("signIn")}</Text>
-          <PrimaryButton label={t("signIn")} icon="login" onPress={() => router.replace("/login" as never)} />
-        </View>
-      </ScreenContainer>
-    );
-  }
-
-  if (productData.isLoading) {
+  if (sessionQuery.isLoading || productData.isLoading) {
     return (
       <ScreenContainer>
         <View style={styles.gate}>
           <ActivityIndicator color={BRAND.yellowDark} size="large" />
           <Text style={styles.gateTitle}>{t("postTitle")}</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (!sessionQuery.data) {
+    return (
+      <ScreenContainer>
+        <View style={styles.gate}>
+          <MaterialIcons name="lock" size={44} color={BRAND.yellowDark} />
+          <Text style={styles.gateTitle}>{t("signIn")}</Text>
+          <Text style={styles.gateBody}>
+            {locale === "ar"
+              ? "يتطلب النشر جلسة خادم موثقة. الدخول المحلي التجريبي لا ينشئ إعلانًا حقيقيًا."
+              : "Publishing requires a verified server session. Local sandbox sign-in does not create a real ad."}
+          </Text>
+          <PrimaryButton label={t("signIn")} icon="login" onPress={() => router.replace("/login" as never)} />
         </View>
       </ScreenContainer>
     );
@@ -345,37 +350,54 @@ export default function CreateAd() {
     return true;
   };
 
-  const submit = () => {
+  const submit = async () => {
     const contacts = buildContacts();
-    if (!contacts) return;
-    const ad = store.createAd(
-      {
-        title: title.trim(),
-        description: description.trim(),
-        categoryId,
-        cityId,
-        contacts,
-        promotions: publishingRequiresPayment ? promotions : [],
-        media,
-      },
-      feedAccessMode,
-    );
-
-    if (publishingRequiresPayment) {
-      router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
+    if (!contacts || createAdMutation.isPending) return;
+    const mediaAssetIds = media
+      .map((item) => item.mediaAssetId)
+      .filter((value): value is number => typeof value === "number");
+    if (mediaAssetIds.length !== media.length || !mediaAssetIds.length) {
+      Alert.alert(
+        locale === "ar" ? "الوسائط غير مكتملة" : "Media is incomplete",
+        locale === "ar" ? "يجب اكتمال رفع الوسائط إلى الخادم قبل النشر." : "All media must finish uploading to the server before publishing.",
+      );
       return;
     }
 
-    Alert.alert(
-      locale === "ar" ? "تم إرسال إعلانك للمراجعة" : "Your ad was sent for review",
-      locale === "ar" ? "النشر مجاني حاليًا. لا توجد شاشة دفع أو سعر، وسيظهر الإعلان بعد الموافقة." : "Publishing is currently free. There is no payment screen or price, and the ad will appear after approval.",
-      [
-        {
-          text: locale === "ar" ? "عرض الإعلان" : "View ad",
-          onPress: () => router.replace({ pathname: "/ad/[id]", params: { id: ad.id } } as never),
-        },
-      ],
-    );
+    try {
+      const ad = await createAdMutation.mutateAsync({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        categoryCode: categoryId,
+        cityCode: cityId,
+        mediaAssetIds,
+        contacts,
+      });
+
+      if (publishingRequiresPayment) {
+        router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
+        return;
+      }
+
+      Alert.alert(
+        locale === "ar" ? "تم إرسال إعلانك للمراجعة" : "Your ad was sent for review",
+        locale === "ar" ? "حُفظ الإعلان في الحساب المركزي. النشر مجاني حاليًا وسيظهر بعد الموافقة." : "The ad was saved to your central account. Publishing is currently free and it will appear after approval.",
+        [
+          {
+            text: locale === "ar" ? "عرض الإعلان" : "View ad",
+            onPress: () => router.replace({ pathname: "/ad/[id]", params: { id: ad.id } } as never),
+          },
+        ],
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "CORE_DATA_OPERATION_FAILED";
+      Alert.alert(
+        locale === "ar" ? "تعذر إنشاء الإعلان" : "Ad creation failed",
+        locale === "ar"
+          ? `لم يُحفظ الإعلان. تحقق من الاتصال والجلسة ثم أعد المحاولة. (${message})`
+          : `The ad was not saved. Check your connection and session, then retry. (${message})`,
+      );
+    }
   };
 
   const next = () => {
@@ -384,17 +406,21 @@ export default function CreateAd() {
       setStepIndex((current) => current + 1);
       return;
     }
-    submit();
+    void submit();
   };
 
   const quote = publishingRequiresPayment ? productData.calculateQuote(promotions) : null;
   const city = productData.cities.find((item) => item.id === cityId);
   const cityName = locale === "ar" ? city?.ar : city?.en;
-  const finalLabel = publishingRequiresPayment
-    ? t("pay")
-    : locale === "ar"
-      ? "إرسال للمراجعة مجانًا"
-      : "Send for free review";
+  const finalLabel = createAdMutation.isPending
+    ? locale === "ar"
+      ? "جارٍ الحفظ..."
+      : "Saving..."
+    : publishingRequiresPayment
+      ? t("pay")
+      : locale === "ar"
+        ? "إرسال للمراجعة مجانًا"
+        : "Send for free review";
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -549,7 +575,7 @@ export default function CreateAd() {
         </View>
         <View style={styles.footerNext}>
           <PrimaryButton
-            disabled={currentStep === "media" && uploads.some((item) => item.status !== "ready")}
+            disabled={createAdMutation.isPending || (currentStep === "media" && uploads.some((item) => item.status !== "ready"))}
             label={currentStep === "preview" ? finalLabel : t("next")}
             icon={currentStep === "preview" ? (publishingRequiresPayment ? "payments" : "send") : "arrow-back"}
             onPress={next}
