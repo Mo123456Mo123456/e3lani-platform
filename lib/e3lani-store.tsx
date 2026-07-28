@@ -172,7 +172,6 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             email: "user@e3lani.local",
             cityId: "riyadh",
             accountType: "brand",
-            role: DEFAULT_PUBLIC_USER_ROLE,
             ...safeProfile,
             role: DEFAULT_PUBLIC_USER_ROLE,
           },
