@@ -5,6 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
+import { coreDataRouter } from "./core-data-router";
 import * as db from "./db";
 import { completeMediaUpload, prepareMediaUpload } from "./media-service";
 import { getPublicProductConfig } from "./product-config";
@@ -56,6 +57,7 @@ function sessionUser(user: NonNullable<Awaited<ReturnType<typeof sdk.authenticat
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+  data: coreDataRouter,
   auth: router({
     me: publicProcedure.query((opts) => sessionUser(opts.ctx.user)),
     sessions: protectedProcedure.query(async ({ ctx }) => {
