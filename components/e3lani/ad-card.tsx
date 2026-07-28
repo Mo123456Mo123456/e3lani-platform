@@ -12,7 +12,7 @@ import {
   type GestureResponderEvent,
 } from "react-native";
 
-import { BRAND, type Ad, type AdMedia } from "@/lib/e3lani-data";
+import { BRAND, type Ad, type AdMedia, type Metrics } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
 import { useProductData } from "@/lib/use-product-data";
@@ -78,25 +78,55 @@ export function MediaView({
   );
 }
 
-export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: number; active?: boolean }) {
+type AdCardProps = {
+  ad: Ad;
+  height?: number;
+  active?: boolean;
+  saved?: boolean;
+  metrics?: Metrics;
+  onToggleSave?: (ad: Ad) => void | Promise<void>;
+  onShareTracked?: (ad: Ad) => void | Promise<void>;
+};
+
+export function AdCard({
+  ad,
+  height = 540,
+  active = false,
+  saved: savedOverride,
+  metrics: metricsOverride,
+  onToggleSave,
+  onShareTracked,
+}: AdCardProps) {
   const { locale, isRTL, t } = useI18n();
-  const { brand, savedIds, toggleSave, recordMetric, metrics } = useE3lani();
+  const {
+    brand,
+    savedIds,
+    toggleSave: toggleLocalSave,
+    recordMetric: recordLocalMetric,
+    metrics: localMetrics,
+  } = useE3lani();
   const productData = useProductData();
   const city = productData.cities.find((item) => item.id === ad.cityId);
-  const saved = savedIds.includes(ad.id);
-  const metric = metrics[ad.id];
+  const saved = savedOverride ?? savedIds.includes(ad.id);
+  const metric = metricsOverride ?? ad.metrics ?? localMetrics[ad.id];
   const saves = metric?.saves?.toLocaleString() ?? "0";
   const shares = metric?.shares?.toLocaleString() ?? "0";
   const views = metric?.views?.toLocaleString() ?? "0";
+  const advertiserName = ad.advertiserName ?? brand?.name ?? "إعلاني";
 
   const save = (event: GestureResponderEvent) => {
     event.stopPropagation();
-    toggleSave(ad.id);
+    if (onToggleSave) {
+      void onToggleSave(ad);
+      return;
+    }
+    toggleLocalSave(ad.id);
   };
 
   const share = async (event: GestureResponderEvent) => {
     event.stopPropagation();
-    recordMetric(ad.id, "shares");
+    if (onShareTracked) await onShareTracked(ad);
+    else recordLocalMetric(ad.id, "shares");
     await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
   };
 
@@ -161,10 +191,10 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
       <View style={[styles.copy, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
         <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{brand?.name.slice(0, 1) ?? "إ"}</Text>
+            <Text style={styles.avatarText}>{advertiserName.slice(0, 1)}</Text>
           </View>
           <Text numberOfLines={1} style={styles.brandName}>
-            {brand?.name ?? "إعلاني"}
+            {advertiserName}
           </Text>
           {ad.verified ? (
             <MaterialIcons accessible={false} name="verified" size={18} color={BRAND.yellow} />
@@ -173,9 +203,11 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
         <Text numberOfLines={2} style={[styles.adTitle, { textAlign: isRTL ? "right" : "left" }]}>
           {ad.title}
         </Text>
-        <Text numberOfLines={2} style={[styles.description, { textAlign: isRTL ? "right" : "left" }]}>
-          {ad.description}
-        </Text>
+        {ad.description ? (
+          <Text numberOfLines={2} style={[styles.description, { textAlign: isRTL ? "right" : "left" }]}>
+            {ad.description}
+          </Text>
+        ) : null}
         <View style={[styles.location, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <MaterialIcons accessible={false} name="location-on" size={16} color={BRAND.white} />
           <Text style={styles.locationText}>{(locale === "ar" ? city?.ar : city?.en) ?? "—"}</Text>
