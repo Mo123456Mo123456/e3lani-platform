@@ -8,11 +8,11 @@ import {
   Patch,
   Post,
   Query,
-  RawBodyRequest,
   Req,
   ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
+import type { RawBodyRequest } from "@nestjs/common";
 import type { Request } from "express";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
@@ -75,6 +75,160 @@ export class AdminController {
       pendingBanners,
       paidRevenueHalalas: revenue._sum.totalHalalas ?? 0,
     };
+  }
+
+  @Get("ads")
+  @Roles("SUPER_ADMIN", "ADS_MODERATOR", "SUPPORT", "CAMPAIGN_MANAGER")
+  ads(@Query() raw: Record<string, string | undefined>) {
+    const { page, limit } = paginationSchema.parse(raw);
+    return prisma.ad.findMany({
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        owner: { select: { id: true, name: true, phone: true } },
+        category: true,
+        city: true,
+      },
+    });
+  }
+
+  @Patch("ads/:id/status")
+  @Roles("SUPER_ADMIN", "ADS_MODERATOR")
+  async adStatus(
+    @CurrentUser() actor: AuthUser,
+    @Param("id") id: string,
+    @Body() body: { action?: "SUSPEND" | "DELETE" | "REACTIVATE"; reason?: string },
+  ) {
+    if (!body.action || !body.reason?.trim()) throw new BadRequestException("DECISION_REQUIRED");
+    const status =
+      body.action === "SUSPEND" ? "SUSPENDED" : body.action === "DELETE" ? "DELETED" : "ACTIVE";
+    const ad = await prisma.ad.update({
+      where: { id },
+      data: {
+        status,
+        suspendedAt: status === "SUSPENDED" ? new Date() : null,
+        suspensionReason: status === "SUSPENDED" ? body.reason : null,
+      },
+    });
+    await prisma.$transaction([
+      prisma.notification.create({
+        data: {
+          userId: ad.ownerId,
+          type: "AD_STATUS_CHANGED",
+          titleAr: "تم تحديث حالة إعلانك",
+          titleEn: "Your ad status changed",
+          bodyAr: body.reason,
+          bodyEn: body.reason,
+          data: { adId: id, status },
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: `AD_${body.action}`,
+          entityType: "Ad",
+          entityId: id,
+          reason: body.reason,
+        },
+      }),
+    ]);
+    return ad;
+  }
+
+  @Get("businesses")
+  @Roles("SUPER_ADMIN", "SUPPORT", "CONTENT_MANAGER")
+  businesses() {
+    return prisma.businessProfile.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { id: true, name: true, phone: true, status: true } } },
+    });
+  }
+
+  @Get("posts")
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER", "ADS_MODERATOR")
+  posts() {
+    return prisma.profilePost.findMany({
+      take: 100,
+      orderBy: { createdAt: "desc" },
+      include: { owner: { select: { id: true, name: true, phone: true } }, _count: true },
+    });
+  }
+
+  @Patch("posts/:id/status")
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER")
+  async postStatus(
+    @CurrentUser() actor: AuthUser,
+    @Param("id") id: string,
+    @Body() body: { published?: boolean; reason?: string },
+  ) {
+    if (typeof body.published !== "boolean" || !body.reason?.trim()) {
+      throw new BadRequestException("STATUS_AND_REASON_REQUIRED");
+    }
+    const post = await prisma.profilePost.update({
+      where: { id },
+      data: { published: body.published },
+    });
+    await writeAudit(
+      actor.id,
+      body.published ? "POST_REACTIVATED" : "POST_HIDDEN",
+      "ProfilePost",
+      id,
+      body.reason,
+    );
+    return post;
+  }
+
+  @Get("categories")
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER")
+  categories() {
+    return prisma.category.findMany({
+      orderBy: [{ parentId: "asc" }, { sortOrder: "asc" }],
+      include: { parent: { select: { nameAr: true } } },
+    });
+  }
+
+  @Get("cities")
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER")
+  cities() {
+    return prisma.city.findMany({
+      orderBy: { nameAr: "asc" },
+      include: { region: true },
+    });
+  }
+
+  @Get("payments")
+  @Roles("SUPER_ADMIN", "FINANCE_MANAGER", "SUPPORT")
+  payments() {
+    return prisma.order.findMany({
+      take: 200,
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { id: true, name: true, phone: true } }, ad: true },
+    });
+  }
+
+  @Get("notifications")
+  @Roles("SUPER_ADMIN", "SUPPORT", "CONTENT_MANAGER")
+  notifications() {
+    return prisma.notification.findMany({
+      take: 200,
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { id: true, name: true, phone: true } } },
+    });
+  }
+
+  @Get("analytics")
+  @Roles("SUPER_ADMIN", "CAMPAIGN_MANAGER", "FINANCE_MANAGER")
+  async analytics() {
+    const [events, ads, owners] = await Promise.all([
+      prisma.analyticsEvent.groupBy({
+        by: ["event", "source"],
+        _count: { _all: true },
+      }),
+      prisma.ad.count({ where: { status: "ACTIVE" } }),
+      prisma.user.count({ where: { ads: { some: {} } } }),
+    ]);
+    return [{ id: "platform", activeAds: ads, advertisers: owners, events }];
   }
 
   @Get("users")

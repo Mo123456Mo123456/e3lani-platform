@@ -13,14 +13,14 @@ export default function AdDetailScreen() {
   }, [id]);
   if (!ad) return <ActivityIndicator style={styles.center} color="#FFC400" size="large" />;
 
-  function report() {
+  function report(adId: string) {
     Alert.alert("إبلاغ عن الإعلان", "اختر سبب البلاغ", [
       { text: "إلغاء", style: "cancel" },
       {
         text: "محتوى محظور",
         style: "destructive",
         onPress: () =>
-          void api(`/ads/${ad.id}/report`, {
+          void api(`/ads/${adId}/report`, {
             method: "POST",
             body: JSON.stringify({ reason: "PROHIBITED" }),
           }).then(() => Alert.alert("شكرًا", "تم استلام بلاغك.")),
@@ -28,7 +28,7 @@ export default function AdDetailScreen() {
       {
         text: "إعلان مضلل",
         onPress: () =>
-          void api(`/ads/${ad.id}/report`, {
+          void api(`/ads/${adId}/report`, {
             method: "POST",
             body: JSON.stringify({ reason: "MISLEADING" }),
           }).then(() => Alert.alert("شكرًا", "تم استلام بلاغك.")),
@@ -44,7 +44,7 @@ export default function AdDetailScreen() {
         height={Dimensions.get("window").height - 130}
         onSave={(adId) => void api(`/ads/${adId}/save`, { method: "POST" })}
       />
-      <Pressable style={styles.report} onPress={report}>
+      <Pressable style={styles.report} onPress={() => report(ad.id)}>
         <Text style={styles.reportText}>إبلاغ</Text>
       </Pressable>
     </View>

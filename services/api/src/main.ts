@@ -1,9 +1,5 @@
-import {
-  ArgumentsHost,
-  BadRequestException,
-  Catch,
-  ExceptionFilter,
-} from "@nestjs/common";
+import { BadRequestException, Catch } from "@nestjs/common";
+import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { Response } from "express";
 import "reflect-metadata";

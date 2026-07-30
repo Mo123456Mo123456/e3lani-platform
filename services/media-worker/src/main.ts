@@ -1,6 +1,6 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Worker } from "bullmq";
-import ffmpegPath from "ffmpeg-static";
+import ffmpegStatic from "ffmpeg-static";
 import ffprobe from "ffprobe-static";
 import { fileTypeFromBuffer } from "file-type";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -13,6 +13,10 @@ import sharp from "sharp";
 import { prisma } from "@e3lani/database";
 
 const exec = promisify(execFile);
+const ffmpegPath =
+  typeof (ffmpegStatic as unknown) === "string"
+    ? (ffmpegStatic as unknown as string)
+    : ((ffmpegStatic as unknown as { default?: string | null }).default ?? null);
 const bucket = process.env.S3_BUCKET ?? "e3lani-media";
 const endpoint = (process.env.S3_PUBLIC_URL ?? process.env.S3_ENDPOINT ?? "").replace(/\/$/, "");
 const s3 = new S3Client({

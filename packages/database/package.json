@@ -16,7 +16,7 @@
     "seed": "tsx prisma/seed.ts",
     "studio": "prisma studio",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "prisma validate",
+    "lint": "DATABASE_URL=postgresql://e3lani:e3lani@localhost:5432/e3lani prisma validate",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

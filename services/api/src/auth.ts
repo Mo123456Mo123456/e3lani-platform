@@ -1,18 +1,18 @@
 import {
   BadRequestException,
   Body,
-  CanActivate,
   Controller,
   createParamDecorator,
-  ExecutionContext,
   ForbiddenException,
   Get,
+  Inject,
   Injectable,
   Post,
   SetMetadata,
   UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
+import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Reflector } from "@nestjs/core";
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
@@ -64,7 +64,7 @@ export class UnifonicOtpAdapter implements OtpAdapter {
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly jwt: JwtService) {}
+  constructor(@Inject(JwtService) private readonly jwt: JwtService) {}
 
   private otpHash(phone: string, code: string) {
     const secret = process.env.OTP_HASH_SECRET;
@@ -226,7 +226,7 @@ export class AuthService {
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly jwt: JwtService) {}
+  constructor(@Inject(JwtService) private readonly jwt: JwtService) {}
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -255,7 +255,7 @@ export const Roles = (...roles: StaffRole[]) => SetMetadata(ROLES_KEY, roles);
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(@Inject(Reflector) private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext) {
     const roles = this.reflector.getAllAndOverride<StaffRole[]>(ROLES_KEY, [

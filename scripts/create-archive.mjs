@@ -37,6 +37,8 @@ const result = spawnSync(
     "*/dist/*",
     "*/.next/*",
     "*/.expo/*",
+    "*/.turbo/*",
+    "*.tsbuildinfo",
     "*.DS_Store",
   ],
   { cwd: root, stdio: "inherit" },

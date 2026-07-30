@@ -201,7 +201,7 @@ export class AdsController {
     const publishedAt = mode === "FREE_LAUNCH" ? new Date() : null;
     const durationDays = standardPrice?.durationDays ?? 30;
 
-    return prisma.ad.create({
+    const created = await prisma.ad.create({
       data: {
         ownerId: user.id,
         title: input.title,
@@ -227,6 +227,24 @@ export class AdsController {
       },
       include: adInclude,
     });
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        type: mode === "FREE_LAUNCH" ? "AD_PUBLISHED" : "AD_AWAITING_PAYMENT",
+        titleAr: mode === "FREE_LAUNCH" ? "تم نشر إعلانك" : "إعلانك بانتظار الدفع",
+        titleEn: mode === "FREE_LAUNCH" ? "Your ad is live" : "Your ad is awaiting payment",
+        bodyAr:
+          mode === "FREE_LAUNCH"
+            ? "أصبح إعلانك نشطًا بعد اجتياز الفحص الآلي."
+            : "أكمل الدفع من خلال مزود الدفع المعتمد لتفعيل الإعلان.",
+        bodyEn:
+          mode === "FREE_LAUNCH"
+            ? "Your ad is active after automated validation."
+            : "Complete payment through the approved provider to activate the ad.",
+        data: { adId: created.id },
+      },
+    });
+    return created;
   }
 
   @Patch(":id")
@@ -548,7 +566,46 @@ export class AnalyticsController {
       _count: { _all: true },
       _avg: { watchDurationMs: true },
     });
-    return { adId: id, totals: grouped };
+    const events = await prisma.analyticsEvent.findMany({
+      where: { adId: id },
+      select: { occurredAt: true, cityId: true, event: true },
+    });
+    const increment = (map: Map<string, number>, key: string) =>
+      map.set(key, (map.get(key) ?? 0) + 1);
+    const cities = new Map<string, number>();
+    const days = new Map<string, number>();
+    const hours = new Map<string, number>();
+    for (const event of events) {
+      if (event.event !== "IMPRESSION") continue;
+      if (event.cityId) increment(cities, event.cityId);
+      increment(days, event.occurredAt.toISOString().slice(0, 10));
+      increment(hours, event.occurredAt.getUTCHours().toString().padStart(2, "0"));
+    }
+    const best = (map: Map<string, number>) =>
+      [...map.entries()].sort((left, right) => right[1] - left[1])[0] ?? null;
+    const count = (event: string) =>
+      grouped
+        .filter((item) => item.event === event)
+        .reduce((sum, item) => sum + item._count._all, 0);
+    const videoViews = count("VIDEO_VIEW");
+    const completions = count("VIDEO_COMPLETE");
+    return {
+      adId: id,
+      totals: grouped,
+      impressions: count("IMPRESSION"),
+      uniqueReach: count("UNIQUE_REACH"),
+      videoViews,
+      averageWatchDurationMs:
+        grouped.find((item) => item.event === "VIDEO_VIEW")?._avg.watchDurationMs ?? 0,
+      completionRate: videoViews ? completions / videoViews : 0,
+      contactClicks:
+        count("WHATSAPP_CLICK") + count("STORE_CLICK") + count("PHONE_CLICK"),
+      saves: count("SAVE"),
+      shares: count("SHARE"),
+      bestCity: best(cities),
+      bestDay: best(days),
+      bestHourUtc: best(hours),
+    };
   }
 }
 

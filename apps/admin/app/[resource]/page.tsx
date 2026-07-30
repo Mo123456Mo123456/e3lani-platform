@@ -9,9 +9,17 @@ import { api } from "@/lib/api";
 
 const resources = {
   users: { title: "المستخدمون", endpoint: "/admin/users" },
+  businesses: { title: "الحسابات التجارية", endpoint: "/admin/businesses" },
+  ads: { title: "الإعلانات", endpoint: "/admin/ads" },
+  posts: { title: "المنشورات", endpoint: "/admin/posts" },
   reports: { title: "البلاغات", endpoint: "/admin/reports" },
   appeals: { title: "الاعتراضات", endpoint: "/admin/appeals" },
+  categories: { title: "الأقسام", endpoint: "/admin/categories" },
+  cities: { title: "المدن", endpoint: "/admin/cities" },
   prices: { title: "الأسعار", endpoint: "/admin/prices" },
+  payments: { title: "المدفوعات", endpoint: "/admin/payments" },
+  notifications: { title: "الإشعارات", endpoint: "/admin/notifications" },
+  analytics: { title: "التحليلات", endpoint: "/admin/analytics" },
   banners: { title: "شعارات الشريط", endpoint: "/admin/banners" },
   audit: { title: "سجل الإجراءات", endpoint: "/admin/audit" },
 } as const;
@@ -67,6 +75,11 @@ export default function ResourcePage({ params }: { params: Promise<{ resource: s
           method: "PATCH",
           body: JSON.stringify({ action, reason, notifyOwner: true }),
         });
+      } else if (resource === "ads") {
+        await api(`/admin/ads/${row.id}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ action, reason }),
+        });
       } else if (resource === "appeals") {
         await api(`/admin/appeals/${row.id}`, {
           method: "PATCH",
@@ -76,6 +89,19 @@ export default function ResourcePage({ params }: { params: Promise<{ resource: s
         await api(`/admin/banners/${row.id}`, {
           method: "PATCH",
           body: JSON.stringify({ action, reason }),
+        });
+      } else if (resource === "posts") {
+        await api(`/admin/posts/${row.id}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ published: action === "PUBLISH", reason }),
+        });
+      } else if (resource === "users") {
+        await api(`/admin/users/${row.id}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            status: action === "ACTIVATE" ? "ACTIVE" : "SUSPENDED",
+            reason,
+          }),
         });
       }
       await load();
@@ -140,6 +166,17 @@ export default function ResourcePage({ params }: { params: Promise<{ resource: s
                 </Button>
               </div>
             )}
+            {resource === "ads" && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button variant="danger" onClick={() => void decide(row, "SUSPEND")}>
+                  إيقاف
+                </Button>
+                <Button variant="danger" onClick={() => void decide(row, "DELETE")}>
+                  حذف
+                </Button>
+                <Button onClick={() => void decide(row, "REACTIVATE")}>إعادة تفعيل</Button>
+              </div>
+            )}
             {resource === "appeals" && (
               <div className="mt-4 flex gap-2">
                 <Button onClick={() => void decide(row, "ACCEPT")}>قبول الاعتراض</Button>
@@ -155,6 +192,22 @@ export default function ResourcePage({ params }: { params: Promise<{ resource: s
                   رفض
                 </Button>
                 <Button variant="ghost" onClick={() => void decide(row, "PAUSE")}>
+                  إيقاف
+                </Button>
+              </div>
+            )}
+            {resource === "posts" && (
+              <div className="mt-4 flex gap-2">
+                <Button onClick={() => void decide(row, "PUBLISH")}>إظهار</Button>
+                <Button variant="danger" onClick={() => void decide(row, "HIDE")}>
+                  إخفاء
+                </Button>
+              </div>
+            )}
+            {resource === "users" && (
+              <div className="mt-4 flex gap-2">
+                <Button onClick={() => void decide(row, "ACTIVATE")}>تفعيل</Button>
+                <Button variant="danger" onClick={() => void decide(row, "SUSPEND")}>
                   إيقاف
                 </Button>
               </div>

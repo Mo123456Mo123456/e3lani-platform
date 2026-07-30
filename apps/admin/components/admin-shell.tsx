@@ -11,9 +11,17 @@ import { api, clearSession, getAccessToken } from "@/lib/api";
 const navigation = [
   ["/", "نظرة عامة"],
   ["/users", "المستخدمون"],
+  ["/businesses", "الحسابات التجارية"],
+  ["/ads", "الإعلانات"],
+  ["/posts", "المنشورات"],
   ["/reports", "البلاغات"],
   ["/appeals", "الاعتراضات"],
+  ["/categories", "الأقسام"],
+  ["/cities", "المدن"],
   ["/prices", "الأسعار"],
+  ["/payments", "المدفوعات"],
+  ["/notifications", "الإشعارات"],
+  ["/analytics", "التحليلات"],
   ["/banners", "شعارات الشريط"],
   ["/audit", "سجل الإجراءات"],
 ] as const;
