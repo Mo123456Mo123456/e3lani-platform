@@ -75,7 +75,7 @@ export default function ProfileScreen() {
     await uploadFile(prepared.uploadUrl, asset.uri, asset.mimeType);
     await api("/media/complete", { method: "POST", body: JSON.stringify({ mediaId: prepared.mediaId }) });
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const status = await api<{ status: string }>(`/media/${prepared.mediaId}/status`, { method: "POST" });
+      const status = await api<{ status: string }>(`/media/${prepared.mediaId}/status`);
       if (status.status === "READY") break;
       if (status.status === "FAILED") throw new Error("MEDIA_PROCESSING_FAILED");
       await new Promise((resolve) => setTimeout(resolve, 1_000));

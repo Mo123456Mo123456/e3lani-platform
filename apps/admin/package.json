@@ -6,7 +6,7 @@
     "build": "next build",
     "dev": "next dev --port 3001",
     "start": "next start --port 3001",
-    "lint": "next lint",
+    "lint": "eslint app components lib middleware.ts next.config.ts tailwind.config.ts",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },

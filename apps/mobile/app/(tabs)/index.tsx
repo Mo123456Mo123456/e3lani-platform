@@ -10,6 +10,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
   type ViewToken,
@@ -27,9 +28,13 @@ function Ticker() {
   const movement = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     api<Array<{ id: string; logoUrl: string }>>("/catalog/ticker")
-      .then((rows) =>
-        setLogos(rows.filter((row, index) => index === 0 || row.logoUrl !== rows[index - 1]?.logoUrl)),
-      )
+      .then((rows) => {
+        const unique = rows.filter(
+          (row, index) => index === 0 || row.logoUrl !== rows[index - 1]?.logoUrl,
+        );
+        if (unique.length > 1 && unique[0]?.logoUrl === unique.at(-1)?.logoUrl) unique.pop();
+        setLogos(unique);
+      })
       .catch(() => undefined);
   }, []);
   useEffect(() => {
@@ -81,6 +86,8 @@ export default function HomeScreen() {
   const { locale, rtl } = useLocale();
   const ar = locale === "ar";
   const [mode, setMode] = useState<Mode>("FOR_YOU");
+  const [searchText, setSearchText] = useState("");
+  const [search, setSearch] = useState("");
   const [items, setItems] = useState<FeedItem[]>([]);
   const [activeId, setActiveId] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -103,6 +110,7 @@ export default function HomeScreen() {
         limit: "20",
         ...(cityId ? { cityId } : {}),
         ...(params.categoryId ? { categoryId: params.categoryId } : {}),
+        ...(search ? { search } : {}),
       });
       const data = await api<{ items: FeedItem[] }>(`/content/feed?${query.toString()}`);
       setItems(data.items);
@@ -111,7 +119,7 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [authenticated, mode, params.categoryId]);
+  }, [authenticated, mode, params.categoryId, search]);
 
   useFocusEffect(
     useCallback(() => {
@@ -132,6 +140,18 @@ export default function HomeScreen() {
           <Text style={styles.logo}>إعلاني</Text>
           <Text style={styles.slogan}>{ar ? "منصة الإعلانات المرئية لكل شيء" : "Visual ads for everything"}</Text>
         </View>
+        <TextInput
+          value={searchText}
+          onChangeText={setSearchText}
+          onSubmitEditing={() => {
+            setLoading(true);
+            setSearch(searchText.trim());
+          }}
+          returnKeyType="search"
+          placeholder={ar ? "ابحث" : "Search"}
+          textAlign={rtl ? "right" : "left"}
+          style={styles.search}
+        />
       </View>
       <Ticker />
       <View style={[styles.tabs, { flexDirection: rtl ? "row-reverse" : "row" }]}>
@@ -196,6 +216,7 @@ const styles = StyleSheet.create({
   header: { height: 56, paddingHorizontal: 16, alignItems: "center", justifyContent: "space-between" },
   logo: { color: "#111111", fontSize: 25, fontWeight: "900" },
   slogan: { color: "#666666", fontSize: 9, marginTop: -2 },
+  search: { width: 145, height: 38, borderRadius: 12, backgroundColor: "#F2F2F2", paddingHorizontal: 11, fontSize: 12 },
   ticker: { height: 36, overflow: "hidden", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#EEEEEE" },
   tickerTrack: { flexDirection: "row", height: 36, alignItems: "center" },
   tickerItem: { width: 92, flexDirection: "row", alignItems: "center", gap: 7 },

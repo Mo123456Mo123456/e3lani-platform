@@ -9,8 +9,11 @@ import {
   Param,
   Post,
   Query,
+  Req,
 } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
 import { createHash } from "node:crypto";
+import type { Request } from "express";
 import { z } from "zod";
 
 import {
@@ -51,7 +54,24 @@ function moderationFor(text: string) {
 
 @Injectable()
 export class ContentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+  ) {}
+
+  private async assertApprovedContact(contact: { type: string; value: string }) {
+    if (contact.type !== "EXTERNAL_URL") return;
+    const setting = await this.prisma.appSetting.findUnique({
+      where: { key: "links.allowedDomains" },
+    });
+    const domains = Array.isArray(setting?.value)
+      ? setting.value.filter((value): value is string => typeof value === "string")
+      : [];
+    const host = new URL(contact.value).hostname.toLowerCase();
+    if (!domains.some((domain) => host === domain || host.endsWith(`.${domain}`))) {
+      throw new BadRequestException("EXTERNAL_DOMAIN_NOT_APPROVED");
+    }
+  }
 
   async feed(rawQuery: unknown) {
     const query = parseInput(feedQuerySchema, rawQuery);
@@ -159,6 +179,7 @@ export class ContentService {
 
   async createPost(user: AuthUser, rawInput: unknown) {
     const input = parseInput(createPostSchema, rawInput);
+    await this.assertApprovedContact(input.contact);
     const [category, city, media] = await Promise.all([
       this.prisma.category.findFirst({ where: { id: input.categoryId, active: true } }),
       this.prisma.city.findFirst({ where: { id: input.cityId, active: true } }),
@@ -268,8 +289,91 @@ export class ContentService {
     };
   }
 
+  async analytics(user: AuthUser, id: string) {
+    const distribution = await this.prisma.adDistribution.findFirst({
+      where: { id, ownerId: user.id },
+      select: { id: true, startsAt: true, expiresAt: true },
+    });
+    if (!distribution) throw new NotFoundException("DISTRIBUTION_NOT_FOUND");
+    const [groups, uniqueActors, events, daily] = await Promise.all([
+      this.prisma.adEvent.groupBy({
+        by: ["type", "source", "cityId"],
+        where: { distributionId: id },
+        _count: { _all: true },
+        _avg: { watchMs: true },
+      }),
+      this.prisma.adEvent.findMany({
+        where: {
+          distributionId: id,
+          type: "IMPRESSION",
+          OR: [{ actorId: { not: null } }, { anonymousId: { not: null } }],
+        },
+        distinct: ["actorId", "anonymousId"],
+        select: { actorId: true, anonymousId: true },
+      }),
+      this.prisma.adEvent.findMany({
+        where: { distributionId: id },
+        select: { occurredAt: true, type: true },
+        orderBy: { occurredAt: "desc" },
+        take: 20_000,
+      }),
+      this.prisma.dailyMetric.findMany({
+        where: { distributionId: id },
+        orderBy: { date: "asc" },
+      }),
+    ]);
+    const count = (type: string) =>
+      groups
+        .filter((group) => group.type === type)
+        .reduce((sum, group) => sum + group._count._all, 0);
+    const watchGroups = groups.filter((group) => group.type === "VIDEO_START" && group._avg.watchMs);
+    const averageWatchMs = watchGroups.length
+      ? Math.round(
+          watchGroups.reduce((sum, group) => sum + Number(group._avg.watchMs ?? 0), 0) /
+            watchGroups.length,
+        )
+      : 0;
+    const byHour = new Map<number, number>();
+    const byDay = new Map<string, number>();
+    for (const event of events) {
+      const hour = event.occurredAt.getHours();
+      const day = event.occurredAt.toISOString().slice(0, 10);
+      byHour.set(hour, (byHour.get(hour) ?? 0) + 1);
+      byDay.set(day, (byDay.get(day) ?? 0) + 1);
+    }
+    const best = <T,>(map: Map<T, number>) =>
+      [...map.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+    const videoStarts = count("VIDEO_START");
+    return {
+      period: { startsAt: distribution.startsAt, expiresAt: distribution.expiresAt },
+      impressions: count("IMPRESSION"),
+      uniqueReach: uniqueActors.length,
+      videoViews: videoStarts,
+      averageWatchMs,
+      completionRate: videoStarts ? count("VIDEO_COMPLETE") / videoStarts : 0,
+      clicks: {
+        whatsapp: count("WHATSAPP_CLICK"),
+        store: count("STORE_CLICK"),
+        phone: count("PHONE_CLICK"),
+      },
+      saves: count("SAVE"),
+      shares: count("SHARE"),
+      bestDay: best(byDay),
+      bestHour: best(byHour),
+      byCityAndSource: groups
+        .filter((group) => group.type === "IMPRESSION")
+        .map((group) => ({
+          cityId: group.cityId,
+          source: group.source,
+          impressions: group._count._all,
+        })),
+      daily,
+    };
+  }
+
   async distribute(user: AuthUser, rawInput: unknown) {
     const input = parseInput(createDistributionSchema, rawInput);
+    await this.assertApprovedContact(input.contact);
     const [post, modeSetting, paymentSetting, durationSetting, pricing] = await Promise.all([
       this.prisma.profilePost.findFirst({
         where: { id: input.postId, ownerId: user.id, status: "PUBLISHED" },
@@ -392,10 +496,23 @@ export class ContentService {
   }
 
   async save(user: AuthUser, distributionId: string) {
-    await this.prisma.favorite.upsert({
-      where: { userId_distributionId: { userId: user.id, distributionId } },
-      update: {},
-      create: { userId: user.id, distributionId },
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.favorite.upsert({
+        where: { userId_distributionId: { userId: user.id, distributionId } },
+        update: {},
+        create: { userId: user.id, distributionId },
+      });
+      await transaction.adEvent.upsert({
+        where: { dedupeKey: `save:${user.id}:${distributionId}` },
+        update: {},
+        create: {
+          distributionId,
+          actorId: user.id,
+          type: "SAVE",
+          source: "ORGANIC",
+          dedupeKey: `save:${user.id}:${distributionId}`,
+        },
+      });
     });
     return { saved: true };
   }
@@ -436,11 +553,32 @@ export class ContentService {
     });
   }
 
-  async event(rawInput: unknown) {
+  async event(rawInput: unknown, authorization?: string) {
     const input = parseInput(eventSchema, rawInput);
+    let actorId: string | undefined;
+    const token = authorization?.match(/^Bearer (.+)$/)?.[1];
+    if (token) {
+      try {
+        const payload = await this.jwt.verifyAsync<{ sub: string; type: string }>(token, {
+          secret: process.env.JWT_ACCESS_SECRET,
+          issuer: "e3lani-api",
+          audience: "e3lani-clients",
+        });
+        if (payload.type === "access") actorId = payload.sub;
+      } catch {
+        actorId = undefined;
+      }
+    }
+    if (actorId) {
+      const ownDistribution = await this.prisma.adDistribution.findFirst({
+        where: { id: input.distributionId, ownerId: actorId },
+        select: { id: true },
+      });
+      if (ownDistribution) return { accepted: true, excludedOwnerView: true };
+    }
     const bucket = input.bucket ?? new Date(Math.floor(Date.now() / 30_000) * 30_000).toISOString();
     const dedupeKey = createHash("sha256")
-      .update(`${input.distributionId}:${input.type}:${input.anonymousId}:${bucket}`)
+      .update(`${input.distributionId}:${input.type}:${actorId ?? input.anonymousId}:${bucket}`)
       .digest("hex");
     await this.prisma.adEvent.upsert({
       where: { dedupeKey },
@@ -448,6 +586,7 @@ export class ContentService {
       create: {
         distributionId: input.distributionId,
         type: input.type,
+        actorId,
         anonymousId: input.anonymousId,
         source: input.source,
         watchMs: input.watchMs,
@@ -490,6 +629,11 @@ export class ContentController {
     return this.content.distribute(user, body);
   }
 
+  @Get("distributions/:id/analytics")
+  analytics(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.content.analytics(user, id);
+  }
+
   @Get("saved")
   saved(@CurrentUser() user: AuthUser) {
     return this.content.saved(user);
@@ -512,7 +656,7 @@ export class ContentController {
 
   @Public()
   @Post("events")
-  event(@Body() body: unknown) {
-    return this.content.event(body);
+  event(@Body() body: unknown, @Req() request: Request) {
+    return this.content.event(body, request.headers.authorization);
   }
 }

@@ -4,6 +4,7 @@ export function LogoTicker({ logos, label }: { logos: Logo[]; label: string }) {
   const unique = logos.filter(
     (logo, index, items) => index === 0 || logo.logoUrl !== items[index - 1]?.logoUrl,
   );
+  if (unique.length > 1 && unique[0]?.logoUrl === unique.at(-1)?.logoUrl) unique.pop();
   if (unique.length === 0) return null;
   const sequence = unique.flatMap((logo) => [
     <img

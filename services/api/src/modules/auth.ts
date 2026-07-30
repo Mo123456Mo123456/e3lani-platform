@@ -6,11 +6,12 @@ import {
   Get,
   Injectable,
   Logger,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
 } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
+import { JwtService, type JwtSignOptions } from "@nestjs/jwt";
 import { Throttle } from "@nestjs/throttler";
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
@@ -34,6 +35,29 @@ export class ConsoleOtpAdapter implements OtpProvider {
       throw new Error("CONSOLE_OTP_FORBIDDEN_IN_PRODUCTION");
     }
     this.logger.warn(`[LOCAL OTP] ${phone}: ${code}`);
+  }
+}
+
+@Injectable()
+export class SmsOtpAdapter implements OtpProvider {
+  async send(phone: string, code: string) {
+    const url = process.env.SMS_PROVIDER_URL;
+    const apiKey = process.env.SMS_PROVIDER_API_KEY;
+    const sender = process.env.SMS_PROVIDER_SENDER_ID;
+    if (!url || !apiKey || !sender) throw new Error("SMS_PROVIDER_NOT_CONFIGURED");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        to: phone,
+        sender,
+        message: `رمز التحقق في إعلاني: ${code}`,
+      }),
+    });
+    if (!response.ok) throw new Error(`SMS_PROVIDER_ERROR_${response.status}`);
   }
 }
 
@@ -197,7 +221,7 @@ export class AuthService {
         secret: process.env.JWT_ACCESS_SECRET,
         issuer: "e3lani-api",
         audience: "e3lani-clients",
-        expiresIn: process.env.JWT_ACCESS_TTL ?? "15m",
+        expiresIn: (process.env.JWT_ACCESS_TTL ?? "15m") as JwtSignOptions["expiresIn"],
       },
     );
     return {
@@ -279,6 +303,22 @@ export class AuthService {
       },
     };
   }
+
+  notifications(user: AuthUser) {
+    return this.prisma.notification.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+  }
+
+  async markNotificationsRead(user: AuthUser) {
+    await this.prisma.notification.updateMany({
+      where: { userId: user.id, readAt: null },
+      data: { readAt: new Date() },
+    });
+    return { success: true };
+  }
 }
 
 @Controller("auth")
@@ -320,5 +360,15 @@ export class AuthController {
   @Get("me")
   me(@CurrentUser() user: AuthUser) {
     return this.auth.me(user);
+  }
+
+  @Get("notifications")
+  notifications(@CurrentUser() user: AuthUser) {
+    return this.auth.notifications(user);
+  }
+
+  @Patch("notifications/read-all")
+  markNotificationsRead(@CurrentUser() user: AuthUser) {
+    return this.auth.markNotificationsRead(user);
   }
 }

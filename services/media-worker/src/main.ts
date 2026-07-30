@@ -4,19 +4,26 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { Worker, type Job } from "bullmq";
-import ffmpegPath from "ffmpeg-static";
+import { config as loadEnvironment } from "dotenv";
+import ffmpegStatic from "ffmpeg-static";
 import ffprobe from "ffprobe-static";
 import { fileTypeFromBuffer } from "file-type";
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import sharp from "sharp";
 
 import { prisma } from "@e3lani/database";
 
+loadEnvironment({
+  path: [resolve(process.cwd(), "../../.env"), resolve(process.cwd(), ".env")],
+  quiet: true,
+});
+
 const connection = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
+const ffmpegPath = ffmpegStatic as unknown as string | null;
 const bucket = process.env.S3_BUCKET!;
 const s3 = new S3Client({
   endpoint: process.env.S3_ENDPOINT,
@@ -71,20 +78,31 @@ async function processImage(mediaId: string) {
   const image = sharp(source, { failOn: "error", limitInputPixels: 40_000_000 }).rotate();
   const metadata = await image.metadata();
   if (!metadata.width || !metadata.height) throw new Error("IMAGE_DIMENSIONS_MISSING");
-  const thumbnail = await image
+  const normalized =
+    media.purpose === "AVATAR" || media.purpose === "LOGO"
+      ? image.clone().resize(1080, 1080, { fit: "cover", position: "attention" })
+      : image;
+  const thumbnail = await normalized
     .clone()
     .resize(320, 320, { fit: "cover" })
     .webp({ quality: 76 })
     .toBuffer();
-  const optimized = await image
+  const optimized = await normalized
     .clone()
     .resize({ width: 1440, height: 1920, fit: "inside", withoutEnlargement: true })
     .webp({ quality: 84 })
     .toBuffer();
+  const medium = await normalized
+    .clone()
+    .resize({ width: 720, height: 960, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toBuffer();
   const thumbnailKey = `processed/${media.id}/thumb.webp`;
+  const mediumKey = `processed/${media.id}/medium.webp`;
   const optimizedKey = `processed/${media.id}/full.webp`;
   await Promise.all([
     put(thumbnailKey, thumbnail, "image/webp"),
+    put(mediumKey, medium, "image/webp"),
     put(optimizedKey, optimized, "image/webp"),
   ]);
   await prisma.mediaAsset.update({
@@ -92,6 +110,7 @@ async function processImage(mediaId: string) {
     data: {
       status: "READY",
       thumbnailKey,
+      mediumKey,
       optimizedKey,
       width: metadata.width,
       height: metadata.height,

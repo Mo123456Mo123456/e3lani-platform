@@ -17,6 +17,7 @@ import {
 } from "react-native";
 
 import { api } from "@/lib/api";
+import { trackAdEvent } from "@/lib/analytics";
 import { useAuth, useLocale } from "@/lib/app-context";
 
 function contactUrl(item: FeedItem) {
@@ -29,12 +30,10 @@ function contactUrl(item: FeedItem) {
 
 function VideoMedia({
   url,
-  poster,
   active,
   muted,
 }: {
   url: string;
-  poster: string | null;
   active: boolean;
   muted: boolean;
 }) {
@@ -70,6 +69,13 @@ export function FeedCard({ item, height, active }: { item: FeedItem; height: num
   const [saved, setSaved] = useState(item.saved);
   const [slide, setSlide] = useState(0);
   const video = item.media.length === 1 && item.media[0]?.kind === "VIDEO" ? item.media[0] : null;
+
+  useEffect(() => {
+    if (!active) return;
+    void trackAdEvent(item.id, "IMPRESSION");
+    void trackAdEvent(item.id, "VIEW");
+    if (video) void trackAdEvent(item.id, "VIDEO_START");
+  }, [active, item.id, video]);
 
   async function toggleSaved() {
     if (!authenticated) {
@@ -115,7 +121,7 @@ export function FeedCard({ item, height, active }: { item: FeedItem; height: num
   return (
     <View style={[styles.card, { height }]}>
       {video ? (
-        <VideoMedia url={video.url} poster={video.thumbnailUrl} active={active} muted={muted} />
+        <VideoMedia url={video.url} active={active} muted={muted} />
       ) : (
         <FlatList
           horizontal
@@ -165,7 +171,10 @@ export function FeedCard({ item, height, active }: { item: FeedItem; height: num
           <MaterialIcons name={saved ? "bookmark" : "bookmark-border"} size={27} color={saved ? "#FFC400" : "#FFFFFF"} />
         </Pressable>
         <Pressable
-          onPress={() => Share.share({ message: `${item.title}\nhttps://e3lani.sa/${locale}/ad/${item.id}` })}
+          onPress={() => {
+            void trackAdEvent(item.id, "SHARE");
+            void Share.share({ message: `${item.title}\nhttps://e3lani.sa/${locale}/ad/${item.id}` });
+          }}
           style={styles.action}
           accessibilityLabel={ar ? "مشاركة" : "Share"}
         >
@@ -204,7 +213,16 @@ export function FeedCard({ item, height, active }: { item: FeedItem; height: num
           <Text style={styles.locationText}>{ar ? item.city.nameAr : item.city.nameEn}</Text>
         </View>
         <Pressable
-          onPress={() => Linking.openURL(contactUrl(item))}
+          onPress={() => {
+            const event =
+              item.contact.type === "WHATSAPP"
+                ? "WHATSAPP_CLICK"
+                : item.contact.type === "PHONE"
+                  ? "PHONE_CLICK"
+                  : "STORE_CLICK";
+            void trackAdEvent(item.id, event);
+            void Linking.openURL(contactUrl(item));
+          }}
           style={styles.cta}
           accessibilityRole="link"
           accessibilityLabel={ar ? "تواصل مع المعلن" : "Contact advertiser"}

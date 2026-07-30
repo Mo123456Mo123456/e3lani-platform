@@ -1,11 +1,9 @@
 "use client";
 
 import { Button, Card, Input } from "@e3lani/ui";
-import { useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 export default function LoginPage() {
-  const search = useSearchParams();
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -29,7 +27,10 @@ export default function LoginPage() {
       return;
     }
     if (step === "phone") setStep("code");
-    else window.location.assign(search.get("next") || "/dashboard");
+    else {
+      const next = new URLSearchParams(window.location.search).get("next");
+      window.location.assign(next?.startsWith("/") ? next : "/dashboard");
+    }
   }
 
   return (

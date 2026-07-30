@@ -324,6 +324,7 @@ model MediaAsset {
   height              Int?
   durationSeconds     Float?
   thumbnailKey        String?
+  mediumKey           String?
   optimizedKey        String?
   processingError     String?
   moderationResult    ModerationResult?

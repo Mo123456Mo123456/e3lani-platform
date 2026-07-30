@@ -166,6 +166,16 @@ async function seed() {
     update: {},
     create: { key: "ads.defaultDurationDays", value: 30, public: true },
   });
+  await prisma.appSetting.upsert({
+    where: { key: "links.allowedDomains" },
+    update: {},
+    create: {
+      key: "links.allowedDomains",
+      value: [],
+      public: false,
+      description: "Approved HTTPS domains for EXTERNAL_URL contacts.",
+    },
+  });
 
   if (process.env.SEED_SANDBOX === "true") {
     const city = await prisma.city.findUniqueOrThrow({ where: { code: "riyadh" } });

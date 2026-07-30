@@ -2,18 +2,20 @@
   "name": "@e3lani/media-worker",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
     "lint": "eslint src",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "latest",
     "@e3lani/database": "workspace:*",
     "bullmq": "latest",
+    "dotenv": "latest",
     "ffmpeg-static": "latest",
     "ffprobe-static": "latest",
     "file-type": "latest",

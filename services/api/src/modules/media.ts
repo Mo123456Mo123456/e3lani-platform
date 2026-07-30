@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Injectable,
   NotFoundException,
   Param,
@@ -147,6 +148,23 @@ export class MediaService {
     });
   }
 
+  private async deleteOwnedAsset(userId: string, mediaId?: string | null) {
+    if (!mediaId) return;
+    const media = await this.prisma.mediaAsset.findFirst({
+      where: { id: mediaId, ownerId: userId },
+    });
+    if (!media) return;
+    await Promise.all(
+      [media.sourceKey, media.thumbnailKey, media.mediumKey, media.optimizedKey]
+        .filter((key): key is string => Boolean(key))
+        .map((key) => this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))),
+    );
+    await this.prisma.mediaAsset.update({
+      where: { id: media.id },
+      data: { status: "DELETED" },
+    });
+  }
+
   async assignProfileMedia(user: AuthUser, rawInput: unknown) {
     const input = parseInput(profileMediaSchema, rawInput);
     const media = await this.prisma.mediaAsset.findFirst({
@@ -159,33 +177,62 @@ export class MediaService {
       },
     });
     if (!media) throw new BadRequestException("PROFILE_MEDIA_NOT_READY_OR_OWNED");
+    let previousMediaId: string | null | undefined;
     if (input.slot === "LOGO") {
+      previousMediaId = (
+        await this.prisma.businessProfile.findUnique({
+          where: { userId: user.id },
+          select: { logoMediaId: true },
+        })
+      )?.logoMediaId;
       await this.prisma.businessProfile.upsert({
         where: { userId: user.id },
         update: { logoMediaId: media.id },
         create: { userId: user.id, legalName: "", logoMediaId: media.id },
       });
     } else {
+      const profile = await this.prisma.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { avatarMediaId: true, coverMediaId: true },
+      });
+      previousMediaId = input.slot === "AVATAR" ? profile?.avatarMediaId : profile?.coverMediaId;
       await this.prisma.userProfile.update({
         where: { userId: user.id },
         data: input.slot === "AVATAR" ? { avatarMediaId: media.id } : { coverMediaId: media.id },
       });
     }
+    if (previousMediaId !== media.id) await this.deleteOwnedAsset(user.id, previousMediaId);
     return { success: true };
   }
 
   async removeProfileMedia(user: AuthUser, slot: "AVATAR" | "LOGO" | "COVER") {
+    if (!["AVATAR", "LOGO", "COVER"].includes(slot)) {
+      throw new BadRequestException("INVALID_PROFILE_MEDIA_SLOT");
+    }
+    let previousMediaId: string | null | undefined;
     if (slot === "LOGO") {
+      previousMediaId = (
+        await this.prisma.businessProfile.findUnique({
+          where: { userId: user.id },
+          select: { logoMediaId: true },
+        })
+      )?.logoMediaId;
       await this.prisma.businessProfile.updateMany({
         where: { userId: user.id },
         data: { logoMediaId: null },
       });
     } else {
+      const profile = await this.prisma.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { avatarMediaId: true, coverMediaId: true },
+      });
+      previousMediaId = slot === "AVATAR" ? profile?.avatarMediaId : profile?.coverMediaId;
       await this.prisma.userProfile.update({
         where: { userId: user.id },
         data: slot === "AVATAR" ? { avatarMediaId: null } : { coverMediaId: null },
       });
     }
+    await this.deleteOwnedAsset(user.id, previousMediaId);
     return { success: true };
   }
 }
@@ -222,7 +269,7 @@ export class MediaController {
     return this.media.complete(user, { mediaId: id });
   }
 
-  @Post(":id/status")
+  @Get(":id/status")
   status(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.media.status(user, id);
   }

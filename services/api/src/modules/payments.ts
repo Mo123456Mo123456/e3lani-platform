@@ -25,15 +25,20 @@ export class DisabledPaymentAdapter implements PaymentProvider {
     throw new ServiceUnavailableException("PAYMENTS_DISABLED");
   }
 
-  async createPayment(): Promise<never> {
+  async createPayment(input: PaymentIntent): Promise<never> {
+    void input;
     return this.unavailable();
   }
 
-  async verifyWebhook(): Promise<never> {
+  async verifyWebhook(signature: string, rawBody: Buffer): Promise<never> {
+    void signature;
+    void rawBody;
     return this.unavailable();
   }
 
-  async refund(): Promise<never> {
+  async refund(providerReference: string, amountHalalas: number): Promise<never> {
+    void providerReference;
+    void amountHalalas;
     return this.unavailable();
   }
 }

@@ -1,6 +1,13 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { config as loadEnvironment } from "dotenv";
+import { resolve } from "node:path";
 
 import { PrismaClient } from "../generated/client/client";
+
+loadEnvironment({
+  path: [resolve(process.cwd(), "../../.env"), resolve(process.cwd(), ".env")],
+  quiet: true,
+});
 
 const globalDatabase = globalThis as unknown as { prisma?: PrismaClient };
 

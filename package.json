@@ -21,6 +21,8 @@
     "zip": "node scripts/create-archive.mjs"
   },
   "devDependencies": {
+    "@e3lani/eslint-config": "workspace:*",
+    "eslint": "^9.39.5",
     "prettier": "latest",
     "turbo": "latest",
     "typescript": "~5.9.3"

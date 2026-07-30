@@ -17,6 +17,7 @@ web-build/
 apps/mobile/ios/
 apps/mobile/android/
 packages/database/prisma/dev.db
+packages/database/generated/
 
 *.zip
 artifacts/

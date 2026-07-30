@@ -30,6 +30,54 @@ export default async function LocaleHome({
   return (
     <main>
       <LogoTicker logos={ticker} label={ar ? "شعارات معلني الشريط" : "Advertiser ticker logos"} />
+      <form
+        action={`/${locale}`}
+        className="border-b border-black/10 bg-e3-gray px-4 py-3"
+        aria-label={ar ? "بحث وفلاتر الإعلانات" : "Ad search and filters"}
+      >
+        <div className="mx-auto grid max-w-6xl gap-2 sm:grid-cols-2 lg:grid-cols-6">
+          <input
+            name="search"
+            defaultValue={query.search}
+            placeholder={ar ? "ابحث في الإعلانات" : "Search ads"}
+            className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-e3-yellow lg:col-span-2"
+          />
+          <select name="cityId" defaultValue={query.cityId ?? ""} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm">
+            <option value="">{ar ? "كل المدن" : "All cities"}</option>
+            {catalog.regions.flatMap((region) =>
+              region.cities.map((city) => (
+                <option key={city.id} value={city.id}>{ar ? city.nameAr : city.nameEn}</option>
+              )),
+            )}
+          </select>
+          <select name="categoryId" defaultValue={query.categoryId ?? ""} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm">
+            <option value="">{ar ? "كل الأقسام" : "All categories"}</option>
+            {catalog.categories.map((category) => (
+              <option key={category.id} value={category.id}>{ar ? category.nameAr : category.nameEn}</option>
+            ))}
+          </select>
+          <select name="media" defaultValue={query.media ?? ""} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm">
+            <option value="">{ar ? "كل الوسائط" : "All media"}</option>
+            <option value="IMAGE">{ar ? "صور فقط" : "Images only"}</option>
+            <option value="VIDEO">{ar ? "فيديو فقط" : "Video only"}</option>
+          </select>
+          <button className="h-11 rounded-xl bg-e3-black px-5 text-sm font-black text-white">
+            {ar ? "تطبيق الفلاتر" : "Apply filters"}
+          </button>
+        </div>
+        <div className="mx-auto mt-2 flex max-w-6xl flex-wrap gap-4 text-xs font-bold">
+          {([
+            ["verified", ar ? "حسابات موثقة" : "Verified"],
+            ["featured", ar ? "مميزة" : "Featured"],
+            ["sponsored", ar ? "مموّلة" : "Sponsored"],
+          ] as const).map(([name, label]) => (
+            <label key={name} className="flex items-center gap-2">
+              <input type="checkbox" name={name} value="true" defaultChecked={query[name] === "true"} />
+              {label}
+            </label>
+          ))}
+        </div>
+      </form>
       <section className="border-b border-black/10 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-xl gap-2">
           {[

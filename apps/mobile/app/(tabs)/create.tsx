@@ -92,7 +92,6 @@ export default function CreateScreen() {
       for (let attempt = 0; attempt < 60; attempt += 1) {
         const status = await api<{ status: string; processingError?: string }>(
           `/media/${prepared.mediaId}/status`,
-          { method: "POST" },
         );
         if (status.status === "READY") {
           ready = true;
