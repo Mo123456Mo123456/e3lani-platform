@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && cp -r src/db/migrations dist/db/",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "node --watch -r ts-node/register/transpile-only src/main.ts",
     "start": "node dist/main.js",
