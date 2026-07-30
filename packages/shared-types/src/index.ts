@@ -62,14 +62,23 @@ export const contributionAnalysisSchema = z.object({
   category: z.enum(CONTRIBUTION_CATEGORIES),
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().min(8).max(2_000),
-  traits: z.record(z.string().regex(/^[a-z][a-zA-Z0-9]*$/), numericTraitSchema).refine(
-    (traits) => Object.keys(traits).length >= 2 && Object.keys(traits).length <= 24,
-    "Between 2 and 24 numeric traits are required",
-  ),
+  traits: z
+    .record(z.string().regex(/^[a-z][a-zA-Z0-9]*$/), numericTraitSchema)
+    .refine(
+      (traits) =>
+        Object.keys(traits).length >= 2 && Object.keys(traits).length <= 24,
+      "Between 2 and 24 numeric traits are required",
+    ),
   possibleBiomes: z.array(z.enum(BIOMES)).min(1).max(6),
   risks: z.array(z.string().min(2).max(80)).max(10),
   balancedChanges: z.array(z.string().min(2).max(200)).max(10),
-  provider: z.enum(["openai", "anthropic", "gemini", "local", "sandbox-rule-engine"]),
+  provider: z.enum([
+    "openai",
+    "anthropic",
+    "gemini",
+    "local",
+    "sandbox-rule-engine",
+  ]),
   model: z.string().min(1),
 });
 
@@ -181,7 +190,9 @@ export interface WorldDelta {
   tick: number;
   year: number;
   changedRegions: Array<Pick<PlanetRegion, "id"> & Partial<PlanetRegion>>;
-  changedCivilizations: Array<Pick<CivilizationState, "id"> & Partial<CivilizationState>>;
+  changedCivilizations: Array<
+    Pick<CivilizationState, "id"> & Partial<CivilizationState>
+  >;
   events: WorldEvent[];
 }
 

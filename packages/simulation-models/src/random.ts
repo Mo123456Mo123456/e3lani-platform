@@ -37,7 +37,8 @@ export class SeededRandom {
   }
 
   pick<T>(values: readonly T[]): T {
-    if (values.length === 0) throw new Error("Cannot pick from an empty collection");
+    if (values.length === 0)
+      throw new Error("Cannot pick from an empty collection");
     return values[Math.floor(this.next() * values.length)] as T;
   }
 
@@ -82,7 +83,9 @@ export function fractalNoise2D(
   let value = 0;
   let normalization = 0;
   for (let octave = 0; octave < octaves; octave += 1) {
-    value += valueNoise2D(seed + octave * 1_013, x * frequency, y * frequency) * amplitude;
+    value +=
+      valueNoise2D(seed + octave * 1_013, x * frequency, y * frequency) *
+      amplitude;
     normalization += amplitude;
     amplitude *= persistence;
     frequency *= 2;
@@ -99,7 +102,9 @@ export function worleyNoise2D(seed: number, x: number, y: number): number {
       const px =
         cellX + offsetX + lattice(seed, cellX + offsetX, cellY + offsetY);
       const py =
-        cellY + offsetY + lattice(seed + 7_919, cellX + offsetX, cellY + offsetY);
+        cellY +
+        offsetY +
+        lattice(seed + 7_919, cellX + offsetX, cellY + offsetY);
       minimum = Math.min(minimum, Math.hypot(x - px, y - py));
     }
   }

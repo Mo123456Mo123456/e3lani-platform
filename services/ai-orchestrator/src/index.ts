@@ -37,13 +37,19 @@ function detectCategory(idea: string): ContributionAnalysis["category"] {
     [/(اختراع|تقنية|آلة|invention|technology|machine)/i, "invention"],
     [/(مورد|معدن|طاقة|resource|mineral|energy)/i, "resource"],
     [/(ثقافة|لغة|culture|language)/i, "culture"],
-    [/(عاصفة|مناخ|زلزال|ظاهرة|storm|climate|earthquake)/i, "natural_phenomenon"],
+    [
+      /(عاصفة|مناخ|زلزال|ظاهرة|storm|climate|earthquake)/i,
+      "natural_phenomenon",
+    ],
     [/(قانون|جاذبية|law|gravity)/i, "world_law"],
   ];
   return categories.find(([pattern]) => pattern.test(idea))?.[1] ?? "custom";
 }
 
-function shortName(idea: string, category: ContributionAnalysis["category"]): string {
+function shortName(
+  idea: string,
+  category: ContributionAnalysis["category"],
+): string {
   const normalized = idea.replace(/[.!؟?]/g, " ").trim();
   const words = normalized.split(/\s+/).slice(0, 7).join(" ");
   return words.length >= 2 ? words.slice(0, 80) : `New ${category}`;
@@ -72,15 +78,19 @@ export class SandboxRuleProvider implements AnalysisProvider {
       risks.push("high_water_consumption", "ecosystem_competition");
     }
     if (/(يضيء|ضوء|glow|light)/i.test(text)) traits.nightLuminosity = 0.74;
-    if (/(لا يموت|خالد|immortal|never dies)/i.test(text)) {
+    if (/(لا (يموت|تموت)|خالد|immortal|never dies)/i.test(text)) {
       traits.longevity = 0.88;
       risks.push("population_lock_in");
-      balancedChanges.push("Immortality was replaced with high but finite longevity");
+      balancedChanges.push(
+        "Immortality was replaced with high but finite longevity",
+      );
     }
     if (/(بلا حدود|غير محدودة|infinite|unlimited)/i.test(text)) {
       traits.energyYield = Math.min(traits.energyYield ?? 0.7, 0.76);
       risks.push("resource_overuse");
-      balancedChanges.push("Unlimited output was capped by resource and energy constraints");
+      balancedChanges.push(
+        "Unlimited output was capped by resource and energy constraints",
+      );
     }
     if (Object.keys(traits).length < 3) traits.resourceEfficiency = 0.48;
     return contributionAnalysisSchema.parse({
@@ -105,8 +115,8 @@ type RemoteProviderName = "openai" | "anthropic" | "gemini" | "local";
 interface RemoteProviderOptions {
   name: RemoteProviderName;
   model: string;
-  apiKey?: string;
-  baseUrl?: string;
+  apiKey?: string | undefined;
+  baseUrl?: string | undefined;
 }
 
 function systemInstruction(): string {
@@ -130,15 +140,16 @@ function systemInstruction(): string {
 function extractJson(text: string): unknown {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start === -1 || end <= start) throw new Error("Provider returned no JSON object");
+  if (start === -1 || end <= start)
+    throw new Error("Provider returned no JSON object");
   return JSON.parse(text.slice(start, end + 1));
 }
 
 export class RemoteAnalysisProvider implements AnalysisProvider {
   readonly name: RemoteProviderName;
   readonly model: string;
-  private readonly apiKey?: string;
-  private readonly baseUrl?: string;
+  private readonly apiKey: string | undefined;
+  private readonly baseUrl: string | undefined;
 
   constructor(options: RemoteProviderOptions) {
     this.name = options.name;
@@ -165,46 +176,62 @@ export class RemoteAnalysisProvider implements AnalysisProvider {
 
   private async request(idea: string): Promise<string> {
     if (this.name === "anthropic") {
-      const response = await fetch(this.baseUrl ?? "https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": this.apiKey ?? "",
-          "anthropic-version": "2023-06-01",
+      const response = await fetch(
+        this.baseUrl ?? "https://api.anthropic.com/v1/messages",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": this.apiKey ?? "",
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: this.model,
+            max_tokens: 1_500,
+            system: systemInstruction(),
+            messages: [{ role: "user", content: idea }],
+          }),
         },
-        body: JSON.stringify({
-          model: this.model,
-          max_tokens: 1_500,
-          system: systemInstruction(),
-          messages: [{ role: "user", content: idea }],
-        }),
-      });
-      if (!response.ok) throw new Error(`Anthropic request failed: ${response.status}`);
-      const body = (await response.json()) as { content?: Array<{ text?: string }> };
+      );
+      if (!response.ok)
+        throw new Error(`Anthropic request failed: ${response.status}`);
+      const body = (await response.json()) as {
+        content?: Array<{ text?: string }>;
+      };
       return body.content?.map((part) => part.text ?? "").join("") ?? "";
     }
     if (this.name === "gemini") {
       const base =
         this.baseUrl ??
         `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
-      const response = await fetch(`${base}?key=${encodeURIComponent(this.apiKey ?? "")}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemInstruction() }] },
-          contents: [{ role: "user", parts: [{ text: idea }] }],
-          generationConfig: { responseMimeType: "application/json" },
-        }),
-      });
-      if (!response.ok) throw new Error(`Gemini request failed: ${response.status}`);
+      const response = await fetch(
+        `${base}?key=${encodeURIComponent(this.apiKey ?? "")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction() }] },
+            contents: [{ role: "user", parts: [{ text: idea }] }],
+            generationConfig: { responseMimeType: "application/json" },
+          }),
+        },
+      );
+      if (!response.ok)
+        throw new Error(`Gemini request failed: ${response.status}`);
       const body = (await response.json()) as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       };
-      return body.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+      return (
+        body.candidates?.[0]?.content?.parts
+          ?.map((part) => part.text ?? "")
+          .join("") ?? ""
+      );
     }
     const baseUrl =
       this.baseUrl ??
-      (this.name === "local" ? "http://localhost:11434/v1/chat/completions" : "https://api.openai.com/v1/chat/completions");
+      (this.name === "local"
+        ? "http://localhost:11434/v1/chat/completions"
+        : "https://api.openai.com/v1/chat/completions");
     const response = await fetch(baseUrl, {
       method: "POST",
       headers: {
@@ -220,7 +247,8 @@ export class RemoteAnalysisProvider implements AnalysisProvider {
         ],
       }),
     });
-    if (!response.ok) throw new Error(`${this.name} request failed: ${response.status}`);
+    if (!response.ok)
+      throw new Error(`${this.name} request failed: ${response.status}`);
     const body = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };
@@ -228,7 +256,9 @@ export class RemoteAnalysisProvider implements AnalysisProvider {
   }
 }
 
-export function createAnalysisProvider(environment: NodeJS.ProcessEnv): AnalysisProvider {
+export function createAnalysisProvider(
+  environment: Readonly<Record<string, string | undefined>>,
+): AnalysisProvider {
   const provider = environment.AI_PROVIDER ?? "sandbox";
   if (provider === "openai") {
     return new RemoteAnalysisProvider({
@@ -258,14 +288,23 @@ export function createAnalysisProvider(environment: NodeJS.ProcessEnv): Analysis
       baseUrl: environment.LOCAL_AI_URL,
     });
   }
-  if (environment.NODE_ENV === "production" && environment.ALLOW_SANDBOX_AI !== "true") {
-    throw new Error("A real AI provider is required in production; sandbox is explicitly disabled");
+  if (
+    environment.NODE_ENV === "production" &&
+    environment.ALLOW_SANDBOX_AI !== "true"
+  ) {
+    throw new Error(
+      "A real AI provider is required in production; sandbox is explicitly disabled",
+    );
   }
   return new SandboxRuleProvider();
 }
 
-export function narrateEvents(events: WorldEvent[], locale: "ar" | "en"): string {
-  if (events.length === 0) return locale === "ar" ? "لم تقع أحداث جديدة." : "No new events occurred.";
+export function narrateEvents(
+  events: WorldEvent[],
+  locale: "ar" | "en",
+): string {
+  if (events.length === 0)
+    return locale === "ar" ? "لم تقع أحداث جديدة." : "No new events occurred.";
   return events
     .map((event) => {
       const name = String(event.payload.name ?? event.type);

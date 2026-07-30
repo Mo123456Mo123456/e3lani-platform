@@ -44,9 +44,14 @@ export function ContributionDialog({
   const queryClient = useQueryClient();
   const [stage, setStage] = useState<"idea" | "preview" | "placed">("idea");
   const [category, setCategory] = useState<ContributionCategory>("plant");
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(
+    null,
+  );
   const [regionId, setRegionId] = useState("");
-  const [result, setResult] = useState<{ narrative: string; events: unknown[] } | null>(null);
+  const [result, setResult] = useState<{
+    narrative: string;
+    events: unknown[];
+  } | null>(null);
   const [error, setError] = useState("");
 
   const analyze = useMutation({
@@ -61,7 +66,8 @@ export function ContributionDialog({
       setRegionId(data.suggestedRegions[0]?.id ?? "");
       setStage("preview");
     },
-    onError: (caught) => setError(caught instanceof ApiError ? caught.code : "ANALYSIS_FAILED"),
+    onError: (caught) =>
+      setError(caught instanceof ApiError ? caught.code : "ANALYSIS_FAILED"),
   });
 
   const commit = useMutation({
@@ -80,17 +86,23 @@ export function ContributionDialog({
       setStage("placed");
       await queryClient.invalidateQueries({ queryKey: ["world"] });
     },
-    onError: (caught) => setError(caught instanceof ApiError ? caught.code : "COMMIT_FAILED"),
+    onError: (caught) =>
+      setError(caught instanceof ApiError ? caught.code : "COMMIT_FAILED"),
   });
 
   const advance = useMutation({
     mutationFn: () =>
-      api("/v1/world/ticks", { method: "POST", token, body: JSON.stringify({ count: 1 }) }),
+      api("/v1/world/ticks", {
+        method: "POST",
+        token,
+        body: JSON.stringify({ count: 1 }),
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["world"] });
       onClose();
     },
-    onError: (caught) => setError(caught instanceof ApiError ? caught.code : "TICK_FAILED"),
+    onError: (caught) =>
+      setError(caught instanceof ApiError ? caught.code : "TICK_FAILED"),
   });
 
   const submitIdea = (event: FormEvent<HTMLFormElement>) => {
@@ -101,11 +113,24 @@ export function ContributionDialog({
 
   return (
     <div className="dialog-backdrop">
-      <section className="dialog contribution-dialog" role="dialog" aria-modal="true" aria-labelledby="contribution-title">
-        <button className="dialog-close" onClick={onClose} aria-label="إغلاق">×</button>
+      <section
+        className="dialog contribution-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contribution-title"
+      >
+        <button className="dialog-close" onClick={onClose} aria-label="إغلاق">
+          ×
+        </button>
         <div className="stepper" aria-label="مراحل الإضافة">
           <span className={stage === "idea" ? "active" : "done"}>1 الفكرة</span>
-          <span className={stage === "preview" ? "active" : stage === "placed" ? "done" : ""}>2 المحاكاة الأولية</span>
+          <span
+            className={
+              stage === "preview" ? "active" : stage === "placed" ? "done" : ""
+            }
+          >
+            2 المحاكاة الأولية
+          </span>
           <span className={stage === "placed" ? "active" : ""}>3 الأثر</span>
         </div>
 
@@ -119,7 +144,9 @@ export function ContributionDialog({
                   <button
                     key={value}
                     type="button"
-                    className={category === value ? "category active" : "category"}
+                    className={
+                      category === value ? "category active" : "category"
+                    }
                     onClick={() => setCategory(value)}
                   >
                     {label}
@@ -137,7 +164,9 @@ export function ContributionDialog({
                 />
               </label>
               <button className="primary-button" disabled={analyze.isPending}>
-                {analyze.isPending ? "جارٍ التحليل والتحقق…" : "حلّل وشغّل السيناريوهات"}
+                {analyze.isPending
+                  ? "جارٍ التحليل والتحقق…"
+                  : "حلّل وشغّل السيناريوهات"}
               </button>
             </form>
           </>
@@ -150,41 +179,60 @@ export function ContributionDialog({
                 <p className="eyebrow">CAUSAL PREVIEW</p>
                 <h2>{analysisResult.analysis.name}</h2>
               </div>
-              <span className={analysisResult.sandbox ? "sandbox-badge" : "provider-badge"}>
-                {analysisResult.sandbox ? "Sandbox: قواعد حتمية" : analysisResult.analysis.provider}
+              <span
+                className={
+                  analysisResult.sandbox ? "sandbox-badge" : "provider-badge"
+                }
+              >
+                {analysisResult.sandbox
+                  ? "Sandbox: قواعد حتمية"
+                  : analysisResult.analysis.provider}
               </span>
             </div>
             <p>{analysisResult.analysis.description}</p>
             {analysisResult.analysis.balancedChanges.length > 0 && (
               <div className="balance-notice">
                 <strong>تعديلات التوازن</strong>
-                {analysisResult.analysis.balancedChanges.map((change) => <span key={change}>{change}</span>)}
+                {analysisResult.analysis.balancedChanges.map((change) => (
+                  <span key={change}>{change}</span>
+                ))}
               </div>
             )}
             <div className="trait-grid">
-              {Object.entries(analysisResult.analysis.traits).map(([name, value]) => (
-                <div key={name} className="trait">
-                  <span>{name}</span><strong>{Math.round(value * 100)}%</strong>
-                  <i style={{ width: `${value * 100}%` }} />
-                </div>
-              ))}
+              {Object.entries(analysisResult.analysis.traits).map(
+                ([name, value]) => (
+                  <div key={name} className="trait">
+                    <span>{name}</span>
+                    <strong>{Math.round(value * 100)}%</strong>
+                    <i style={{ width: `${value * 100}%` }} />
+                  </div>
+                ),
+              )}
             </div>
             <div className="scenario-grid">
               {analysisResult.scenarios.map((scenario) => (
                 <article key={scenario.horizonYears}>
                   <small>بعد</small>
                   <strong>{scenario.horizonYears} سنة</strong>
-                  <span>انتشار {Math.round((scenario.likely.spread ?? 0) * 100)}%</span>
-                  <span>عدم اليقين {Math.round(scenario.uncertainty * 100)}%</span>
+                  <span>
+                    انتشار {Math.round((scenario.likely.spread ?? 0) * 100)}%
+                  </span>
+                  <span>
+                    عدم اليقين {Math.round(scenario.uncertainty * 100)}%
+                  </span>
                 </article>
               ))}
             </div>
             <label>
               منطقة البداية
-              <select value={regionId} onChange={(event) => setRegionId(event.target.value)}>
+              <select
+                value={regionId}
+                onChange={(event) => setRegionId(event.target.value)}
+              >
                 {analysisResult.suggestedRegions.map((region) => (
                   <option key={region.id} value={region.id}>
-                    {region.biome} · {region.latitude.toFixed(1)}°, {region.longitude.toFixed(1)}°
+                    {region.biome} · {region.latitude.toFixed(1)}°,{" "}
+                    {region.longitude.toFixed(1)}°
                   </option>
                 ))}
               </select>
@@ -195,8 +243,14 @@ export function ContributionDialog({
                 ? analysisResult.analysis.risks.join(" · ")
                 : "لا مخاطر عالية في المحاكاة الأولية"}
             </div>
-            <button className="primary-button" onClick={() => commit.mutate()} disabled={commit.isPending || !regionId}>
-              {commit.isPending ? "جارٍ الحفظ في سجل العالم…" : "تأكيد وإدخال العنصر"}
+            <button
+              className="primary-button"
+              onClick={() => commit.mutate()}
+              disabled={commit.isPending || !regionId}
+            >
+              {commit.isPending
+                ? "جارٍ الحفظ في سجل العالم…"
+                : "تأكيد وإدخال العنصر"}
             </button>
           </>
         )}
@@ -207,13 +261,26 @@ export function ContributionDialog({
             <p className="eyebrow">EVENT SOURCED</p>
             <h2>دخلت مساهمتك إلى العالم</h2>
             <p>{result.narrative}</p>
-            <small>تم حفظ {result.events.length} حدث سببي. لن يذكر السرد حدثًا لم ينتجه المحرك.</small>
-            <button className="primary-button" onClick={() => advance.mutate()} disabled={advance.isPending}>
-              {advance.isPending ? "تتقدم المحاكاة…" : "شغّل أول سنة من تأثيرها"}
+            <small>
+              تم حفظ {result.events.length} حدث سببي. لن يذكر السرد حدثًا لم
+              ينتجه المحرك.
+            </small>
+            <button
+              className="primary-button"
+              onClick={() => advance.mutate()}
+              disabled={advance.isPending}
+            >
+              {advance.isPending
+                ? "تتقدم المحاكاة…"
+                : "شغّل أول سنة من تأثيرها"}
             </button>
           </div>
         )}
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
       </section>
     </div>
   );

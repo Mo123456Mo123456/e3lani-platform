@@ -6,12 +6,9 @@ import type {
   WorldOverview,
   WorldState,
 } from "@planet/shared-types";
-import {
-  applyContribution,
-  deterministicId,
-  generateWorld,
-  simulateTick,
-} from "@planet/simulation-models";
+import { contributionActivatedNotification } from "@planet/notification-worker";
+import { applyContribution, simulateTick } from "@planet/simulation-engine";
+import { deterministicId, generateWorld } from "@planet/world-generator";
 
 const hashState = (state: WorldState) =>
   createHash("sha256").update(JSON.stringify(state)).digest("hex");
@@ -74,9 +71,10 @@ export class WorldStore {
          ON CONFLICT (seed) DO NOTHING`,
         [state.planetId, "Gaia Prima", state.seed],
       );
-      const won = await client.query<{ id: string }>("SELECT id FROM planets WHERE seed = $1", [
-        this.seed,
-      ]);
+      const won = await client.query<{ id: string }>(
+        "SELECT id FROM planets WHERE seed = $1",
+        [this.seed],
+      );
       if (won.rows[0]?.id !== state.planetId) {
         await client.query("ROLLBACK");
         return this.getState(won.rows[0]!.id);
@@ -193,14 +191,19 @@ export class WorldStore {
         input.regionId,
       );
       await this.persistMutation(client, result.state, result.events);
+      const notification = contributionActivatedNotification(
+        input.userId,
+        input.analysis.name,
+        result.events[0]!,
+      );
       await client.query(
         `INSERT INTO notifications(user_id, type, title, body, world_event_id)
          VALUES ($1, 'CONTRIBUTION_ACTIVE', $2, $3, $4)`,
         [
-          input.userId,
-          input.analysis.name,
-          "Your contribution entered the causal simulation",
-          result.events[0]?.id,
+          notification.userId,
+          notification.title,
+          notification.body,
+          notification.worldEventId,
         ],
       );
       await client.query("COMMIT");
@@ -220,9 +223,10 @@ export class WorldStore {
     try {
       await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
       let state = await this.lockCurrentState(client);
-      await client.query("UPDATE planets SET simulation_status = 'running' WHERE id = $1", [
-        state.planetId,
-      ]);
+      await client.query(
+        "UPDATE planets SET simulation_status = 'running' WHERE id = $1",
+        [state.planetId],
+      );
       for (let index = 0; index < count; index += 1) {
         const started = performance.now();
         const result = simulateTick(state);
@@ -247,9 +251,10 @@ export class WorldStore {
         lastDelta = result.delta;
         allEvents.push(...result.events);
       }
-      await client.query("UPDATE planets SET simulation_status = 'paused' WHERE id = $1", [
-        state.planetId,
-      ]);
+      await client.query(
+        "UPDATE planets SET simulation_status = 'paused' WHERE id = $1",
+        [state.planetId],
+      );
       await client.query("COMMIT");
       return { state, delta: lastDelta, events: allEvents };
     } catch (error) {
@@ -319,7 +324,10 @@ export class WorldStore {
     );
   }
 
-  private async insertSnapshot(client: PoolClient, state: WorldState): Promise<void> {
+  private async insertSnapshot(
+    client: PoolClient,
+    state: WorldState,
+  ): Promise<void> {
     await client.query(
       `INSERT INTO timeline_snapshots(planet_id,tick,year,version,state,state_hash)
        VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (planet_id, version) DO NOTHING`,
@@ -334,7 +342,10 @@ export class WorldStore {
     );
   }
 
-  private async insertEvents(client: PoolClient, events: WorldEvent[]): Promise<void> {
+  private async insertEvents(
+    client: PoolClient,
+    events: WorldEvent[],
+  ): Promise<void> {
     for (const event of events) {
       await client.query(
         `INSERT INTO world_events(
@@ -372,7 +383,10 @@ export class WorldStore {
     }
   }
 
-  private async insertRegions(client: PoolClient, state: WorldState): Promise<void> {
+  private async insertRegions(
+    client: PoolClient,
+    state: WorldState,
+  ): Promise<void> {
     await client.query(
       `INSERT INTO planet_regions(
          id,planet_id,region_index,location,biome_code,elevation,temperature,moisture,
@@ -401,7 +415,10 @@ export class WorldStore {
     );
   }
 
-  private async insertCivilizations(client: PoolClient, state: WorldState): Promise<void> {
+  private async insertCivilizations(
+    client: PoolClient,
+    state: WorldState,
+  ): Promise<void> {
     await client.query(
       `INSERT INTO civilizations(id,planet_id,capital_region_id,name,state,population)
        SELECT x.id::uuid,$2::uuid,x.region_id::uuid,x.name,x.state,x.population
@@ -423,7 +440,10 @@ export class WorldStore {
     );
   }
 
-  private async insertSpecies(client: PoolClient, state: WorldState): Promise<void> {
+  private async insertSpecies(
+    client: PoolClient,
+    state: WorldState,
+  ): Promise<void> {
     await client.query(
       `INSERT INTO species(
          id,planet_id,region_id,name,traits,population,carrying_capacity
@@ -448,7 +468,10 @@ export class WorldStore {
     );
   }
 
-  private async updateRegions(client: PoolClient, state: WorldState): Promise<void> {
+  private async updateRegions(
+    client: PoolClient,
+    state: WorldState,
+  ): Promise<void> {
     await client.query(
       `UPDATE planet_regions region SET
          temperature=x.temperature,moisture=x.moisture,rainfall=x.rainfall,
@@ -469,7 +492,10 @@ export class WorldStore {
     );
   }
 
-  private async updateCivilizations(client: PoolClient, state: WorldState): Promise<void> {
+  private async updateCivilizations(
+    client: PoolClient,
+    state: WorldState,
+  ): Promise<void> {
     await client.query(
       `UPDATE civilizations civilization SET state=x.state,population=x.population
        FROM jsonb_to_recordset($1::jsonb) AS x(id text,state jsonb,population bigint)

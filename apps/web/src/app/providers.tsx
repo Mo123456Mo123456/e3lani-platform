@@ -19,14 +19,21 @@ export function Providers({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const locale = localStorage.getItem("planet-locale");
-    const quality = localStorage.getItem("planet-quality") as GraphicsQuality | null;
+    const quality = localStorage.getItem(
+      "planet-quality",
+    ) as GraphicsQuality | null;
     setLocale(locale === "en" ? "en" : "ar");
     if (quality && ["ultra", "high", "medium", "eco"].includes(quality)) {
       setQuality(quality);
     } else if (navigator.hardwareConcurrency <= 4) {
       setQuality("eco");
     }
+    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    }
   }, [setLocale, setQuality]);
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
 }

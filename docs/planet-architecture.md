@@ -28,6 +28,10 @@ application adapters are intentionally marked as the next phase.
 - `apps/web`: real-time Arabic/English world dashboard and WebGL planet.
 - `apps/admin`: separate RBAC-protected operations dashboard.
 - `services/api`: authentication, OpenAPI, persistence, WebSocket deltas, NATS.
+- `services/simulation-engine`: simulation commands and causal forecast boundary.
+- `services/world-generator`: deterministic procedural generation boundary.
+- `services/realtime-gateway`: authenticated delta fan-out hub.
+- `services/notification-worker`: event-to-notification rules.
 - `services/ai-orchestrator`: provider-neutral structured analysis and guarded
   deterministic sandbox.
 - `packages/simulation-models`: seeded generation, tick engine, causal events,

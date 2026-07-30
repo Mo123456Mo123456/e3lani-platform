@@ -15,7 +15,11 @@ import {
   UnsignedByteType,
   Vector3,
 } from "three";
-import type { PlanetRegion, WorldEvent } from "@planet/shared-types";
+import type {
+  CivilizationState,
+  PlanetRegion,
+  WorldEvent,
+} from "@planet/shared-types";
 import { useUiStore } from "@/lib/store";
 
 const biomeCodes = [
@@ -113,7 +117,11 @@ const cloudFragmentShader = `
   }
 `;
 
-function positionOnSphere(latitude: number, longitude: number, radius: number): Vector3 {
+function positionOnSphere(
+  latitude: number,
+  longitude: number,
+  radius: number,
+): Vector3 {
   const phi = ((90 - latitude) * Math.PI) / 180;
   const theta = ((longitude + 180) * Math.PI) / 180;
   return new Vector3(
@@ -138,7 +146,13 @@ function buildWorldTexture(regions: PlanetRegion[]): {
     pixels[offset + 2] = Math.round(region.temperature * 255);
     pixels[offset + 3] = biomeCodes.indexOf(region.biome) + 1;
   }
-  const texture = new DataTexture(pixels, width, height, RGBAFormat, UnsignedByteType);
+  const texture = new DataTexture(
+    pixels,
+    width,
+    height,
+    RGBAFormat,
+    UnsignedByteType,
+  );
   texture.minFilter = NearestFilter;
   texture.magFilter = NearestFilter;
   texture.colorSpace = SRGBColorSpace;
@@ -149,16 +163,25 @@ function buildWorldTexture(regions: PlanetRegion[]): {
 function Planet({
   regions,
   eventRegions,
+  civilizationRegions,
 }: {
   regions: PlanetRegion[];
   eventRegions: PlanetRegion[];
+  civilizationRegions: PlanetRegion[];
 }) {
   const material = useRef<ShaderMaterial>(null);
   const clouds = useRef<ShaderMaterial>(null);
   const selectRegion = useUiStore((state) => state.selectRegion);
   const quality = useUiStore((state) => state.quality);
   const world = useMemo(() => buildWorldTexture(regions), [regions]);
-  const segments = quality === "ultra" ? 192 : quality === "high" ? 144 : quality === "medium" ? 96 : 64;
+  const segments =
+    quality === "ultra"
+      ? 192
+      : quality === "high"
+        ? 144
+        : quality === "medium"
+          ? 96
+          : 64;
 
   useFrame((_state, delta) => {
     if (material.current) material.current.uniforms.uTime!.value += delta;
@@ -169,7 +192,10 @@ function Planet({
     event.stopPropagation();
     if (!event.uv) return;
     const x = Math.min(world.width - 1, Math.floor(event.uv.x * world.width));
-    const y = Math.min(world.height - 1, Math.floor((1 - event.uv.y) * world.height));
+    const y = Math.min(
+      world.height - 1,
+      Math.floor((1 - event.uv.y) * world.height),
+    );
     const region = regions[y * world.width + x];
     if (region) selectRegion(region);
   };
@@ -192,7 +218,9 @@ function Planet({
       </mesh>
       {quality !== "eco" && (
         <mesh>
-          <sphereGeometry args={[3.17, Math.min(segments, 128), Math.min(segments / 2, 64)]} />
+          <sphereGeometry
+            args={[3.17, Math.min(segments, 128), Math.min(segments / 2, 64)]}
+          />
           <shaderMaterial
             ref={clouds}
             vertexShader={cloudVertexShader}
@@ -213,16 +241,27 @@ function Planet({
           blending={AdditiveBlending}
         />
       </mesh>
-      {eventRegions.slice(0, quality === "eco" ? 8 : 24).map((region, index) => (
+      {eventRegions
+        .slice(0, quality === "eco" ? 8 : 24)
+        .map((region, index) => (
+          <mesh
+            key={`${region.id}:${index}`}
+            position={positionOnSphere(region.latitude, region.longitude, 3.24)}
+          >
+            <sphereGeometry args={[0.026 + (index % 3) * 0.008, 8, 8]} />
+            <meshBasicMaterial
+              color={index % 4 === 0 ? "#ff5b3d" : "#55e6ff"}
+              blending={AdditiveBlending}
+            />
+          </mesh>
+        ))}
+      {civilizationRegions.map((region) => (
         <mesh
-          key={`${region.id}:${index}`}
-          position={positionOnSphere(region.latitude, region.longitude, 3.24)}
+          key={`civilization:${region.id}`}
+          position={positionOnSphere(region.latitude, region.longitude, 3.235)}
         >
-          <sphereGeometry args={[0.026 + (index % 3) * 0.008, 8, 8]} />
-          <meshBasicMaterial
-            color={index % 4 === 0 ? "#ff5b3d" : "#55e6ff"}
-            blending={AdditiveBlending}
-          />
+          <sphereGeometry args={[0.018, 7, 7]} />
+          <meshBasicMaterial color="#ffc45b" blending={AdditiveBlending} />
         </mesh>
       ))}
     </group>
@@ -232,9 +271,11 @@ function Planet({
 export function PlanetScene({
   regions,
   events,
+  civilizations,
 }: {
   regions: PlanetRegion[];
   events: WorldEvent[];
+  civilizations: CivilizationState[];
 }) {
   const eventRegions = useMemo(
     () =>
@@ -244,20 +285,48 @@ export function PlanetScene({
     [events, regions],
   );
   const quality = useUiStore((state) => state.quality);
+  const civilizationRegions = useMemo(
+    () =>
+      civilizations
+        .map((civilization) =>
+          regions.find((region) => region.id === civilization.regionId),
+        )
+        .filter((region): region is PlanetRegion => Boolean(region)),
+    [civilizations, regions],
+  );
   return (
     <Canvas
       camera={{ position: [0, 0.15, 8.3], fov: 43 }}
       dpr={quality === "ultra" ? [1, 2] : quality === "eco" ? 1 : [1, 1.5]}
-      gl={{ antialias: quality !== "eco", alpha: true, powerPreference: quality === "eco" ? "low-power" : "high-performance" }}
-      fallback={<div className="webgl-fallback">WebGL2 غير متاح على هذا الجهاز</div>}
+      gl={{
+        antialias: quality !== "eco",
+        alpha: true,
+        powerPreference: quality === "eco" ? "low-power" : "high-performance",
+      }}
+      fallback={
+        <div className="webgl-fallback">WebGL2 غير متاح على هذا الجهاز</div>
+      }
     >
       <color attach="background" args={["#010810"]} />
       <ambientLight intensity={0.12} />
       <directionalLight position={[5, 3, 4]} intensity={2.2} color="#dff7ff" />
       <Suspense fallback={null}>
-        <Planet regions={regions} eventRegions={eventRegions} />
+        <Planet
+          regions={regions}
+          eventRegions={eventRegions}
+          civilizationRegions={civilizationRegions}
+        />
       </Suspense>
-      {quality !== "eco" && <Stars radius={90} depth={40} count={quality === "ultra" ? 2800 : 1400} factor={2.2} fade speed={0.15} />}
+      {quality !== "eco" && (
+        <Stars
+          radius={90}
+          depth={40}
+          count={quality === "ultra" ? 2800 : 1400}
+          factor={2.2}
+          fade
+          speed={0.15}
+        />
+      )}
       <OrbitControls
         enablePan={false}
         minDistance={5}

@@ -95,6 +95,10 @@ apps/
 services/
   api/                  # REST/OpenAPI/PostgreSQL/WebSocket/NATS
   ai-orchestrator/      # Structured output + provider adapters
+  simulation-engine/    # simulation command boundary
+  world-generator/      # deterministic generation boundary
+  realtime-gateway/     # WebSocket delta fan-out
+  notification-worker/  # event-driven notification rules
 packages/
   shared-types/         # Zod contracts
   simulation-models/    # world generation, ticks, replay, forecasts

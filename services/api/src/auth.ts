@@ -12,7 +12,11 @@ export interface AuthClaims {
 }
 
 const credentialsSchema = z.object({
-  email: z.string().email().max(254).transform((value) => value.toLowerCase()),
+  email: z
+    .string()
+    .email()
+    .max(254)
+    .transform((value) => value.toLowerCase()),
   password: z
     .string()
     .min(12)
@@ -27,11 +31,15 @@ const registerSchema = credentialsSchema.extend({
   locale: z.enum(["ar", "en"]).default("ar"),
 });
 
-const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+const tokenHash = (token: string) =>
+  createHash("sha256").update(token).digest("hex");
 const agentHash = (agent: string | undefined) =>
   agent ? createHash("sha256").update(agent).digest("hex") : null;
 
-async function rolesFor(pool: Pool | PoolClient, userId: string): Promise<string[]> {
+async function rolesFor(
+  pool: Pool | PoolClient,
+  userId: string,
+): Promise<string[]> {
   const result = await pool.query<{ name: string }>(
     `SELECT roles.name FROM roles
      JOIN user_roles ON user_roles.role_id=roles.id
@@ -61,7 +69,7 @@ export function registerAuthRoutes(
     reply: FastifyReply,
     user: { id: string; email: string },
     userAgent: string | undefined,
-    familyId = randomUUID(),
+    familyId: string = randomUUID(),
   ) => {
     const roles = await rolesFor(pool, user.id);
     const refreshToken = randomBytes(48).toString("base64url");
@@ -132,7 +140,11 @@ export function registerAuthRoutes(
     config: { rateLimit: { max: 10, timeWindow: "15 minutes" } },
     handler: async (request, reply) => {
       const input = credentialsSchema.parse(request.body);
-      const result = await pool.query<{ id: string; email: string; password_hash: string }>(
+      const result = await pool.query<{
+        id: string;
+        email: string;
+        password_hash: string;
+      }>(
         `SELECT id,email,password_hash FROM users WHERE email=$1 AND status='active'`,
         [input.email],
       );
@@ -146,7 +158,8 @@ export function registerAuthRoutes(
 
   app.post("/v1/auth/refresh", async (request, reply) => {
     const refreshToken = request.cookies.planet_refresh;
-    if (!refreshToken) return reply.code(401).send({ code: "REFRESH_REQUIRED" });
+    if (!refreshToken)
+      return reply.code(401).send({ code: "REFRESH_REQUIRED" });
     const result = await pool.query<{
       id: string;
       user_id: string;
@@ -169,7 +182,10 @@ export function registerAuthRoutes(
       reply.clearCookie("planet_refresh", cookieOptions);
       return reply.code(401).send({ code: "REFRESH_REUSE_DETECTED" });
     }
-    await pool.query("UPDATE refresh_sessions SET revoked_at=now() WHERE id=$1", [session.id]);
+    await pool.query(
+      "UPDATE refresh_sessions SET revoked_at=now() WHERE id=$1",
+      [session.id],
+    );
     const next = await issueSession(
       reply,
       { id: session.user_id, email: session.email },
@@ -191,7 +207,10 @@ export function registerAuthRoutes(
     return reply.code(204).send();
   });
 
-  const authenticate = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const authenticate = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> => {
     const header = request.headers.authorization;
     if (!header?.startsWith("Bearer ")) {
       await reply.code(401).send({ code: "AUTH_REQUIRED" });
@@ -199,7 +218,8 @@ export function registerAuthRoutes(
     }
     try {
       const claims = await app.jwt.verify<AuthClaims>(header.slice(7));
-      (request as FastifyRequest & { authClaims: AuthClaims }).authClaims = claims;
+      (request as FastifyRequest & { authClaims: AuthClaims }).authClaims =
+        claims;
     } catch {
       await reply.code(401).send({ code: "INVALID_ACCESS_TOKEN" });
     }

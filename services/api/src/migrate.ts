@@ -13,7 +13,9 @@ export async function migrate(pool: Pool): Promise<void> {
     )
   `);
   const directory = fileURLToPath(new URL("../migrations/", import.meta.url));
-  const files = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
+  const files = (await readdir(directory))
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
   for (const name of files) {
     const sql = await readFile(`${directory}/${name}`, "utf8");
     const checksum = createHash("sha256").update(sql).digest("hex");
@@ -49,12 +51,20 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: config.DATABASE_URL });
   try {
     await migrate(pool);
-    console.info(JSON.stringify({ level: "info", message: "database migrations complete" }));
+    console.info(
+      JSON.stringify({
+        level: "info",
+        message: "database migrations complete",
+      }),
+    );
   } finally {
     await pool.end();
   }
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === new URL(`file://${process.argv[1]}`).href
+) {
   await main();
 }

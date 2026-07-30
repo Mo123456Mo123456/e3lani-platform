@@ -20,10 +20,22 @@
     "@types/node": "latest",
     "prettier": "latest",
     "typescript": "latest",
+    "vite": "^8.2.0",
     "vitest": "latest"
   },
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=22"
+  },
+  "pnpm": {
+    "overrides": {
+      "@isaacs/brace-expansion": "5.0.1",
+      "ajv": "8.20.0",
+      "fast-uri": "3.1.4",
+      "minimatch": "10.2.6",
+      "postcss": "8.5.25",
+      "sharp": "0.35.3",
+      "yaml": "2.9.0"
+    }
   }
 }

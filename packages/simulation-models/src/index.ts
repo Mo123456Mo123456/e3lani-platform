@@ -14,7 +14,9 @@ const clamp = (value: number) => Math.max(0, Math.min(1, value));
 
 function percentile(values: number[], ratio: number): number {
   const sorted = [...values].sort((left, right) => left - right);
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))] ?? 0;
+  return (
+    sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))] ?? 0
+  );
 }
 
 export function forecastContribution(
@@ -25,21 +27,27 @@ export function forecastContribution(
 ): FutureScenario[] {
   const horizons = [1, 10, 100, 1000] as const;
   return horizons.map((horizonYears) => {
+    const adaptability = analysis.traits.adaptability ?? 0.42;
     const outcomes = Array.from({ length: paths }, (_, path) => {
       const random = new SeededRandom(
         `${state.seed}:forecast:${state.version}:${analysis.name}:${region.id}:${horizonYears}:${path}`,
       );
-      const biomeFit = analysis.possibleBiomes.includes(region.biome) ? 1 : 0.18;
-      const growth = analysis.traits.growthRate ?? analysis.traits.reproductionRate ?? 0.22;
-      const adaptability = analysis.traits.adaptability ?? 0.42;
+      const biomeFit = analysis.possibleBiomes.includes(region.biome)
+        ? 1
+        : 0.18;
+      const growth =
+        analysis.traits.growthRate ?? analysis.traits.reproductionRate ?? 0.22;
       const pollutionAbsorption = analysis.traits.pollutionAbsorption ?? 0;
       const waterNeed = analysis.traits.waterNeed ?? 0.35;
-      const climateShock = random.between(-0.2, 0.2) * Math.log10(horizonYears + 1);
+      const climateShock =
+        random.between(-0.2, 0.2) * Math.log10(horizonYears + 1);
       const establishment = clamp(
         biomeFit * 0.58 + growth * 0.2 + adaptability * 0.22 + climateShock,
       );
       const spread = clamp(
-        establishment * Math.log10(horizonYears + 1) * random.between(0.28, 0.58),
+        establishment *
+          Math.log10(horizonYears + 1) *
+          random.between(0.28, 0.58),
       );
       return {
         establishment,
@@ -61,7 +69,15 @@ export function forecastContribution(
     ] as const;
     const aggregate = (ratio: number) =>
       Object.fromEntries(
-        keys.map((key) => [key, Number(percentile(outcomes.map((outcome) => outcome[key]), ratio).toFixed(4))]),
+        keys.map((key) => [
+          key,
+          Number(
+            percentile(
+              outcomes.map((outcome) => outcome[key]),
+              ratio,
+            ).toFixed(4),
+          ),
+        ]),
       );
     const uncertainty =
       percentile(

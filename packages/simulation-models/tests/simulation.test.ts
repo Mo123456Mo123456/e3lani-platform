@@ -23,9 +23,12 @@ describe("deterministic world simulation", () => {
 
   it("keeps civilization population within regional carrying capacity", () => {
     let state = generateWorld({ seed: "capacity-01", width: 16, height: 8 });
-    for (let index = 0; index < 20; index += 1) state = simulateTick(state).state;
+    for (let index = 0; index < 20; index += 1)
+      state = simulateTick(state).state;
     for (const civilization of state.civilizations) {
-      const region = state.regions.find((item) => item.id === civilization.regionId)!;
+      const region = state.regions.find(
+        (item) => item.id === civilization.regionId,
+      )!;
       const capacity =
         (region.fertility * 1_500_000 + region.resources.water! * 600_000) *
         (0.7 + civilization.technology);
@@ -35,7 +38,8 @@ describe("deterministic world simulation", () => {
 
   it("records explicit causes and produces probabilistic forecasts", () => {
     const initial = generateWorld({ seed: "cause-01", width: 16, height: 8 });
-    const region = initial.regions.find((item) => item.biome === "temperate_forest") ??
+    const region =
+      initial.regions.find((item) => item.biome === "temperate_forest") ??
       initial.regions.find((item) => item.biome !== "ocean")!;
     const analysis = {
       category: "plant" as const,
@@ -48,7 +52,12 @@ describe("deterministic world simulation", () => {
       provider: "sandbox-rule-engine" as const,
       model: "rules-v1",
     };
-    const applied = applyContribution(initial, "contribution-1", analysis, region.id);
+    const applied = applyContribution(
+      initial,
+      "contribution-1",
+      analysis,
+      region.id,
+    );
     expect(applied.events.every((event) => event.cause.length > 0)).toBe(true);
     expect(forecastContribution(initial, analysis, region, 16)).toHaveLength(4);
   });

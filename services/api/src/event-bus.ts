@@ -1,9 +1,9 @@
-import { connect, JSONCodec, type NatsConnection } from "@nats-io/transport-node";
+import { connect, type NatsConnection } from "@nats-io/transport-node";
 import type { WorldDelta, WorldEvent } from "@planet/shared-types";
 
 export class EventBus {
   private connection: NatsConnection | null = null;
-  private readonly codec = JSONCodec();
+  private readonly encoder = new TextEncoder();
 
   constructor(private readonly url: string) {}
 
@@ -28,12 +28,18 @@ export class EventBus {
   publishEvents(events: WorldEvent[]): void {
     if (!this.connection) return;
     for (const event of events) {
-      this.connection.publish(`world.events.${event.type.toLowerCase()}`, this.codec.encode(event));
+      this.connection.publish(
+        `world.events.${event.type.toLowerCase()}`,
+        this.encoder.encode(JSON.stringify(event)),
+      );
     }
   }
 
   publishDelta(delta: WorldDelta): void {
-    this.connection?.publish("world.delta", this.codec.encode(delta));
+    this.connection?.publish(
+      "world.delta",
+      this.encoder.encode(JSON.stringify(delta)),
+    );
   }
 
   async close(): Promise<void> {

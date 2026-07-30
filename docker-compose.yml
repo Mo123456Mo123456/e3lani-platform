@@ -61,12 +61,13 @@ services:
       context: .
       dockerfile: services/api/Dockerfile
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 4000
       DATABASE_URL: postgresql://planet:${POSTGRES_PASSWORD:-planet}@postgres:5432/planet
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
       WEB_ORIGIN: http://localhost:3000
+      ADMIN_ORIGIN: http://localhost:3001
       JWT_SECRET: ${JWT_SECRET:-development-only-change-this-secret-before-deploying}
       WORLD_SEED: ${WORLD_SEED:-kawkab-gaia-2026}
       AI_PROVIDER: ${AI_PROVIDER:-sandbox}

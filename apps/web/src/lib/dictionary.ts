@@ -2,7 +2,15 @@ export const dictionary = {
   ar: {
     title: "كوكب يولد أمامك",
     tagline: "عالمك، قرارك، أثر لا ينتهي.",
-    nav: ["الرئيسية", "استكشف", "الحضارات", "المخلوقات", "الموارد", "التقنيات", "التحالفات"],
+    nav: [
+      "الرئيسية",
+      "استكشف",
+      "الحضارات",
+      "المخلوقات",
+      "الموارد",
+      "التقنيات",
+      "التحالفات",
+    ],
     events: "سجل الأحداث",
     add: "أضف عنصرًا واحدًا إلى العالم",
     addHint: "اختر فكرة واحدة، وسيستمر أثرها داخل التاريخ المحاكى.",
@@ -22,7 +30,15 @@ export const dictionary = {
   en: {
     title: "A Planet Born Before You",
     tagline: "Your world. Your decision. An endless impact.",
-    nav: ["Home", "Explore", "Civilizations", "Creatures", "Resources", "Technology", "Alliances"],
+    nav: [
+      "Home",
+      "Explore",
+      "Civilizations",
+      "Creatures",
+      "Resources",
+      "Technology",
+      "Alliances",
+    ],
     events: "Live events",
     add: "Add one element to the world",
     addHint: "Choose one idea; its effects continue through simulated history.",

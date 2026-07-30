@@ -38,7 +38,9 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
       setAccessToken(session.accessToken);
       onClose();
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.code : "تعذر الاتصال بالخادم");
+      setError(
+        caught instanceof ApiError ? caught.code : "تعذر الاتصال بالخادم",
+      );
     } finally {
       setBusy(false);
     }
@@ -46,16 +48,31 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="dialog-backdrop" role="presentation">
-      <section className="dialog auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-        <button className="dialog-close" onClick={onClose} aria-label="إغلاق">×</button>
+      <section
+        className="dialog auth-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-title"
+      >
+        <button className="dialog-close" onClick={onClose} aria-label="إغلاق">
+          ×
+        </button>
         <p className="eyebrow">WORLD IDENTITY</p>
-        <h2 id="auth-title">{mode === "register" ? "إنشاء مستكشف جديد" : "العودة إلى عالمك"}</h2>
+        <h2 id="auth-title">
+          {mode === "register" ? "إنشاء مستكشف جديد" : "العودة إلى عالمك"}
+        </h2>
         <p className="muted">تُحفظ الجلسة عبر Refresh Token دوّار وآمن.</p>
         <form onSubmit={submit}>
           {mode === "register" && (
             <label>
               الاسم
-              <input name="displayName" minLength={2} maxLength={80} required autoComplete="name" />
+              <input
+                name="displayName"
+                minLength={2}
+                maxLength={80}
+                required
+                autoComplete="name"
+              />
             </label>
           )}
           <label>
@@ -70,17 +87,32 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
               minLength={12}
               maxLength={128}
               required
-              autoComplete={mode === "register" ? "new-password" : "current-password"}
+              autoComplete={
+                mode === "register" ? "new-password" : "current-password"
+              }
             />
           </label>
           <small>12 حرفًا على الأقل، وتتضمن حرفًا كبيرًا وصغيرًا ورقمًا.</small>
-          {error && <p className="form-error" role="alert">{error}</p>}
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
           <button className="primary-button" type="submit" disabled={busy}>
-            {busy ? "جارٍ التحقق…" : mode === "register" ? "إنشاء الحساب" : "دخول"}
+            {busy
+              ? "جارٍ التحقق…"
+              : mode === "register"
+                ? "إنشاء الحساب"
+                : "دخول"}
           </button>
         </form>
-        <button className="text-button" onClick={() => setMode(mode === "register" ? "login" : "register")}>
-          {mode === "register" ? "لديك حساب؟ سجّل الدخول" : "مستخدم جديد؟ أنشئ حسابًا"}
+        <button
+          className="text-button"
+          onClick={() => setMode(mode === "register" ? "login" : "register")}
+        >
+          {mode === "register"
+            ? "لديك حساب؟ سجّل الدخول"
+            : "مستخدم جديد؟ أنشئ حسابًا"}
         </button>
       </section>
     </div>

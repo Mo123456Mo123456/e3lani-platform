@@ -5,11 +5,17 @@ import type {
   SpeciesState,
   WorldState,
 } from "@planet/shared-types";
-import { SeededRandom, fractalNoise2D, hashSeed, worleyNoise2D } from "./random.js";
+import {
+  SeededRandom,
+  fractalNoise2D,
+  hashSeed,
+  worleyNoise2D,
+} from "./random.js";
 
 const clamp = (value: number, minimum = 0, maximum = 1) =>
   Math.max(minimum, Math.min(maximum, value));
-const round = (value: number, precision = 5) => Number(value.toFixed(precision));
+const round = (value: number, precision = 5) =>
+  Number(value.toFixed(precision));
 
 export function deterministicId(label: string): string {
   const parts = [0, 1, 2, 3].map((index) =>
@@ -60,17 +66,32 @@ function nearestOceanDistance(
   return 1;
 }
 
-function generateRegions(seed: string, width: number, height: number): PlanetRegion[] {
+function generateRegions(
+  seed: string,
+  width: number,
+  height: number,
+): PlanetRegion[] {
   const numericSeed = hashSeed(seed);
   const elevations: number[] = [];
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const longitude = x / width;
       const latitude = y / (height - 1);
-      const continental = fractalNoise2D(numericSeed, longitude * 3.1, latitude * 2.2, 6);
-      const ridges = 1 - Math.abs(worleyNoise2D(numericSeed + 41, longitude * 8, latitude * 5) * 2 - 1);
+      const continental = fractalNoise2D(
+        numericSeed,
+        longitude * 3.1,
+        latitude * 2.2,
+        6,
+      );
+      const ridges =
+        1 -
+        Math.abs(
+          worleyNoise2D(numericSeed + 41, longitude * 8, latitude * 5) * 2 - 1,
+        );
       const polarOceanBias = Math.abs(latitude - 0.5) * 0.08;
-      elevations.push(clamp(continental * 0.83 + ridges * 0.17 - polarOceanBias));
+      elevations.push(
+        clamp(continental * 0.83 + ridges * 0.17 - polarOceanBias),
+      );
     }
   }
 
@@ -83,7 +104,8 @@ function generateRegions(seed: string, width: number, height: number): PlanetReg
     const oceanDistance = nearestOceanDistance(elevations, x, y, width, height);
     const prevailingWindOffset = latitude >= 0 ? -1 : 1;
     const windwardElevation =
-      elevations[y * width + ((x + prevailingWindOffset + width) % width)] ?? elevation;
+      elevations[y * width + ((x + prevailingWindOffset + width) % width)] ??
+      elevation;
     const rainShadow = clamp((elevation - windwardElevation) * 1.8);
     const oceanHumidity = 1 - oceanDistance;
     const noiseMoisture = fractalNoise2D(
@@ -95,7 +117,9 @@ function generateRegions(seed: string, width: number, height: number): PlanetReg
     const temperature = clamp(
       1 - normalizedLatitude * 0.92 - Math.max(0, elevation - 0.48) * 0.7,
     );
-    const moisture = clamp(noiseMoisture * 0.55 + oceanHumidity * 0.45 - rainShadow);
+    const moisture = clamp(
+      noiseMoisture * 0.55 + oceanHumidity * 0.45 - rainShadow,
+    );
     const rainfall = clamp(moisture * (0.45 + temperature * 0.55));
     const volcanic = worleyNoise2D(
       numericSeed + 20_011,
@@ -103,10 +127,14 @@ function generateRegions(seed: string, width: number, height: number): PlanetReg
       (y / height) * 5,
     );
     const surfaceWater = clamp(
-      rainfall * 0.66 + Math.max(0, 0.62 - elevation) * 0.3 + oceanHumidity * 0.16,
+      rainfall * 0.66 +
+        Math.max(0, 0.62 - elevation) * 0.3 +
+        oceanHumidity * 0.16,
     );
     const fertility = clamp(
-      moisture * 0.48 + temperature * 0.28 + (1 - Math.abs(elevation - 0.55)) * 0.24,
+      moisture * 0.48 +
+        temperature * 0.28 +
+        (1 - Math.abs(elevation - 0.55)) * 0.24,
     );
     const biome = classifyBiome(
       elevation,
@@ -141,7 +169,9 @@ function generateRegions(seed: string, width: number, height: number): PlanetReg
       resources: {
         water: round(surfaceWater),
         biomass: round(isLand ? fertility * 0.8 : 0.22),
-        minerals: round(isLand ? resourceNoise * (0.4 + elevation * 0.6) : 0.08),
+        minerals: round(
+          isLand ? resourceNoise * (0.4 + elevation * 0.6) : 0.08,
+        ),
         energy: round(isLand ? volcanic * 0.35 + (1 - moisture) * 0.3 : 0.18),
       },
     };
@@ -163,7 +193,10 @@ const civilizationNames = [
   "نيراس",
 ] as const;
 
-function seedCivilizations(seed: string, regions: PlanetRegion[]): CivilizationState[] {
+function seedCivilizations(
+  seed: string,
+  regions: PlanetRegion[],
+): CivilizationState[] {
   const random = new SeededRandom(`${seed}:civilizations`);
   const habitable = regions
     .filter(
@@ -177,7 +210,10 @@ function seedCivilizations(seed: string, regions: PlanetRegion[]): CivilizationS
 
   for (let index = 0; index < civilizationNames.length; index += 1) {
     const candidates = habitable.filter((region) => !used.has(region.id));
-    const region = candidates[Math.min(candidates.length - 1, index * 3 + random.integer(0, 2))];
+    const region =
+      candidates[
+        Math.min(candidates.length - 1, index * 3 + random.integer(0, 2))
+      ];
     if (!region) break;
     used.add(region.id);
     const population = random.integer(24_000, 180_000);
@@ -203,7 +239,9 @@ function seedCivilizations(seed: string, regions: PlanetRegion[]): CivilizationS
 
 function seedSpecies(seed: string, regions: PlanetRegion[]): SpeciesState[] {
   const random = new SeededRandom(`${seed}:species`);
-  const habitable = regions.filter((region) => !["ocean", "ice", "volcanic"].includes(region.biome));
+  const habitable = regions.filter(
+    (region) => !["ocean", "ice", "volcanic"].includes(region.biome),
+  );
   return Array.from({ length: 300 }, (_, index) => {
     const region = random.pick(habitable);
     const trophicLevel = random.integer(1, 4);
@@ -237,7 +275,8 @@ export interface WorldGenerationOptions {
 export function generateWorld(options: WorldGenerationOptions): WorldState {
   const width = options.width ?? 48;
   const height = options.height ?? 24;
-  if (width < 12 || height < 6) throw new Error("World grid must be at least 12×6");
+  if (width < 12 || height < 6)
+    throw new Error("World grid must be at least 12×6");
   const regions = generateRegions(options.seed, width, height);
   const civilizations = seedCivilizations(options.seed, regions);
   const species = seedSpecies(options.seed, regions);

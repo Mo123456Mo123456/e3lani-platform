@@ -14,10 +14,10 @@ import {
   type WorldDelta,
 } from "@planet/shared-types";
 import { createAnalysisProvider, narrateEvents } from "@planet/ai-orchestrator";
-import { forecastContribution } from "@planet/simulation-models";
+import { RealtimeHub } from "@planet/realtime-gateway";
+import { previewContribution } from "@planet/simulation-engine";
 import Fastify from "fastify";
 import { Pool } from "pg";
-import type { WebSocket } from "ws";
 import { ZodError, z } from "zod";
 import { registerAuthRoutes } from "./auth.js";
 import { config } from "./config.js";
@@ -25,14 +25,22 @@ import { EventBus } from "./event-bus.js";
 import { migrate } from "./migrate.js";
 import { WorldStore } from "./world-store.js";
 
-const tickRequestSchema = z.object({ count: z.number().int().min(1).max(10).default(1) });
-const queryLimitSchema = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) });
+const tickRequestSchema = z.object({
+  count: z.number().int().min(1).max(10).default(1),
+});
+const queryLimitSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+});
 
 export async function buildServer() {
   const app = Fastify({
     logger: {
       level: config.NODE_ENV === "production" ? "info" : "debug",
-      redact: ["req.headers.authorization", "req.headers.cookie", "body.password"],
+      redact: [
+        "req.headers.authorization",
+        "req.headers.cookie",
+        "body.password",
+      ],
     },
     bodyLimit: 256 * 1024,
     trustProxy: config.NODE_ENV === "production",
@@ -44,9 +52,12 @@ export async function buildServer() {
     idleTimeoutMillis: 30_000,
   });
   const bus = new EventBus(config.NATS_URL);
-  const sockets = new Set<WebSocket>();
+  const realtime = new RealtimeHub();
 
-  await app.register(cors, { origin: config.WEB_ORIGIN, credentials: true });
+  await app.register(cors, {
+    origin: [config.WEB_ORIGIN, config.ADMIN_ORIGIN],
+    credentials: true,
+  });
   await app.register(cookie);
   await app.register(jwt, {
     secret: config.JWT_SECRET,
@@ -67,13 +78,17 @@ export async function buildServer() {
     openapi: {
       info: {
         title: "كوكب يولد أمامك API",
-        description: "Deterministic world simulation, contributions, and causal history",
+        description:
+          "Deterministic world simulation, contributions, and causal history",
         version: "0.1.0",
       },
       servers: [{ url: "http://localhost:4000" }],
       tags: [
         { name: "auth", description: "Authentication and refresh rotation" },
-        { name: "world", description: "World state and deterministic simulation" },
+        {
+          name: "world",
+          description: "World state and deterministic simulation",
+        },
       ],
     },
   });
@@ -88,10 +103,7 @@ export async function buildServer() {
 
   const broadcast = (delta: WorldDelta | undefined) => {
     if (!delta) return;
-    const message = JSON.stringify({ type: "world.delta", payload: delta });
-    for (const socket of sockets) {
-      if (socket.readyState === socket.OPEN) socket.send(message);
-    }
+    realtime.broadcastDelta(delta);
     bus.publishDelta(delta);
     bus.publishEvents(delta.events);
   };
@@ -101,33 +113,59 @@ export async function buildServer() {
       await pool.query("SELECT 1");
       return { status: "ok", database: "connected", simulation: "ready" };
     } catch {
-      return reply.code(503).send({ status: "degraded", database: "unavailable" });
+      return reply
+        .code(503)
+        .send({ status: "degraded", database: "unavailable" });
     }
   });
 
-  app.get("/v1/world", { schema: { tags: ["world"] } }, async () => store.getOverview());
+  app.get("/v1/world", { schema: { tags: ["world"] } }, async () =>
+    store.getOverview(),
+  );
 
-  app.get("/v1/world/regions/:id", { schema: { tags: ["world"] } }, async (request, reply) => {
-    const id = z.string().uuid().parse((request.params as { id: string }).id);
-    const state = await store.ensureWorld();
-    const region = state.regions.find((item) => item.id === id);
-    if (!region) return reply.code(404).send({ code: "REGION_NOT_FOUND" });
-    return {
-      region,
-      civilizations: state.civilizations.filter((item) => item.regionId === id),
-      species: state.species.filter((item) => item.regionId === id).slice(0, 30),
-    };
-  });
+  app.get(
+    "/v1/world/regions/:id",
+    { schema: { tags: ["world"] } },
+    async (request, reply) => {
+      const id = z
+        .string()
+        .uuid()
+        .parse((request.params as { id: string }).id);
+      const state = await store.ensureWorld();
+      const region = state.regions.find((item) => item.id === id);
+      if (!region) return reply.code(404).send({ code: "REGION_NOT_FOUND" });
+      return {
+        region,
+        civilizations: state.civilizations.filter(
+          (item) => item.regionId === id,
+        ),
+        species: state.species
+          .filter((item) => item.regionId === id)
+          .slice(0, 30),
+      };
+    },
+  );
 
-  app.get("/v1/world/events", { schema: { tags: ["world"] } }, async (request) => {
-    const { limit } = queryLimitSchema.parse(request.query);
-    return { events: await store.events(limit) };
-  });
+  app.get(
+    "/v1/world/events",
+    { schema: { tags: ["world"] } },
+    async (request) => {
+      const { limit } = queryLimitSchema.parse(request.query);
+      return { events: await store.events(limit) };
+    },
+  );
 
-  app.get("/v1/world/events/:id/causes", { schema: { tags: ["world"] } }, async (request) => {
-    const id = z.string().uuid().parse((request.params as { id: string }).id);
-    return { links: await store.causalGraph(id) };
-  });
+  app.get(
+    "/v1/world/events/:id/causes",
+    { schema: { tags: ["world"] } },
+    async (request) => {
+      const id = z
+        .string()
+        .uuid()
+        .parse((request.params as { id: string }).id);
+      return { links: await store.causalGraph(id) };
+    },
+  );
 
   app.get("/v1/world/timeline", { schema: { tags: ["world"] } }, async () => {
     const state = await store.ensureWorld();
@@ -139,44 +177,58 @@ export async function buildServer() {
     return { snapshots: result.rows };
   });
 
-  app.get("/v1/world/compare", { schema: { tags: ["world"] } }, async (request, reply) => {
-    const query = z
-      .object({
-        fromVersion: z.coerce.number().int().positive(),
-        toVersion: z.coerce.number().int().positive(),
-      })
-      .parse(request.query);
-    const state = await store.ensureWorld();
-    const snapshots = await pool.query<{ version: string; state: typeof state }>(
-      `SELECT version,state FROM timeline_snapshots
+  app.get(
+    "/v1/world/compare",
+    { schema: { tags: ["world"] } },
+    async (request, reply) => {
+      const query = z
+        .object({
+          fromVersion: z.coerce.number().int().positive(),
+          toVersion: z.coerce.number().int().positive(),
+        })
+        .parse(request.query);
+      const state = await store.ensureWorld();
+      const snapshots = await pool.query<{
+        version: string;
+        state: typeof state;
+      }>(
+        `SELECT version,state FROM timeline_snapshots
        WHERE planet_id=$1 AND version=ANY($2::bigint[])`,
-      [state.planetId, [query.fromVersion, query.toVersion]],
-    );
-    if (snapshots.rows.length !== 2) {
-      return reply.code(404).send({ code: "SNAPSHOT_NOT_FOUND" });
-    }
-    const from = snapshots.rows.find((item) => Number(item.version) === query.fromVersion)!.state;
-    const to = snapshots.rows.find((item) => Number(item.version) === query.toVersion)!.state;
-    const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
-    return {
-      from: { version: from.version, tick: from.tick, year: from.year },
-      to: { version: to.version, tick: to.tick, year: to.year },
-      changes: {
-        population:
-          sum(to.civilizations.map((item) => item.population)) -
-          sum(from.civilizations.map((item) => item.population)),
-        meanTemperature:
-          sum(to.regions.map((item) => item.temperature)) / to.regions.length -
-          sum(from.regions.map((item) => item.temperature)) / from.regions.length,
-        vegetation:
-          sum(to.regions.map((item) => item.vegetation)) -
-          sum(from.regions.map((item) => item.vegetation)),
-        pollution:
-          sum(to.regions.map((item) => item.pollution)) -
-          sum(from.regions.map((item) => item.pollution)),
-      },
-    };
-  });
+        [state.planetId, [query.fromVersion, query.toVersion]],
+      );
+      if (snapshots.rows.length !== 2) {
+        return reply.code(404).send({ code: "SNAPSHOT_NOT_FOUND" });
+      }
+      const from = snapshots.rows.find(
+        (item) => Number(item.version) === query.fromVersion,
+      )!.state;
+      const to = snapshots.rows.find(
+        (item) => Number(item.version) === query.toVersion,
+      )!.state;
+      const sum = (values: number[]) =>
+        values.reduce((total, value) => total + value, 0);
+      return {
+        from: { version: from.version, tick: from.tick, year: from.year },
+        to: { version: to.version, tick: to.tick, year: to.year },
+        changes: {
+          population:
+            sum(to.civilizations.map((item) => item.population)) -
+            sum(from.civilizations.map((item) => item.population)),
+          meanTemperature:
+            sum(to.regions.map((item) => item.temperature)) /
+              to.regions.length -
+            sum(from.regions.map((item) => item.temperature)) /
+              from.regions.length,
+          vegetation:
+            sum(to.regions.map((item) => item.vegetation)) -
+            sum(from.regions.map((item) => item.vegetation)),
+          pollution:
+            sum(to.regions.map((item) => item.pollution)) -
+            sum(from.regions.map((item) => item.pollution)),
+        },
+      };
+    },
+  );
 
   app.post(
     "/v1/contributions/analyze",
@@ -190,15 +242,22 @@ export async function buildServer() {
       const input = contributionRequestSchema.parse(request.body);
       const analysis = await provider.analyze(input);
       const state = await store.ensureWorld();
-      const regions = state.regions
+      const matchingRegions = state.regions
         .filter((region) => analysis.possibleBiomes.includes(region.biome))
         .sort(
           (left, right) =>
-            right.fertility + right.surfaceWater - (left.fertility + left.surfaceWater),
+            right.fertility +
+            right.surfaceWater -
+            (left.fertility + left.surfaceWater),
         )
         .slice(0, 12);
-      const region = regions[0] ?? state.regions.find((item) => item.biome !== "ocean")!;
-      const scenarios = forecastContribution(state, analysis, region);
+      const fallbackRegion = state.regions.find(
+        (item) => item.biome !== "ocean",
+      )!;
+      const regions =
+        matchingRegions.length > 0 ? matchingRegions : [fallbackRegion];
+      const region = regions[0]!;
+      const scenarios = previewContribution(state, analysis, region);
       await pool.query(
         `INSERT INTO ai_requests(
            user_id,provider,model,purpose,input_hash,output,status,latency_ms
@@ -278,65 +337,81 @@ export async function buildServer() {
     },
   );
 
-  app.get("/v1/admin/status", { preHandler: auth.authenticate }, async (request, reply) => {
-    const claims = auth.claims(request);
-    if (!claims.roles.some((role) => ["simulation_manager", "system_admin", "super_admin"].includes(role))) {
-      return reply.code(403).send({ code: "FORBIDDEN" });
-    }
-    const [world, queue, ai] = await Promise.all([
-      store.getOverview(),
-      pool.query("SELECT count(*) AS pending FROM moderation_results WHERE decision='NEEDS_REVIEW'"),
-      pool.query(
-        `SELECT provider,count(*) AS requests,coalesce(sum(cost_usd),0) AS cost
-         FROM ai_requests GROUP BY provider`,
-      ),
-    ]);
-    return {
-      simulation: {
-        status: world.simulationStatus,
-        tick: world.state.tick,
-        version: world.state.version,
-      },
-      moderation: queue.rows[0],
-      ai: ai.rows,
-    };
-  });
-
-  app.route({
-    method: "GET",
-    url: "/v1/realtime",
-    websocket: true,
-    handler: async (socket, request) => {
-      const query = z.object({ token: z.string().min(20) }).safeParse(request.query);
-      if (!query.success) return socket.close(1008, "Authentication required");
-      try {
-        await app.jwt.verify(query.data.token);
-      } catch {
-        return socket.close(1008, "Invalid token");
+  app.get(
+    "/v1/admin/status",
+    { preHandler: auth.authenticate },
+    async (request, reply) => {
+      const claims = auth.claims(request);
+      if (
+        !claims.roles.some((role) =>
+          ["simulation_manager", "system_admin", "super_admin"].includes(role),
+        )
+      ) {
+        return reply.code(403).send({ code: "FORBIDDEN" });
       }
-      sockets.add(socket);
-      socket.send(JSON.stringify({ type: "realtime.ready", payload: { deltaUpdates: true } }));
-      socket.on("close", () => sockets.delete(socket));
-      socket.on("error", () => sockets.delete(socket));
+      const [world, queue, ai] = await Promise.all([
+        store.getOverview(),
+        pool.query(
+          "SELECT count(*) AS pending FROM moderation_results WHERE decision='NEEDS_REVIEW'",
+        ),
+        pool.query(
+          `SELECT provider,count(*) AS requests,coalesce(sum(cost_usd),0) AS cost
+         FROM ai_requests GROUP BY provider`,
+        ),
+      ]);
+      return {
+        simulation: {
+          status: world.simulationStatus,
+          tick: world.state.tick,
+          version: world.state.version,
+        },
+        moderation: queue.rows[0],
+        ai: ai.rows,
+      };
     },
+  );
+
+  app.get("/v1/realtime", { websocket: true }, async (socket, request) => {
+    const query = z
+      .object({ token: z.string().min(20) })
+      .safeParse(request.query);
+    if (!query.success) return socket.close(1008, "Authentication required");
+    try {
+      await app.jwt.verify(query.data.token);
+    } catch {
+      return socket.close(1008, "Invalid token");
+    }
+    const remove = realtime.add(socket);
+    socket.send(
+      JSON.stringify({
+        type: "realtime.ready",
+        payload: { deltaUpdates: true },
+      }),
+    );
+    socket.on("close", remove);
+    socket.on("error", remove);
   });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
       return reply.code(400).send({
         code: "VALIDATION_ERROR",
-        issues: error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
+        issues: error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
       });
     }
     const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
     request.log.error({ err: error }, "request failed");
+    const message = error instanceof Error ? error.message : "REQUEST_FAILED";
     return reply
       .code(statusCode)
-      .send({ code: statusCode === 500 ? "INTERNAL_ERROR" : error.message });
+      .send({ code: statusCode === 500 ? "INTERNAL_ERROR" : message });
   });
 
   app.addHook("onClose", async () => {
-    for (const socket of sockets) socket.close(1001, "Server shutting down");
+    realtime.close();
     await bus.close();
     await pool.end();
   });

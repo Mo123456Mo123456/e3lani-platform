@@ -1,6 +1,6 @@
 import { hash } from "bcryptjs";
 import { Pool } from "pg";
-import { SeededRandom, deterministicId } from "@planet/simulation-models";
+import { SeededRandom, deterministicId } from "@planet/world-generator";
 import { config } from "./config.js";
 import { migrate } from "./migrate.js";
 import { WorldStore } from "./world-store.js";
@@ -40,7 +40,14 @@ async function seed(): Promise<void> {
       [JSON.stringify(plants), state.planetId],
     );
 
-    const resourceKinds = ["iron", "copper", "silicon", "fresh_water", "geothermal", "biomass"];
+    const resourceKinds = [
+      "iron",
+      "copper",
+      "silicon",
+      "fresh_water",
+      "geothermal",
+      "biomass",
+    ];
     const resources = Array.from({ length: 120 }, (_, index) => {
       const region = random.pick(land);
       return {
@@ -65,8 +72,11 @@ async function seed(): Promise<void> {
     );
 
     const cities = Array.from({ length: 40 }, (_, index) => {
-      const civilization = state.civilizations[index % state.civilizations.length]!;
-      const capitalRegion = state.regions.find((region) => region.id === civilization.regionId)!;
+      const civilization =
+        state.civilizations[index % state.civilizations.length]!;
+      const capitalRegion = state.regions.find(
+        (region) => region.id === civilization.regionId,
+      )!;
       const nearby = land
         .filter(
           (region) =>
@@ -74,7 +84,8 @@ async function seed(): Promise<void> {
             Math.abs(region.longitude - capitalRegion.longitude) < 45,
         )
         .sort((left, right) => right.fertility - left.fertility);
-      const region = nearby[index % Math.max(1, nearby.length)] ?? capitalRegion;
+      const region =
+        nearby[index % Math.max(1, nearby.length)] ?? capitalRegion;
       return {
         id: deterministicId(`${state.seed}:city:${index}`),
         civilizationId: civilization.id,
@@ -95,7 +106,8 @@ async function seed(): Promise<void> {
 
     const technologies = Array.from({ length: 50 }, (_, index) => ({
       id: deterministicId(`${state.seed}:technology:${index}`),
-      civilizationId: state.civilizations[index % state.civilizations.length]!.id,
+      civilizationId:
+        state.civilizations[index % state.civilizations.length]!.id,
       name: `Technology ${String(index + 1).padStart(2, "0")}`,
       level: Number((0.08 + index * 0.012).toFixed(3)),
       year: Math.floor(index / 4),
@@ -113,7 +125,8 @@ async function seed(): Promise<void> {
     );
 
     const adminEmail = "admin@planet.local";
-    const adminPassword = process.env.SANDBOX_ADMIN_PASSWORD ?? "PlanetSandbox!2026";
+    const adminPassword =
+      process.env.SANDBOX_ADMIN_PASSWORD ?? "PlanetSandbox!2026";
     const passwordHash = await hash(adminPassword, 12);
     const admin = await pool.query<{ id: string }>(
       `INSERT INTO users(email,password_hash)
@@ -142,7 +155,14 @@ async function seed(): Promise<void> {
         message: "sandbox world seeded",
         planetId: state.planetId,
         tick: state.tick,
-        counts: { civilizations: 12, cities: 40, resources: 120, species: 300, plants: 800, technologies: 50 },
+        counts: {
+          civilizations: 12,
+          cities: 40,
+          resources: 120,
+          species: 300,
+          plants: 800,
+          technologies: 50,
+        },
       }),
     );
   } finally {

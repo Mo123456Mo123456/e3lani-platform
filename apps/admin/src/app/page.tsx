@@ -23,7 +23,10 @@ export default function AdminPage() {
       method: "POST",
       credentials: "include",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: values.get("email"), password: values.get("password") }),
+      body: JSON.stringify({
+        email: values.get("email"),
+        password: values.get("password"),
+      }),
     });
     if (!response.ok) return setError("بيانات الدخول غير صحيحة");
     const session = (await response.json()) as { accessToken: string };
@@ -42,8 +45,14 @@ export default function AdminPage() {
           <small>RESTRICTED · RBAC</small>
           <h1>إدارة محرك العالم</h1>
           <p>هذه الواجهة منفصلة ولا يظهر رابطها في تطبيق المستخدم.</p>
-          <label>البريد<input name="email" type="email" required /></label>
-          <label>كلمة المرور<input name="password" type="password" required /></label>
+          <label>
+            البريد
+            <input name="email" type="email" required />
+          </label>
+          <label>
+            كلمة المرور
+            <input name="password" type="password" required />
+          </label>
           {error && <strong>{error}</strong>}
           <button>دخول آمن</button>
         </form>
@@ -55,25 +64,69 @@ export default function AdminPage() {
     <main className="admin-shell">
       <aside>
         <h2>Planet Control</h2>
-        {["نظرة عامة", "المحاكاة", "المساهمات", "المستخدمون", "المراجعة", "تكلفة الذكاء", "سجل العمليات"].map(
-          (item, index) => <button className={index === 0 ? "active" : ""} key={item}>{item}</button>,
-        )}
+        {[
+          "نظرة عامة",
+          "المحاكاة",
+          "المساهمات",
+          "المستخدمون",
+          "المراجعة",
+          "تكلفة الذكاء",
+          "سجل العمليات",
+        ].map((item, index) => (
+          <button className={index === 0 ? "active" : ""} key={item}>
+            {item}
+          </button>
+        ))}
       </aside>
       <section>
-        <header><div><small>LIVE OPERATIONS</small><h1>لوحة التحكم</h1></div><span>{status.simulation.status}</span></header>
+        <header>
+          <div>
+            <small>LIVE OPERATIONS</small>
+            <h1>لوحة التحكم</h1>
+          </div>
+          <span>{status.simulation.status}</span>
+        </header>
         <div className="metrics">
-          <article><small>Tick</small><strong>{status.simulation.tick}</strong></article>
-          <article><small>World version</small><strong>{status.simulation.version}</strong></article>
-          <article><small>Moderation queue</small><strong>{status.moderation.pending}</strong></article>
-          <article><small>AI cost</small><strong>${status.ai.reduce((sum, row) => sum + Number(row.cost), 0).toFixed(4)}</strong></article>
+          <article>
+            <small>Tick</small>
+            <strong>{status.simulation.tick}</strong>
+          </article>
+          <article>
+            <small>World version</small>
+            <strong>{status.simulation.version}</strong>
+          </article>
+          <article>
+            <small>Moderation queue</small>
+            <strong>{status.moderation.pending}</strong>
+          </article>
+          <article>
+            <small>AI cost</small>
+            <strong>
+              $
+              {status.ai
+                .reduce((sum, row) => sum + Number(row.cost), 0)
+                .toFixed(4)}
+            </strong>
+          </article>
         </div>
         <article className="ops-card">
           <h2>حالة المزودين</h2>
-          {status.ai.length ? status.ai.map((row) => (
-            <div key={row.provider}><span>{row.provider}</span><b>{row.requests} طلب</b><em>${row.cost}</em></div>
-          )) : <p>لم تُنفذ طلبات تحليل بعد.</p>}
+          {status.ai.length ? (
+            status.ai.map((row) => (
+              <div key={row.provider}>
+                <span>{row.provider}</span>
+                <b>{row.requests} طلب</b>
+                <em>${row.cost}</em>
+              </div>
+            ))
+          ) : (
+            <p>لم تُنفذ طلبات تحليل بعد.</p>
+          )}
         </article>
-        <p className="phase-note">تشغيل/إيقاف Ticks وRollback ومراجعة المحتوى موصولة في API تدريجيًا؛ الأزرار غير المنفذة لا تُعرض كعمليات ناجحة.</p>
+        <p className="phase-note">
+          تشغيل/إيقاف Ticks وRollback ومراجعة المحتوى موصولة في API تدريجيًا؛
+          الأزرار غير المنفذة لا تُعرض كعمليات ناجحة.
+        </p>
       </section>
     </main>
   );
