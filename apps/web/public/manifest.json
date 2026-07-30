@@ -1,0 +1,12 @@
+{
+  "name": "كوكب يولد أمامك",
+  "short_name": "كوكب",
+  "description": "عالم حي يتشكل بقراراتك",
+  "start_url": "/ar",
+  "display": "standalone",
+  "background_color": "#050A15",
+  "theme_color": "#050A15",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": []
+}
