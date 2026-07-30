@@ -1,0 +1,17 @@
+:root {
+  --planet-bg: #050a14;
+  --planet-bg-raised: #0a1220;
+  --planet-bg-panel: rgba(10, 18, 32, 0.82);
+  --planet-border: rgba(56, 189, 248, 0.18);
+  --planet-accent: #38bdf8;
+  --planet-accent-dim: #0e7490;
+  --planet-green: #34d399;
+  --planet-gold: #fbbf24;
+  --planet-purple: #a78bfa;
+  --planet-red: #f87171;
+  --planet-orange: #fb923c;
+  --planet-text: #e2e8f0;
+  --planet-text-dim: #94a3b8;
+  --planet-font: "IBM Plex Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  --planet-radius: 10px;
+}

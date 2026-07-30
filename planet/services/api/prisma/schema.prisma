@@ -1,0 +1,512 @@
+// كوكب يولد أمامك — database schema
+// PostgreSQL with PostGIS + pgvector extensions (see migrations/0001_init).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------ users
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  passwordHash  String
+  status        String          @default("active") // active | suspended | deleted
+  roleId        Int
+  role          Role            @relation(fields: [roleId], references: [id])
+  profile       Profile?
+  refreshTokens RefreshToken[]
+  contributions UserContribution[]
+  notifications Notification[]
+  aiRequests    AIRequest[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String
+  locale      String   @default("ar")
+  avatarUrl   String?
+  impactScore Float    @default(0)
+  titles      Json     @default("[]")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // visitor | registered | explorer | life_maker | ... | super_admin
+  description String?
+  users       User[]
+}
+
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------------ planet
+
+model Planet {
+  id            String            @id
+  name          String
+  seed          Int
+  status        String            @default("running") // running | paused | archived
+  currentTick   Int               @default(0)
+  yearsPerTick  Int               @default(1)
+  era           String            @default("genesis")
+  gridWidth     Int
+  gridHeight    Int
+  config        Json              @default("{}")
+  regions       PlanetRegion[]
+  climateCells  ClimateCell[]
+  species       Species[]
+  plants        Plant[]
+  resources     Resource[]
+  civilizations Civilization[]
+  cities        City[]
+  technologies  Technology[]
+  cultures      Culture[]
+  languages     Language[]
+  tradeRoutes   TradeRoute[]
+  alliances     Alliance[]
+  wars          War[]
+  diseases      Disease[]
+  migrations    Migration[]
+  contributions UserContribution[]
+  ticks         SimulationTick[]
+  events        WorldEvent[]
+  causalLinks   CausalLink[]
+  snapshots     TimelineSnapshot[]
+  notifications Notification[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model PlanetRegion {
+  id          String   @id @default(cuid())
+  planetId    String
+  planet      Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  cellIndex   Int
+  lat         Float
+  lon         Float
+  biome       String
+  height      Float
+  temperature Float
+  moisture    Float
+  pollution   Float
+  fertility   Float
+  river       Boolean  @default(false)
+  civEngineId Int?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([planetId, cellIndex])
+}
+
+model Biome {
+  id          Int    @id @default(autoincrement())
+  name        String @unique
+  nameAr      String
+  habitability Float @default(0)
+}
+
+model ClimateCell {
+  id          String  @id @default(cuid())
+  planetId    String
+  planet      Planet  @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  cellIndex   Int
+  tick        Int
+  temperature Float
+  moisture    Float
+  pollution   Float
+  ice         Float
+
+  @@unique([planetId, cellIndex, tick])
+  @@index([planetId, tick])
+}
+
+// ------------------------------------------------------------------ life
+
+model Species {
+  id             String   @id @default(cuid())
+  planetId       String
+  planet         Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId       Int
+  name           String
+  kind           String // fauna: herbivore | carnivore | omnivore
+  population     Float
+  extinct        Boolean  @default(false)
+  bornTick       Int
+  cells          Json     @default("{}")
+  intelligence   Float    @default(0)
+  aggression     Float    @default(0)
+  contributionId String?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([planetId, engineId])
+  @@index([planetId, extinct])
+}
+
+model Plant {
+  id             String   @id @default(cuid())
+  planetId       String
+  planet         Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId       Int
+  name           String
+  population     Float
+  extinct        Boolean  @default(false)
+  bornTick       Int
+  cells          Json     @default("{}")
+  pollutionAbsorption Float @default(0)
+  nightLuminosity Float   @default(0)
+  contributionId String?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([planetId, engineId])
+  @@index([planetId, extinct])
+}
+
+model Resource {
+  id             String   @id @default(cuid())
+  planetId       String
+  planet         Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId       Int
+  cell           Int
+  kind           String
+  quantity       Float
+  regenRate      Float
+  extractionRate Float
+  value          Float
+  discoveredBy   Int?
+  depleted       Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([planetId, engineId])
+}
+
+// ------------------------------------------------------------------ civilization
+
+model Civilization {
+  id             String   @id @default(cuid())
+  planetId       String
+  planet         Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId       Int
+  name           String
+  population     Float
+  techLevel      Int
+  government     String
+  military       Float
+  economy        Float
+  stability      Float
+  happiness      Float
+  education      Float    @default(0.2)
+  health         Float    @default(0.5)
+  culture        String
+  language       String
+  religion       String
+  fallen         Boolean  @default(false)
+  capitalCell    Int
+  cells          Json     @default("[]")
+  foundedTick    Int
+  contributionId String?
+  cities         City[]
+  updatedAt      DateTime @updatedAt
+
+  @@unique([planetId, engineId])
+}
+
+model City {
+  id             String         @id @default(cuid())
+  planetId       String
+  planet         Planet         @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId       Int
+  civilizationId String?
+  civilization   Civilization?  @relation(fields: [civilizationId], references: [id])
+  civEngineId    Int
+  name           String
+  cell           Int
+  population     Float
+  fallen         Boolean        @default(false)
+  foundedTick    Int
+  updatedAt      DateTime       @updatedAt
+  tradeFrom      TradeRoute[]   @relation("fromCity")
+  tradeTo        TradeRoute[]   @relation("toCity")
+
+  @@unique([planetId, engineId])
+}
+
+model Technology {
+  id             String   @id @default(cuid())
+  planetId       String
+  planet         Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId       Int
+  name           String
+  tier           Int
+  discoveredBy   Int?
+  discoveredTick Int?
+  contributionId String?
+
+  @@unique([planetId, engineId])
+}
+
+model Culture {
+  id       String  @id @default(cuid())
+  planetId String
+  planet   Planet  @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  name     String
+  traits   Json    @default("{}")
+
+  @@unique([planetId, name])
+}
+
+model Language {
+  id       String  @id @default(cuid())
+  planetId String
+  planet   Planet  @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  name     String
+  family   String  @default("")
+
+  @@unique([planetId, name])
+}
+
+model TradeRoute {
+  id          String  @id @default(cuid())
+  planetId    String
+  planet      Planet  @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId    Int
+  fromCityId  String?
+  fromCity    City?   @relation("fromCity", fields: [fromCityId], references: [id])
+  toCityId    String?
+  toCity      City?   @relation("toCity", fields: [toCityId], references: [id])
+  fromCityEngineId Int
+  toCityEngineId   Int
+  path        Json    @default("[]")
+  volume      Float   @default(0.1)
+  active      Boolean @default(true)
+  createdTick Int
+
+  @@unique([planetId, engineId])
+}
+
+model Alliance {
+  id          String  @id @default(cuid())
+  planetId    String
+  planet      Planet  @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId    Int
+  civIds      Json    @default("[]")
+  createdTick Int
+  brokenTick  Int?
+
+  @@unique([planetId, engineId])
+}
+
+model War {
+  id             String   @id @default(cuid())
+  planetId       String
+  planet         Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId       Int
+  attackerEngineId Int
+  defenderEngineId Int
+  startedTick    Int
+  endedTick      Int?
+  casualties     Float    @default(0)
+  reason         String
+  contributionId String?
+
+  @@unique([planetId, engineId])
+}
+
+model Disease {
+  id             String   @id @default(cuid())
+  planetId       String
+  planet         Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId       Int
+  name           String
+  virulence      Float
+  lethality      Float
+  active         Boolean  @default(true)
+  startedTick    Int
+  contributionId String?
+
+  @@unique([planetId, engineId])
+}
+
+model Migration {
+  id          String  @id @default(cuid())
+  planetId    String
+  planet      Planet  @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  engineId    Int
+  civEngineId Int?
+  fromCell    Int
+  toCell      Int
+  path        Json    @default("[]")
+  people      Float
+  reason      String
+  startedTick Int
+  done        Boolean @default(false)
+
+  @@unique([planetId, engineId])
+}
+
+// ------------------------------------------------------------------ contributions & simulation
+
+model UserContribution {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planetId      String
+  planet        Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  category      String
+  rawText       String
+  status        String   @default("draft") // draft | analyzing | previewed | applied | rejected
+  analysis      Json?
+  preview       Json?
+  balance       Json?
+  cellIndex     Int?
+  appliedTick   Int?
+  impactScore   Float    @default(0)
+  eventCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, planetId])
+}
+
+model SimulationTick {
+  id          String   @id @default(cuid())
+  planetId    String
+  planet      Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  tick        Int
+  year        Int
+  eventCount  Int
+  checksum    String
+  durationMs  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([planetId, tick])
+}
+
+model WorldEvent {
+  id             BigInt   @id @default(autoincrement())
+  planetId       String
+  planet         Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  seq            Int
+  tick           Int
+  year           Int
+  type           String
+  cellIndex      Int?
+  civIds         Json     @default("[]")
+  payload        Json     @default("{}")
+  causes         Json     @default("[]")
+  confidence     Float    @default(1)
+  contributionId String?
+  importance     Float    @default(0.3)
+  hash           String
+  embedding      Unsupported("vector(1536)")?
+  createdAt      DateTime @default(now())
+
+  @@unique([planetId, seq])
+  @@index([planetId, type])
+  @@index([planetId, contributionId])
+}
+
+model CausalLink {
+  id       String @id @default(cuid())
+  planetId String
+  planet   Planet @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  fromSeq  Int
+  toSeq    Int
+  relation String @default("causes")
+
+  @@unique([planetId, fromSeq, toSeq])
+}
+
+model TimelineSnapshot {
+  id        String   @id @default(cuid())
+  planetId  String
+  planet    Planet   @relation(fields: [planetId], references: [id], onDelete: Cascade)
+  tick      Int
+  year      Int
+  checksum  String
+  state     Json     @default("{}") // stats + entity counts at this point
+  createdAt DateTime @default(now())
+
+  @@unique([planetId, tick])
+}
+
+// ------------------------------------------------------------------ platform
+
+model AIRequest {
+  id               String   @id @default(cuid())
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id])
+  provider         String
+  kind             String // analyze | narrate
+  model            String?
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  costUsd          Float    @default(0)
+  sandbox          Boolean  @default(true)
+  status           String   @default("ok")
+  durationMs       Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model ModerationResult {
+  id             String   @id @default(cuid())
+  userId         String
+  contributionId String?
+  flags          Json     @default("[]")
+  score          Float
+  allowed        Boolean
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planetId  String?
+  planet    Planet?  @relation(fields: [planetId], references: [id])
+  type      String
+  title     String
+  body      String
+  eventSeq  Int?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json     @default("{}")
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+}
