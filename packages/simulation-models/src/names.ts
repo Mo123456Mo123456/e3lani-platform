@@ -2,7 +2,7 @@
  * Seeded procedural names for species, civilizations, cities and technologies.
  * Deterministic given the RNG stream consumed.
  */
-import type { Rng } from "./rng.js";
+import type { Rng } from "./rng";
 
 const ONSETS = [
   "v", "kr", "th", "m", "s", "dr", "n", "z", "q", "br", "t", "sh", "g",

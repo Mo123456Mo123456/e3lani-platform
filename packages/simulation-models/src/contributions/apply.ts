@@ -15,13 +15,13 @@ import type {
   StructuredContribution,
   WorldEvent,
 } from "@planet/shared-types";
-import { clamp01 } from "../noise.js";
-import { foundCivilization } from "../engine/genesis.js";
-import { nextEntityId, type WorldState } from "../engine/state.js";
-import type { EmitInput } from "../engine/engine.js";
-import { rngFromString, type Rng } from "../rng.js";
-import { SimulationEngine } from "../engine/engine.js";
-import { plantSuitability } from "../engine/systems/ecosystem.js";
+import { clamp01 } from "../noise";
+import { foundCivilization } from "../engine/genesis";
+import { nextEntityId, type WorldState } from "../engine/state";
+import type { EmitInput } from "../engine/engine";
+import { rngFromString, type Rng } from "../rng";
+import { SimulationEngine } from "../engine/engine";
+import { plantSuitability } from "../engine/systems/ecosystem";
 
 type Emit = (input: EmitInput) => WorldEvent;
 

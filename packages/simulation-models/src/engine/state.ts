@@ -18,8 +18,8 @@ import type {
   TradeRoute,
   War,
 } from "@planet/shared-types";
-import { fingerprint } from "../rng.js";
-import type { PlanetGrid } from "../worldgen/planet.js";
+import { fingerprint } from "../rng";
+import type { PlanetGrid } from "../worldgen/planet";
 
 export interface ClimateState {
   /** 0..1 global mean temperature anomaly driver */

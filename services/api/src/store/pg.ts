@@ -20,7 +20,7 @@ import type {
   Repository,
   SnapshotRecord,
   StoredUser,
-} from "./repository.js";
+} from "./repository";
 
 export class PgRepository implements Repository {
   private readonly pool: pg.Pool;
@@ -116,19 +116,22 @@ export class PgRepository implements Repository {
   // --- planets --------------------------------------------------------------
   async createPlanet(p: PlanetSummary): Promise<void> {
     await this.q(
-      `INSERT INTO planets (id, name, seed, lat_bands, lon_bands, sea_level, current_tick, current_year, years_per_tick, status, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [p.id, p.name, p.seed, p.latBands, p.lonBands, p.seaLevel, p.currentTick, p.currentYear, p.yearsPerTick, p.status, p.createdAt],
+      `INSERT INTO planets (id, name, seed, lat_bands, lon_bands, sea_level, current_tick, current_year, years_per_tick, river_count, resource_density, status, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [p.id, p.name, p.seed, p.latBands, p.lonBands, p.seaLevel, p.currentTick, p.currentYear, p.yearsPerTick, p.riverCount ?? null, p.resourceDensity ?? null, p.status, p.createdAt],
     );
   }
   async listPlanets(): Promise<PlanetSummary[]> {
-    const rows = await this.q<{ id: string; name: string; seed: string; lat_bands: number; lon_bands: number; sea_level: number; current_tick: string; current_year: string; years_per_tick: number; status: "running" | "paused"; created_at: string }>(
+    const rows = await this.q<{ id: string; name: string; seed: string; lat_bands: number; lon_bands: number; sea_level: number; current_tick: string; current_year: string; years_per_tick: number; river_count: number | null; resource_density: number | null; status: "running" | "paused"; created_at: string }>(
       `SELECT * FROM planets ORDER BY created_at ASC`,
     );
     return rows.map((r) => ({
       id: r.id, name: r.name, seed: r.seed, latBands: r.lat_bands, lonBands: r.lon_bands,
       seaLevel: r.sea_level, currentTick: Number(r.current_tick), currentYear: Number(r.current_year),
-      yearsPerTick: r.years_per_tick, status: r.status,
+      yearsPerTick: r.years_per_tick,
+      ...(r.river_count !== null ? { riverCount: r.river_count } : {}),
+      ...(r.resource_density !== null ? { resourceDensity: r.resource_density } : {}),
+      status: r.status,
       stats: { landCells: 0, oceanCells: 0, biomeCounts: {}, civilizationCount: 0, cityCount: 0, speciesCount: 0, plantCount: 0, resourceDepositCount: 0, activeWarCount: 0, eventCount: 0 },
       createdAt: new Date(r.created_at).toISOString(),
     }));

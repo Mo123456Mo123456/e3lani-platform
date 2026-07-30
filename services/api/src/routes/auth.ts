@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { loginInput, refreshInput, registerInput } from "@planet/validation";
-import type { StoredUser } from "../store/repository.js";
-import { hashPassword, verifyPassword } from "../auth/passwords.js";
-import { requireAuth } from "../auth/guards.js";
-import type { AppContext } from "../context.js";
+import type { StoredUser } from "../store/repository";
+import { hashPassword, verifyPassword } from "../auth/passwords";
+import { requireAuth } from "../auth/guards";
+import type { AppContext } from "../context";
 
 export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.post("/auth/register", {

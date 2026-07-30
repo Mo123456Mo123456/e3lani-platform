@@ -3,8 +3,8 @@
  * optional per-cell risk. Used for migrations, trade routes and armies, so
  * impossible crossings (e.g. ocean for terrestrial walkers) never happen.
  */
-import type { PlanetGrid } from "../worldgen/planet.js";
-import { BIOME_MOVE_COST } from "../worldgen/biomes.js";
+import type { PlanetGrid } from "../worldgen/planet";
+import { BIOME_MOVE_COST } from "../worldgen/biomes";
 
 export interface PathOptions {
   /** additional cost per cell index (risk, borders...) */

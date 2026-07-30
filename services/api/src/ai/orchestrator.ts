@@ -17,8 +17,8 @@ import type {
   StructuredContribution,
 } from "@planet/shared-types";
 import { structuredContributionSchema } from "@planet/validation";
-import { analyzeText } from "./analyzer.js";
-import type { Repository } from "../store/repository.js";
+import { analyzeText } from "./analyzer";
+import type { Repository } from "../store/repository";
 
 export interface OrchestratorConfig {
   url: string;

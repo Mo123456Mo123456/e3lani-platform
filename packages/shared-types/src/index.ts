@@ -87,6 +87,9 @@ export interface PlanetSummary {
   currentTick: number;
   currentYear: number;
   yearsPerTick: number;
+  /** worldgen params needed for bit-identical client-side regeneration */
+  riverCount?: number;
+  resourceDensity?: number;
   status: "running" | "paused";
   stats: PlanetStats;
   createdAt: string;

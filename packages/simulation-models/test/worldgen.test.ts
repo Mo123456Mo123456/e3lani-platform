@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { generatePlanet, neighborsOf } from "../src/index.js";
-import { fingerprint } from "../src/rng.js";
+import { generatePlanet, neighborsOf } from "../src/index";
+import { fingerprint } from "../src/rng";
 
 describe("procedural world generation", () => {
   it("same seed => identical planet", () => {

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { AppContext } from "../context.js";
+import type { AppContext } from "../context";
 
 const batchSchema = z.object({
   events: z

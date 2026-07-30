@@ -13,9 +13,9 @@
  *   9. resource deposits — biome-weighted seeded placement
  */
 import type { Biome, PlanetCell, ResourceDeposit, ResourceType } from "@planet/shared-types";
-import { Simplex3, Worley2, clamp, clamp01 } from "../noise.js";
-import { rngFromString, type Rng } from "../rng.js";
-import { BIOME_FERTILITY, classifyBiome } from "./biomes.js";
+import { Simplex3, Worley2, clamp, clamp01 } from "../noise";
+import { rngFromString, type Rng } from "../rng";
+import { BIOME_FERTILITY, classifyBiome } from "./biomes";
 
 export interface WorldgenConfig {
   seed: string;

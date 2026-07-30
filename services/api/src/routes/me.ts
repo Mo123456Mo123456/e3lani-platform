@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { paginationInput } from "@planet/validation";
-import { requireAuth } from "../auth/guards.js";
-import type { AppContext } from "../context.js";
+import { requireAuth } from "../auth/guards";
+import type { AppContext } from "../context";
 
 export function registerMeRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.get("/me/notifications", {

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { worldEventSchema } from "@planet/validation";
-import { SimulationEngine } from "../src/index.js";
+import { SimulationEngine } from "../src/index";
 
 const SEEDS = ["inv-1", "inv-2", "inv-3", "inv-4", "inv-5", "inv-6"];
 

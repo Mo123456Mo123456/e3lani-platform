@@ -10,8 +10,8 @@
  * Fully deterministic for a given engine state + parameters.
  */
 import type { ScenarioOutcome, ScenarioReport, WorldEvent } from "@planet/shared-types";
-import { SimulationEngine } from "./engine.js";
-import { contributionViability } from "../contributions/apply.js";
+import { SimulationEngine } from "./engine";
+import { contributionViability } from "../contributions/apply";
 
 export interface ScenarioOptions {
   horizonTicks: number;

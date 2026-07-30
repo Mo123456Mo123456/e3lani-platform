@@ -14,19 +14,19 @@ import type {
   StateDelta,
   WorldEvent,
 } from "@planet/shared-types";
-import { rngFromString, type Rng } from "../rng.js";
-import { generatePlanet, type WorldgenConfig } from "../worldgen/planet.js";
-import { genesisBiosphere, genesisCivilizations, genesisTechnology } from "./genesis.js";
+import { rngFromString, type Rng } from "../rng";
+import { generatePlanet, type WorldgenConfig } from "../worldgen/planet";
+import { genesisBiosphere, genesisCivilizations, genesisTechnology } from "./genesis";
 import {
   cloneState,
   stateFingerprint,
   type WorldState,
-} from "./state.js";
-import { climateSystem } from "./systems/climate.js";
-import { ecosystemSystem } from "./systems/ecosystem.js";
-import { civilizationSystem } from "./systems/civilization.js";
-import { conflictSystem } from "./systems/conflict.js";
-import { economySystem } from "./systems/economy.js";
+} from "./state";
+import { climateSystem } from "./systems/climate";
+import { ecosystemSystem } from "./systems/ecosystem";
+import { civilizationSystem } from "./systems/civilization";
+import { conflictSystem } from "./systems/conflict";
+import { economySystem } from "./systems/economy";
 
 export interface EngineConfig {
   planetId: string;

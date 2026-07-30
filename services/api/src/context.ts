@@ -2,10 +2,10 @@
  * Shared application context injected into every route module.
  */
 import type { Tracker } from "@planet/analytics";
-import type { Repository } from "./store/repository.js";
-import type { TokenService } from "./auth/tokens.js";
-import type { WorldManager } from "./world/manager.js";
-import type { AiOrchestrator } from "./ai/orchestrator.js";
+import type { Repository } from "./store/repository";
+import type { TokenService } from "./auth/tokens";
+import type { WorldManager } from "./world/manager";
+import type { AiOrchestrator } from "./ai/orchestrator";
 import type { ApiEnv } from "@planet/config";
 
 export interface AppContext {

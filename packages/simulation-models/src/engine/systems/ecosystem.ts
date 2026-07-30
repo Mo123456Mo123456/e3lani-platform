@@ -8,11 +8,11 @@
  *  - low populations go extinct; mutation spawns subspecies
  */
 import type { Biome, Plant, Species } from "@planet/shared-types";
-import { clamp01 } from "../../noise.js";
-import { generateName } from "../../names.js";
-import { floodFill } from "../pathfinding.js";
-import { nextEntityId, type WorldState } from "../state.js";
-import type { SystemCtx } from "../engine.js";
+import { clamp01 } from "../../noise";
+import { generateName } from "../../names";
+import { floodFill } from "../pathfinding";
+import { nextEntityId, type WorldState } from "../state";
+import type { SystemCtx } from "../engine";
 
 const MIN_VIABLE_POPULATION = 12;
 

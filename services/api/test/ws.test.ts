@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import type { RealtimeMessage } from "@planet/shared-types";
-import { createHarness, loginAdmin, type TestHarness } from "./helpers.js";
+import { createHarness, loginAdmin, type TestHarness } from "./helpers";
 
 let h: TestHarness;
 beforeAll(async () => {

@@ -3,7 +3,7 @@
  * fractal Brownian motion, ridged multifractal, and 2D Worley (cellular).
  * All generators derive their permutation tables from a seed — no globals.
  */
-import { createRng, hashString } from "./rng.js";
+import { createRng, hashString } from "./rng";
 
 const GRAD3 = new Float32Array([
   1, 1, 0, -1, 1, 0, 1, -1, 0, -1, -1, 0,

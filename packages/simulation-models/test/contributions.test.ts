@@ -8,7 +8,7 @@ import {
   runScenarios,
   rngFromString,
   validateBalance,
-} from "../src/index.js";
+} from "../src/index";
 import type { Contribution } from "@planet/shared-types";
 
 function makeContribution(id: string): Contribution {

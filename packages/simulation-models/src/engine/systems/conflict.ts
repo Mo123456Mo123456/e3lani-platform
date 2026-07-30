@@ -7,10 +7,10 @@
  * displacement, border shifts, city destruction, treaties and long memories.
  */
 import type { Civilization, War } from "@planet/shared-types";
-import { clamp, clamp01 } from "../../noise.js";
-import { nextEntityId, type WorldState } from "../state.js";
-import { techBonus } from "./civilization.js";
-import type { SystemCtx } from "../engine.js";
+import { clamp, clamp01 } from "../../noise";
+import { nextEntityId, type WorldState } from "../state";
+import { techBonus } from "./civilization";
+import type { SystemCtx } from "../engine";
 
 export function conflictSystem(ctx: SystemCtx): void {
   processWarIntents(ctx);

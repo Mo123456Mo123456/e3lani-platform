@@ -19,7 +19,7 @@ import type {
   Repository,
   SnapshotRecord,
   StoredUser,
-} from "./repository.js";
+} from "./repository";
 
 export class MemoryRepository implements Repository {
   readonly users = new Map<string, StoredUser>();

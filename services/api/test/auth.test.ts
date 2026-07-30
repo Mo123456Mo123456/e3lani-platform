@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, loginAdmin, registerUser, authHeader, type TestHarness } from "./helpers.js";
+import { createHarness, loginAdmin, registerUser, authHeader, type TestHarness } from "./helpers";
 
 let h: TestHarness;
 beforeAll(async () => {

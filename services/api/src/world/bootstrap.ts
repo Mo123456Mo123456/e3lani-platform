@@ -4,9 +4,9 @@
  */
 import { randomUUID } from "node:crypto";
 import type { PlanetSummary } from "@planet/shared-types";
-import { hashPassword } from "../auth/passwords.js";
-import type { Repository, StoredUser } from "../store/repository.js";
-import type { AppContext } from "../context.js";
+import { hashPassword } from "../auth/passwords";
+import type { Repository, StoredUser } from "../store/repository";
+import type { AppContext } from "../context";
 
 export const SANDBOX_ACCOUNTS = [
   {

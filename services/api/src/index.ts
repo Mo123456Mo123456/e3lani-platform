@@ -4,12 +4,12 @@
  * sandbox accounts exist, then serve.
  */
 import { loadApiEnv } from "@planet/config";
-import { buildApp } from "./app.js";
-import { MemoryRepository } from "./store/memory.js";
-import { PgRepository } from "./store/pg.js";
-import { runMigrations } from "./store/migrate.js";
-import type { Repository } from "./store/repository.js";
-import { seedSandboxAccounts, ensureDefaultPlanet } from "./world/bootstrap.js";
+import { buildApp } from "./app";
+import { MemoryRepository } from "./store/memory";
+import { PgRepository } from "./store/pg";
+import { runMigrations } from "./store/migrate";
+import type { Repository } from "./store/repository";
+import { seedSandboxAccounts, ensureDefaultPlanet } from "./world/bootstrap";
 
 async function main(): Promise<void> {
   const env = loadApiEnv();

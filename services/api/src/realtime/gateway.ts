@@ -10,7 +10,7 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
 import type { RealtimeMessage } from "@planet/shared-types";
-import type { AppContext } from "../context.js";
+import type { AppContext } from "../context";
 
 export function registerRealtimeGateway(app: FastifyInstance, ctx: AppContext): void {
   app.get("/planets/:planetId/stream", { websocket: true }, async (socket: WebSocket, request) => {

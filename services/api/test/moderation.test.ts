@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moderateText } from "../src/moderation/moderation.js";
+import { moderateText } from "../src/moderation/moderation";
 
 describe("moderation", () => {
   it("allows normal creative input", () => {

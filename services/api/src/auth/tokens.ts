@@ -5,7 +5,7 @@
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { AuthTokens, Role, User } from "@planet/shared-types";
-import type { Repository } from "../store/repository.js";
+import type { Repository } from "../store/repository";
 
 export interface TokenSigner {
   sign(payload: Record<string, unknown>, options: { expiresIn: string }): string;

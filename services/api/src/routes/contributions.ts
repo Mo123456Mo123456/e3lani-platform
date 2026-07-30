@@ -16,11 +16,11 @@ import {
   previewContribution,
   validateBalance,
 } from "@planet/simulation-models";
-import { requireAuth } from "../auth/guards.js";
-import { progressionRoles } from "../auth/guards.js";
-import { moderateText, toModerationResult } from "../moderation/moderation.js";
-import { narrateContribution } from "../ai/narrator.js";
-import type { AppContext } from "../context.js";
+import { requireAuth } from "../auth/guards";
+import { progressionRoles } from "../auth/guards";
+import { moderateText, toModerationResult } from "../moderation/moderation";
+import { narrateContribution } from "../ai/narrator";
+import type { AppContext } from "../context";
 
 export function registerContributionRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.post("/planets/:planetId/contributions/analyze", {

@@ -15,10 +15,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SimulationEngine, type EngineConfig } from "@planet/simulation-models";
-import { snapshotRecordOf } from "../store/memory.js";
-import { PgRepository } from "../store/pg.js";
-import { runMigrations } from "../store/migrate.js";
-import { seedSandboxAccounts } from "./bootstrap.js";
+import { snapshotRecordOf } from "../store/memory";
+import { PgRepository } from "../store/pg";
+import { runMigrations } from "../store/migrate";
+import { seedSandboxAccounts } from "./bootstrap";
 
 export const DEMO_ENGINE_CONFIG: Partial<EngineConfig> = {
   seed: "planet-genesis-prime",
@@ -68,6 +68,8 @@ async function seedToPostgres(databaseUrl: string): Promise<void> {
     currentTick: engine.state.tick,
     currentYear: engine.state.year,
     yearsPerTick: engine.state.yearsPerTick,
+    riverCount: engine.config.worldgen.riverCount,
+    resourceDensity: engine.config.worldgen.resourceDensity,
     status: "paused",
     stats: engine.stats(),
     createdAt: new Date().toISOString(),
@@ -105,6 +107,8 @@ function seedToFile(): void {
         currentTick: engine.state.tick,
         currentYear: engine.state.year,
         yearsPerTick: engine.state.yearsPerTick,
+        riverCount: engine.config.worldgen.riverCount,
+        resourceDensity: engine.config.worldgen.resourceDensity,
         status: "paused",
         stats: engine.stats(),
         createdAt: new Date().toISOString(),

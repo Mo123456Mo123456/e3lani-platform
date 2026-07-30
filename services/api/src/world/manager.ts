@@ -19,9 +19,9 @@ import {
   type EngineConfig,
   type WorldState,
 } from "@planet/simulation-models";
-import { snapshotRecordOf, type MemoryRepository } from "../store/memory.js";
-import type { Repository } from "../store/repository.js";
-import { notificationForEvent } from "../notifications/service.js";
+import { snapshotRecordOf, type MemoryRepository } from "../store/memory";
+import type { Repository } from "../store/repository";
+import { notificationForEvent } from "../notifications/service";
 
 export interface WorldManagerOptions {
   repository: Repository;
@@ -251,6 +251,8 @@ export class WorldManager {
       currentTick: engine.state.tick,
       currentYear: engine.state.year,
       yearsPerTick: engine.state.yearsPerTick,
+      riverCount: engine.config.worldgen.riverCount,
+      resourceDensity: engine.config.worldgen.resourceDensity,
       status: this.isAutoTicking(engine.state.planetId) ? "running" : "paused",
       stats: engine.stats(),
       createdAt: new Date().toISOString(),

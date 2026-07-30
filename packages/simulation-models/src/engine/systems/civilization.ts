@@ -9,13 +9,13 @@
  *   risks, geography and remembered grievances — never coin flips.
  */
 import type { Civilization, Disease } from "@planet/shared-types";
-import { clamp, clamp01 } from "../../noise.js";
-import { generateName } from "../../names.js";
-import { BIOME_HABITABLE } from "../../worldgen/biomes.js";
-import { foundCivilization } from "../genesis.js";
-import { buildOwnershipIndex, nextEntityId, type WorldState } from "../state.js";
-import type { SystemCtx } from "../engine.js";
-import type { Rng } from "../../rng.js";
+import { clamp, clamp01 } from "../../noise";
+import { generateName } from "../../names";
+import { BIOME_HABITABLE } from "../../worldgen/biomes";
+import { foundCivilization } from "../genesis";
+import { buildOwnershipIndex, nextEntityId, type WorldState } from "../state";
+import type { SystemCtx } from "../engine";
+import type { Rng } from "../../rng";
 
 const MAX_CIVILIZATIONS = 14;
 

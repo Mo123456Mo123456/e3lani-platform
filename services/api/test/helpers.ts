@@ -1,10 +1,10 @@
 import { expect } from "vitest";
 import { loadApiEnv, type ApiEnv } from "@planet/config";
-import { buildApp } from "../src/app.js";
-import type { AppContext } from "../src/context.js";
-import { MemoryRepository } from "../src/store/memory.js";
-import { WorldManager } from "../src/world/manager.js";
-import { seedSandboxAccounts } from "../src/world/bootstrap.js";
+import { buildApp } from "../src/app";
+import type { AppContext } from "../src/context";
+import { MemoryRepository } from "../src/store/memory";
+import { WorldManager } from "../src/world/manager";
+import { seedSandboxAccounts } from "../src/world/bootstrap";
 import type { FastifyInstance } from "fastify";
 
 export interface TestHarness {

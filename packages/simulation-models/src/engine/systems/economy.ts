@@ -6,10 +6,10 @@
  * war-risk surcharges. Active routes feed both economies, improve relations,
  * and act as vectors for disease.
  */
-import { clamp, clamp01 } from "../../noise.js";
-import { findPath } from "../pathfinding.js";
-import { nextEntityId, type WorldState } from "../state.js";
-import type { SystemCtx } from "../engine.js";
+import { clamp, clamp01 } from "../../noise";
+import { findPath } from "../pathfinding";
+import { nextEntityId, type WorldState } from "../state";
+import type { SystemCtx } from "../engine";
 
 const MAX_ROUTE_CELLS = 60;
 

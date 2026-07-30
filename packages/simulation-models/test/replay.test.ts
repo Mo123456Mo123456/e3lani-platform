@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SimulationEngine } from "../src/index.js";
-import { fingerprint } from "../src/rng.js";
+import { SimulationEngine } from "../src/index";
+import { fingerprint } from "../src/rng";
 
 describe("event sourcing & replay", () => {
   it("rollback + replay reproduces the exact state", () => {

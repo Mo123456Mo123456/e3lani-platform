@@ -4,11 +4,11 @@
  * the journal explains the world from its first tick.
  */
 import type { Biome, Plant, Species, Technology } from "@planet/shared-types";
-import { generateCultureValues, generateName, generateTechName } from "../names.js";
-import type { Rng } from "../rng.js";
-import { BIOME_HABITABLE } from "../worldgen/biomes.js";
-import type { EmitInput } from "./engine.js";
-import { nextEntityId, type WorldState } from "./state.js";
+import { generateCultureValues, generateName, generateTechName } from "../names";
+import type { Rng } from "../rng";
+import { BIOME_HABITABLE } from "../worldgen/biomes";
+import type { EmitInput } from "./engine";
+import { nextEntityId, type WorldState } from "./state";
 
 type Emit = (input: EmitInput) => { id: string };
 

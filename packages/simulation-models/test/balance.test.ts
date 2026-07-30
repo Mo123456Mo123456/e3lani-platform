@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { powerScore, validateBalance } from "../src/index.js";
+import { powerScore, validateBalance } from "../src/index";
 import type { StructuredContribution } from "@planet/shared-types";
 
 const overpowered: StructuredContribution = {

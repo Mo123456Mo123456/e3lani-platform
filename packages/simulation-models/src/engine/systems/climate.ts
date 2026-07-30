@@ -6,9 +6,9 @@
  * neighbor smoothing (cellular automaton). Droughts, wildfires, floods and
  * eruptions are emitted as events with explicit physical causes.
  */
-import { clamp, clamp01 } from "../../noise.js";
-import { buildPlantIndex, type WorldState } from "../state.js";
-import type { SystemCtx } from "../engine.js";
+import { clamp, clamp01 } from "../../noise";
+import { buildPlantIndex, type WorldState } from "../state";
+import type { SystemCtx } from "../engine";
 
 const OSCILLATION_TICKS = 48; // slow multi-century climate cycle
 

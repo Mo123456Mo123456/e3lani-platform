@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ROLES } from "@planet/shared-types";
 import { paginationInput } from "@planet/validation";
-import { requireRole } from "../auth/guards.js";
-import type { AppContext } from "../context.js";
+import { requireRole } from "../auth/guards";
+import type { AppContext } from "../context";
 
 export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.get("/admin/users", {

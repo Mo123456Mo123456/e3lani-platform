@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS planets (
   current_tick BIGINT NOT NULL DEFAULT 0,
   current_year BIGINT NOT NULL DEFAULT 0,
   years_per_tick INT NOT NULL DEFAULT 5,
+  river_count  INT,
+  resource_density DOUBLE PRECISION,
   status       TEXT NOT NULL DEFAULT 'paused',
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );

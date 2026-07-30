@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { adminTickInput, paginationInput, scenarioRequestSchema } from "@planet/validation";
 import { runScenarios } from "@planet/simulation-models";
-import { requireAuth, requireRole } from "../auth/guards.js";
-import type { AppContext } from "../context.js";
+import { requireAuth, requireRole } from "../auth/guards";
+import type { AppContext } from "../context";
 
 export function registerPlanetRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.get("/planets", {
@@ -42,6 +42,8 @@ export function registerPlanetRoutes(app: FastifyInstance, ctx: AppContext): voi
       seaLevel: planet.seaLevel,
       currentTick: engine.state.tick,
       currentYear: engine.state.year,
+      riverCount: planet.riverCount ?? engine.config.worldgen.riverCount,
+      resourceDensity: planet.resourceDensity ?? engine.config.worldgen.resourceDensity,
       overlay: gridOverlay(engine.state),
     };
   });
@@ -130,6 +132,14 @@ export function registerPlanetRoutes(app: FastifyInstance, ctx: AppContext): voi
       alliances: s.alliances.filter((a) => !a.dissolvedAtTick),
       tradeRoutes: s.tradeRoutes.filter((r) => r.active),
       migrations: s.migrations.slice(-50),
+      // cells glowing at night from luminescent flora (drives the night map)
+      luminescentCells: [
+        ...new Set(
+          s.plants
+            .filter((p) => p.traits.nightLuminosity > 0.3)
+            .flatMap((p) => Object.keys(p.coverage).map(Number)),
+        ),
+      ],
       stats: engine.stats(),
     };
   });
