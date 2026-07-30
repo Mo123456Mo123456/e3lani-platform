@@ -75,7 +75,11 @@ function PlanetMesh({ regions, quality, layer, cities, events }: { regions: Plan
       </mesh>
       <mesh>
         <sphereGeometry args={[2.25, segments, segments]} />
-        <meshBasicMaterial color="#2de2e6" transparent opacity={0.08} side={THREE.BackSide} />
+        <meshBasicMaterial color="#2de2e6" transparent opacity={0.1} side={THREE.BackSide} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[2.18, Math.max(24, Math.floor(segments / 2)), Math.max(24, Math.floor(segments / 2))]} />
+        <meshStandardMaterial color="#dffcff" transparent opacity={0.05} roughness={1} metalness={0} />
       </mesh>
       {cities.slice(0, quality === "low" ? 30 : 80).map((city) => {
         const region = byId.get(city.regionId);

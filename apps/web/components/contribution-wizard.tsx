@@ -41,16 +41,16 @@ export function ContributionWizard({ planetId, regions, locale, onConfirmed }: {
     <div className="wizard">
       <strong>{t.stepCategory}</strong>
       <select value={category} onChange={(event) => setCategory(event.target.value)}>
-        <option value="creature">creature</option>
-        <option value="plant">plant</option>
-        <option value="resource">resource</option>
-        <option value="civilization">civilization</option>
-        <option value="invention">invention</option>
-        <option value="natural_phenomenon">natural phenomenon</option>
-        <option value="disease">disease</option>
-        <option value="culture">culture</option>
-        <option value="world_law">world law</option>
-        <option value="custom">custom</option>
+        <option value="creature">{locale === "ar" ? "مخلوق" : "Creature"}</option>
+        <option value="plant">{locale === "ar" ? "نبات" : "Plant"}</option>
+        <option value="resource">{locale === "ar" ? "مورد" : "Resource"}</option>
+        <option value="civilization">{locale === "ar" ? "حضارة" : "Civilization"}</option>
+        <option value="invention">{locale === "ar" ? "اختراع" : "Invention"}</option>
+        <option value="natural_phenomenon">{locale === "ar" ? "ظاهرة طبيعية" : "Natural phenomenon"}</option>
+        <option value="disease">{locale === "ar" ? "مرض" : "Disease"}</option>
+        <option value="culture">{locale === "ar" ? "ثقافة" : "Culture"}</option>
+        <option value="world_law">{locale === "ar" ? "قانون عالمي" : "World law"}</option>
+        <option value="custom">{locale === "ar" ? "عنصر مخصص" : "Custom"}</option>
       </select>
       <strong>{t.stepIdea}</strong>
       <textarea rows={4} value={prompt} onChange={(event) => setPrompt(event.target.value)} />

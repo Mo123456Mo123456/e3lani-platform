@@ -80,10 +80,33 @@ function DashboardInner() {
   return (
     <main className="dashboard-shell">
       <nav className="top-nav">
-        <div className="brand"><h1>{t.title}</h1><p>{t.tagline}</p></div>
+        <div className="brand">
+          <div className="brand-mark" aria-hidden />
+          <div>
+            <h1>{t.title}</h1>
+            <p>{t.tagline}</p>
+          </div>
+        </div>
+        <div className="nav-links" aria-label="main">
+          <span className="active">{locale === "ar" ? "الرئيسية" : "Home"}</span>
+          <span>{locale === "ar" ? "استكشف" : "Explore"}</span>
+          <span>{locale === "ar" ? "الحضارات" : "Civilizations"}</span>
+          <span>{locale === "ar" ? "المخلوقات" : "Creatures"}</span>
+          <span>{locale === "ar" ? "الموارد" : "Resources"}</span>
+          <span>{locale === "ar" ? "التقنيات" : "Technologies"}</span>
+          <span>{locale === "ar" ? "التحالفات" : "Alliances"}</span>
+        </div>
         <div className="nav-actions">
-          <select className="pill" value={layer} onChange={(event) => setLayer(event.target.value as any)} aria-label={t.layer}><option value="biomes">biomes</option><option value="temperature">temperature</option><option value="resources">resources</option></select>
-          <select className="pill" value={quality} onChange={(event) => setQuality(event.target.value as any)} aria-label={t.quality}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+          <select className="pill" value={layer} onChange={(event) => setLayer(event.target.value as any)} aria-label={t.layer}>
+            <option value="biomes">{locale === "ar" ? "الأقاليم الحيوية" : "Biomes"}</option>
+            <option value="temperature">{locale === "ar" ? "الحرارة" : "Temperature"}</option>
+            <option value="resources">{locale === "ar" ? "الموارد" : "Resources"}</option>
+          </select>
+          <select className="pill" value={quality} onChange={(event) => setQuality(event.target.value as any)} aria-label={t.quality}>
+            <option value="low">{locale === "ar" ? "توفير" : "Low"}</option>
+            <option value="medium">{locale === "ar" ? "متوسطة" : "Medium"}</option>
+            <option value="high">{locale === "ar" ? "عالية" : "High"}</option>
+          </select>
           <button className="secondary-button" onClick={() => setLocale(locale === "ar" ? "en" : "ar")}>{locale === "ar" ? "English" : "العربية"}</button>
         </div>
       </nav>
@@ -117,8 +140,32 @@ function DashboardInner() {
       </section>
 
       <section className="insight-grid">
-        <article className="side-panel"><h2>{t.compare}</h2>{confirmResult ? <pre>{JSON.stringify(confirmResult.comparison, null, 2)}</pre> : <p>{selectedSnapshot?.summary}</p>}</article>
-        <article className="side-panel"><h2>{t.futures}</h2>{futuresQuery.data ? <pre>{JSON.stringify({ mostLikely: futuresQuery.data.mostLikely, best: futuresQuery.data.best, worst: futuresQuery.data.worst, uncertainty: futuresQuery.data.uncertainty }, null, 2)}</pre> : <p>...</p>}</article>
+        <article className="side-panel">
+          <h2>{t.compare}</h2>
+          {confirmResult?.comparison ? (
+            <div className="insight-card">
+              {Object.entries(confirmResult.comparison).map(([key, value]) => (
+                <div className="metric-row" key={key}><span>{key}</span><span>{typeof value === "number" ? String(value) : JSON.stringify(value)}</span></div>
+              ))}
+            </div>
+          ) : (
+            <p>{selectedSnapshot?.summary ?? (locale === "ar" ? "أكد مساهمة لمشاهدة المقارنة." : "Confirm a contribution to compare.")}</p>
+          )}
+        </article>
+        <article className="side-panel">
+          <h2>{t.futures}</h2>
+          {futuresQuery.data ? (
+            <div className="insight-card">
+              <div className="metric-row"><span>{locale === "ar" ? "عدم اليقين" : "Uncertainty"}</span><span>{Math.round((futuresQuery.data.uncertainty ?? 0) * 100)}%</span></div>
+              <div className="metric-row"><span>{locale === "ar" ? "الأكثر احتمالاً" : "Most likely"}</span><span>{typeof futuresQuery.data.mostLikely === "string" ? futuresQuery.data.mostLikely : JSON.stringify(futuresQuery.data.mostLikely)?.slice(0, 80)}</span></div>
+              <div className="metric-row"><span>{locale === "ar" ? "أفضل مسار" : "Best"}</span><span>{typeof futuresQuery.data.best === "string" ? futuresQuery.data.best : JSON.stringify(futuresQuery.data.best)?.slice(0, 80)}</span></div>
+              <div className="metric-row"><span>{locale === "ar" ? "أسوأ مسار" : "Worst"}</span><span>{typeof futuresQuery.data.worst === "string" ? futuresQuery.data.worst : JSON.stringify(futuresQuery.data.worst)?.slice(0, 80)}</span></div>
+              <small>{locale === "ar" ? "نتائج احتمالية عبر محاكاة مونت كارلو — ليست يقيناً." : "Probabilistic Monte Carlo paths — not certainty."}</small>
+            </div>
+          ) : (
+            <p>...</p>
+          )}
+        </article>
       </section>
     </main>
   );
