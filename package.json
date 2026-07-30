@@ -4,20 +4,21 @@
   "private": true,
   "description": "كوكب يولد أمامك — deterministic living-world simulation platform",
   "scripts": {
-    "dev": "pnpm --parallel --filter @kawkab/api --filter @kawkab/web --filter @kawkab/admin run dev",
-    "dev:web": "pnpm --filter @kawkab/web dev",
-    "dev:api": "pnpm --filter @kawkab/api dev",
-    "dev:admin": "pnpm --filter @kawkab/admin dev",
+    "dev": "dotenv -e .env -- pnpm --parallel --filter @kawkab/api --filter @kawkab/web --filter @kawkab/admin run dev",
+    "dev:web": "dotenv -e .env -- pnpm --filter @kawkab/web dev",
+    "dev:api": "dotenv -e .env -- pnpm --filter @kawkab/api dev",
+    "dev:admin": "dotenv -e .env -- pnpm --filter @kawkab/admin dev",
     "build": "pnpm --filter @kawkab/shared-types build && pnpm --filter @kawkab/simulation-models build && pnpm --filter @kawkab/api build && pnpm --filter @kawkab/web build && pnpm --filter @kawkab/admin build",
     "typecheck": "pnpm --recursive --if-present typecheck",
     "test": "pnpm --recursive --if-present test",
     "lint": "pnpm --recursive --if-present lint",
     "format": "prettier --write \"{apps,services,packages,docs}/**/*.{ts,tsx,js,mjs,json,md,css,yml,yaml}\" \"*.{json,md,yml,yaml}\"",
-    "db:migrate": "pnpm --filter @kawkab/api db:migrate",
-    "db:seed": "pnpm --filter @kawkab/api db:seed",
-    "db:generate": "pnpm --filter @kawkab/api db:generate"
+    "db:migrate": "dotenv -e .env -- pnpm --filter @kawkab/api db:migrate",
+    "db:seed": "dotenv -e .env -- pnpm --filter @kawkab/api db:seed",
+    "db:generate": "dotenv -e .env -- pnpm --filter @kawkab/api db:generate"
   },
   "devDependencies": {
+    "dotenv-cli": "^11.0.0",
     "prettier": "*",
     "typescript": "*"
   },
