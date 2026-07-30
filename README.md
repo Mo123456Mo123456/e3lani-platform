@@ -1,34 +1,30 @@
 # إعلاني | E3lani
 
-منصة الإعلانات المرئية لكل شيء — Visual Advertising Platform for Everything.
+**منصة الإعلانات المرئية لكل شيء** — Visual Advertising Platform for Everything.
 
-> **جاهز تقنيًا للاختبار/Sandbox، وليس جاهزًا لتحصيل أموال حقيقية أو الإطلاق الإنتاجي.**
+منصة سعودية لإعلانات الصور والفيديو القصير مع تصفح عمودي. ليست متجرًا إلكترونيًا: لا سلة، لا توصيل، لا عمولة مبيعات، لا مزاد، لا محادثات، لا تعليقات.
 
-## البنية
+> الوضع الحالي: **FREE_LAUNCH** — النشر مجاني ومباشر (مسودة → نشط) بعد فحص آلي فقط. نظام الدفع جاهز عبر Adapter لتفعيله لاحقًا بدون إعادة بناء.
+
+## البنية (Turborepo Monorepo)
 
 ```text
 e3lani-platform/
-├── apps/          # mobile (Expo) · web (Next.js) · admin (Next.js)
-├── services/      # api (NestJS) · media-worker
-├── packages/      # types · config · validation · auth · payments · i18n · ui
+├── apps/
+│   ├── mobile          # Expo + Expo Router
+│   ├── web             # Next.js 15 — الموقع العام
+│   └── admin           # Next.js 15 — لوحة الإدارة (RBAC)
+├── services/
+│   ├── api             # NestJS + Prisma + PostgreSQL
+│   └── media-worker    # BullMQ + FFmpeg + sharp
+├── packages/
+│   ├── types · config · validation · auth · payments
+│   ├── ui · api-client · i18n · storage
+│   ├── database · eslint-config · tsconfig
 ├── infrastructure/docker
 ├── docs/
 └── tests/
 ```
-
-## التسعير الافتراضي (السعودية)
-
-| الخدمة | السعر |
-|---|---|
-| إعلان 30 يومًا | 59 ر.س (شامل الضريبة عند انطباقها) |
-| إعادة نشر | 10 ر.س |
-| تمديد 15 يومًا | 29 ر.س |
-| إبراز 3 أيام | 15 ر.س |
-| إبراز 7 أيام | 29 ر.س |
-| أعلى القسم | 29 ر.س |
-| استهداف مدينة | 10 ر.س |
-
-الأسعار تُدار من الخادم عبر `PricingVersion` — لا تُثبَّت في العملاء. مبلغ النشر المدفوع يبقى **59 ر.س** مع حفظ الصافي والضريبة والإجمالي منفصلين.
 
 ## التشغيل المحلي
 
@@ -37,37 +33,74 @@ pnpm install
 docker compose -f infrastructure/docker/docker-compose.yml up -d
 cp .env.example .env
 cp services/api/.env.example services/api/.env
+
 pnpm --filter @e3lani/api prisma:generate
 pnpm --filter @e3lani/api exec prisma migrate deploy
 pnpm db:seed
+
 pnpm --filter @e3lani/api build && pnpm --filter @e3lani/api start
-# optional media worker
+# اختياري:
 pnpm --filter @e3lani/media-worker build && pnpm --filter @e3lani/media-worker start
+pnpm --filter @e3lani/web dev
+pnpm --filter @e3lani/admin dev
+pnpm --filter @e3lani/mobile start
 ```
 
-- API: `http://localhost:3001/api/v1` — Docs: `/api/docs`
-- Web: `http://localhost:3000`
-- Admin: `http://localhost:3002`
-- OTP Sandbox: `123456`
-- Payment Sandbox webhook secret: `SANDBOX_PAYMENT_WEBHOOK_SECRET`
+| الخدمة | العنوان |
+|---|---|
+| API | http://localhost:3001/api/v1 |
+| Docs | http://localhost:3001/api/docs |
+| Web | http://localhost:3000 |
+| Admin | http://localhost:3002 |
 
-### اختبار التكامل (Phase 2)
+## حساب إدارة تجريبي (Sandbox فقط)
 
-```bash
-pnpm test:integration
-# expect: PHASE2_INTEGRATION_OK
-```
+| الحقل | القيمة |
+|---|---|
+| الجوال | `+966500000001` |
+| OTP (Sandbox) | `123456` — يظهر في **سجلات الخادم فقط**، وليس في واجهة المستخدم |
+| الدور | `SUPER_ADMIN` |
+| البريد | `admin@e3lani.local` |
 
-## قواعد المنتج
+> لا يوجد تسجيل دخول تجريبي ظاهر للمستخدم النهائي. رمز OTP التجريبي لا يُعاد في استجابة الـ API ولا يُعرض في الشاشات.
 
-- ليست متجرًا: لا سلة ولا تحصيل لقيمة منتجات المعلنين.
-- المراجعة قبل الدفع دائمًا.
-- لا Mock نجاح في Production عند نقص المفاتيح.
+## التسعير (قابل للتعديل من لوحة الإدارة فقط)
+
+| الخدمة | السعر |
+|---|---:|
+| إعلان عادي 30 يومًا | 59 ر.س |
+| إعادة نشر | 5 ر.س |
+| تمديد 15 يومًا | 5 ر.س |
+| إبراز 3 أيام | 10 ر.س |
+| إبراز 7 أيام | 20 ر.س |
+| أعلى القسم | 15 ر.س |
+| مدينة إضافية | 5 ر.س |
+| شعار الشريط العلوي | 50 ر.س |
+
+النشر مجاني حاليًا. الأسعار محفوظة في `PricingVersion` وتُعدَّل من `/admin/pricing`.
+
+## قواعد المنتج الملزمة
+
+- FREE_LAUNCH: مسودة → نشط (بدون مراجعة بشرية)
+- عند تفعيل الدفع: مسودة → بانتظار الدفع → نشط
+- المراجعة البشرية بعد البلاغ فقط
+- المنشورات المجانية منفصلة عن الإعلانات ولا تظهر في الموجز
+- الشريط العلوي: حركة مستمرة، غير قابل للنقر، لا يتوقف عند اللمس
+- لا نجاح دفع وهمي في الإنتاج
 
 ## الوثائق
 
-- [`docs/requirements/PRODUCT_SPEC_AR.md`](docs/requirements/PRODUCT_SPEC_AR.md)
-- [`docs/DELIVERY_STATUS.md`](docs/DELIVERY_STATUS.md)
-- [`docs/IMPLEMENTATION_MATRIX.md`](docs/IMPLEMENTATION_MATRIX.md)
-- [`docs/KEYS_AND_ACCOUNTS_AR.md`](docs/KEYS_AND_ACCOUNTS_AR.md)
-- [`docs/requirements/ADVERTISING_POLICY_AR.md`](docs/requirements/ADVERTISING_POLICY_AR.md)
+- [`docs/DELIVERY_SUMMARY_AR.md`](docs/DELIVERY_SUMMARY_AR.md) — ملخص الوظائف المكتملة
+- [`docs/KEYS_AND_ACCOUNTS_AR.md`](docs/KEYS_AND_ACCOUNTS_AR.md) — المفاتيح والخدمات الخارجية
+- [`docs/OPERATIONS_AR.md`](docs/OPERATIONS_AR.md) — أوامر التشغيل وربط الخدمات
+- [`.env.example`](.env.example) — متغيرات البيئة
+
+## الجودة
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+pnpm test:integration
+```

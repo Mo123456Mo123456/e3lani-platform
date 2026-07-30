@@ -11,36 +11,60 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { locale, rowDirection, textAlign } = useLocale();
-  const [phone, setPhone] = useState('+966512345678');
+  const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
+  const [accepted, setAccepted] = useState(false);
   const [hint, setHint] = useState('');
   const [error, setError] = useState('');
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 24 }]}>
       <View style={[styles.header, { flexDirection: rowDirection }]}>
-        <Text style={[styles.title, { textAlign }]}>{locale === 'ar' ? 'دخول إعلاني' : 'Sign in to E3lani'}</Text>
+        <Text style={[styles.title, { textAlign }]}>
+          {locale === 'ar' ? 'دخول إعلاني' : 'Sign in to E3lani'}
+        </Text>
       </View>
       {step === 'phone' ? (
         <>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} textAlign={textAlign} />
+          <TextInput
+            style={styles.input}
+            value={phone}
+            onChangeText={setPhone}
+            textAlign={textAlign}
+            placeholder="+9665XXXXXXXX"
+            keyboardType="phone-pad"
+          />
+          <Pressable
+            style={[styles.checkRow, { flexDirection: rowDirection }]}
+            onPress={() => setAccepted((v) => !v)}
+          >
+            <View style={[styles.checkbox, accepted && styles.checkboxOn]} />
+            <Text style={[styles.checkText, { textAlign }]}>
+              {locale === 'ar'
+                ? 'أوافق على الشروط وسياسة الخصوصية'
+                : 'I accept the terms and privacy policy'}
+            </Text>
+          </Pressable>
           <Pressable
             style={styles.btn}
             onPress={async () => {
+              if (!accepted) {
+                setError(
+                  locale === 'ar'
+                    ? 'يجب الموافقة على الشروط وسياسة الخصوصية'
+                    : 'You must accept terms and privacy',
+                );
+                return;
+              }
               try {
-                const res = await api.requestOtp({
+                await api.requestOtp({
                   phone,
                   acceptedTerms: true,
                   locale,
                   countryCode: 'SA',
                 });
-                setHint(
-                  res.sandboxCode
-                    ? `${locale === 'ar' ? 'رمز التجربة' : 'Sandbox code'}: ${res.sandboxCode}`
-                    : '',
-                );
-                if (res.sandboxCode) setCode(res.sandboxCode);
+                setHint(locale === 'ar' ? 'تم إرسال رمز التحقق' : 'Verification code sent');
                 setStep('otp');
               } catch (e) {
                 setError((e as Error).message);
@@ -52,7 +76,14 @@ export default function LoginScreen() {
         </>
       ) : (
         <>
-          <TextInput style={styles.input} value={code} onChangeText={setCode} textAlign={textAlign} />
+          <TextInput
+            style={styles.input}
+            value={code}
+            onChangeText={setCode}
+            textAlign={textAlign}
+            keyboardType="number-pad"
+            placeholder={locale === 'ar' ? 'رمز التحقق' : 'OTP code'}
+          />
           {hint ? <Text style={[styles.hint, { textAlign }]}>{hint}</Text> : null}
           <Pressable
             style={styles.btn}
@@ -61,7 +92,7 @@ export default function LoginScreen() {
                 const res = await api.verifyOtp({
                   phone,
                   code,
-                  deviceId: 'e3lani-android',
+                  deviceId: 'e3lani-mobile',
                 });
                 setAuthTokens(res);
                 router.replace('/account');
@@ -75,11 +106,7 @@ export default function LoginScreen() {
         </>
       )}
       {error ? (
-        <ConnectionError
-          message={error}
-          onRetry={() => setError('')}
-          dark={false}
-        />
+        <ConnectionError message={error} onRetry={() => setError('')} dark={false} />
       ) : null}
     </View>
   );
@@ -98,6 +125,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: colors.surface,
   },
+  checkRow: { alignItems: 'center', gap: 10, marginBottom: 14 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#111',
+  },
+  checkboxOn: { backgroundColor: colors.primary },
+  checkText: { flex: 1, color: '#555', fontSize: 14 },
   btn: {
     backgroundColor: colors.primary,
     borderRadius: 14,
@@ -106,5 +143,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnText: { fontWeight: '800', fontSize: 16 },
-  hint: { color: '#0a7a32', marginBottom: 10, textAlign: 'right' },
+  hint: { color: '#0a7a32', marginBottom: 10 },
 });

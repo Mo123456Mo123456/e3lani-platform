@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import type { AdDetail } from '@e3lani/api-client';
+import { LogoTicker } from '../../components/LogoTicker';
 import { api } from '../../lib/api';
 import { useLocale } from '../../lib/locale';
 
@@ -42,6 +43,7 @@ export default function BrowsePage() {
 
   return (
     <main className={`container feed-shell ${chromeHidden ? 'chrome-hidden' : ''}`}>
+      <LogoTicker />
       <div className="feed-toolbar" onMouseMove={bumpChrome} onTouchStart={bumpChrome}>
         <h1 style={{ margin: 0 }}>{locale === 'ar' ? 'التصفح' : 'Browse'}</h1>
         <div style={{ display: 'flex', gap: 8 }}>

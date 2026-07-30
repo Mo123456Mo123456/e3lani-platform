@@ -1,0 +1,23 @@
+{
+  "name": "@e3lani/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prisma schema and client entry for إعلاني. Schema lives in services/api/prisma for Nest migrations.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo 'ok'",
+    "test": "echo 'ok'"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

@@ -153,6 +153,40 @@ export class AdminController {
     );
   }
 
+  @Patch('pricing')
+  async updatePricing(
+    @Headers('authorization') authorization: string | undefined,
+    @Body()
+    body: {
+      items: Array<{
+        sku: string;
+        amount: number;
+        labelAr?: string;
+        labelEn?: string;
+        durationDays?: number | null;
+      }>;
+    },
+  ) {
+    const user = await this.authorize(authorization, ['SUPER_ADMIN', 'FINANCE']);
+    return this.admin.updatePricing(user.sub, body);
+  }
+
+  @Get('launch-mode')
+  launchMode(@Headers('authorization') authorization?: string) {
+    return this.authorize(authorization, ['SUPER_ADMIN']).then(() =>
+      this.admin.getLaunchMode(),
+    );
+  }
+
+  @Patch('launch-mode')
+  async setLaunchMode(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { mode: string },
+  ) {
+    const user = await this.authorize(authorization, ['SUPER_ADMIN']);
+    return this.admin.setLaunchMode(user.sub, body.mode as never);
+  }
+
   @Get('refunds')
   refunds(@Headers('authorization') authorization?: string) {
     return this.authorize(authorization, ['SUPER_ADMIN', 'FINANCE']).then(() =>
@@ -286,7 +320,9 @@ const DEFAULT_NOTIFICATION_TEMPLATES = {
 
 const DEFAULT_FEATURE_FLAGS = {
   sandboxPayments: true,
-  manualReview: true,
+  /** Human review is post-publish (reports) — not a default publish gate. */
+  manualReview: false,
+  freeLaunch: true,
   enterpriseCampaigns: true,
   notificationCenter: true,
 };

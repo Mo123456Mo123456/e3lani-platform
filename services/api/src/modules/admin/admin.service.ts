@@ -1,4 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { AD_POLICY } from '@e3lani/config';
+import {
+  DEFAULT_LAUNCH_MODE,
+  DEFAULT_SA_PRICING,
+  isLaunchMode,
+  paymentsRequired,
+  type LaunchMode,
+  type PricingSku,
+} from '@e3lani/types';
 import { CampaignStatus, Prisma, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdStateService } from '../../common/ad-state.service';
@@ -10,6 +19,16 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly adState: AdStateService,
   ) {}
+
+  async getLaunchMode(): Promise<LaunchMode> {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key: 'launch_mode' } });
+    const value = setting?.value;
+    if (typeof value === 'string' && isLaunchMode(value)) return value;
+    if (value && typeof value === 'object' && 'mode' in value && isLaunchMode((value as { mode: unknown }).mode)) {
+      return (value as { mode: LaunchMode }).mode;
+    }
+    return (AD_POLICY.defaultLaunchMode as LaunchMode) ?? DEFAULT_LAUNCH_MODE;
+  }
 
   async listPendingReview() {
     const rows = await this.prisma.ad.findMany({
@@ -48,14 +67,38 @@ export class AdminService {
     });
     await this.prisma.ad.update({
       where: { id: adId },
-      data: { approvedRevisionId: ad.currentRevisionId },
+      data: {
+        approvedRevisionId: ad.currentRevisionId,
+        activeRevisionId: ad.currentRevisionId,
+      },
+    });
+
+    const launchMode = await this.getLaunchMode();
+    if (paymentsRequired(launchMode)) {
+      return this.adState.transition({
+        adId,
+        to: 'APPROVED_AWAITING_PAYMENT',
+        actorId,
+        reason: notes ?? 'Approved — awaiting payment',
+      });
+    }
+
+    const now = new Date();
+    await this.prisma.ad.update({
+      where: { id: adId },
+      data: {
+        publishedAt: ad.publishedAt ?? now,
+        expiresAt:
+          ad.expiresAt ??
+          new Date(now.getTime() + AD_POLICY.defaultDurationDays * 24 * 60 * 60 * 1000),
+      },
     });
 
     return this.adState.transition({
       adId,
-      to: 'APPROVED_AWAITING_PAYMENT',
+      to: 'ACTIVE',
       actorId,
-      reason: notes ?? 'Approved — awaiting payment',
+      reason: notes ?? 'Reactivated after review (FREE_LAUNCH)',
     });
   }
 
@@ -294,6 +337,74 @@ export class AdminService {
         items: { orderBy: [{ countryCode: 'asc' }, { sku: 'asc' }] },
       },
     });
+  }
+
+  /**
+   * Create a new active pricing version with updated amounts.
+   * Never hardcode prices in clients — always read from admin-managed versions.
+   */
+  async updatePricing(
+    actorId: string,
+    input: { items: Array<{ sku: string; amount: number; labelAr?: string; labelEn?: string; durationDays?: number | null }> },
+  ) {
+    if (!input.items?.length) throw new BadRequestException('PRICING_ITEMS_REQUIRED');
+
+    const code = `sa-admin-${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`;
+    const version = await this.prisma.$transaction(async (tx) => {
+      await tx.pricingVersion.updateMany({ data: { isActive: false }, where: { isActive: true } });
+      const created = await tx.pricingVersion.create({
+        data: {
+          code,
+          isActive: true,
+          items: {
+            create: input.items.map((item) => {
+              const defaults = DEFAULT_SA_PRICING[item.sku as PricingSku];
+              if (!defaults) throw new BadRequestException(`UNKNOWN_SKU:${item.sku}`);
+              return {
+                sku: item.sku,
+                countryCode: 'SA',
+                currency: 'SAR',
+                amount: item.amount,
+                durationDays: item.durationDays ?? defaults.durationDays ?? null,
+                labelAr: item.labelAr ?? defaults.labelAr,
+                labelEn: item.labelEn ?? defaults.labelEn,
+              };
+            }),
+          },
+        },
+        include: { items: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: 'pricing.update',
+          entityType: 'pricing_version',
+          entityId: created.id,
+          after: { code, itemCount: input.items.length },
+        },
+      });
+      return created;
+    });
+    return version;
+  }
+
+  async setLaunchMode(actorId: string, mode: LaunchMode) {
+    if (!isLaunchMode(mode)) throw new BadRequestException('INVALID_LAUNCH_MODE');
+    const setting = await this.prisma.systemSetting.upsert({
+      where: { key: 'launch_mode' },
+      create: { key: 'launch_mode', value: mode },
+      update: { value: mode },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorId,
+        action: 'launch_mode.update',
+        entityType: 'system_setting',
+        entityId: 'launch_mode',
+        after: { mode },
+      },
+    });
+    return setting;
   }
 
   listRefundOrders() {

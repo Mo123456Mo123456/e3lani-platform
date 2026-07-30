@@ -69,9 +69,44 @@ async function main() {
     });
   }
 
+  await prisma.systemSetting.upsert({
+    where: { key: 'launch_mode' },
+    create: { key: 'launch_mode', value: 'FREE_LAUNCH' },
+    update: { value: 'FREE_LAUNCH' },
+  });
+
+  await prisma.systemSetting.upsert({
+    where: { key: 'feature_flags' },
+    create: {
+      key: 'feature_flags',
+      value: {
+        sandboxPayments: true,
+        manualReview: false,
+        freeLaunch: true,
+        enterpriseCampaigns: true,
+        notificationCenter: true,
+      },
+    },
+    update: {
+      value: {
+        sandboxPayments: true,
+        manualReview: false,
+        freeLaunch: true,
+        enterpriseCampaigns: true,
+        notificationCenter: true,
+      },
+    },
+  });
+
+  // Deactivate older catalogs so the approved FREE_LAUNCH pricing wins.
+  await prisma.pricingVersion.updateMany({
+    where: { code: { not: 'sa-default-2026-07-v2' }, isActive: true },
+    data: { isActive: false },
+  });
+
   const pricing = await prisma.pricingVersion.upsert({
-    where: { code: 'sa-default-2026-07' },
-    create: { code: 'sa-default-2026-07', isActive: true },
+    where: { code: 'sa-default-2026-07-v2' },
+    create: { code: 'sa-default-2026-07-v2', isActive: true },
     update: { isActive: true },
   });
 
@@ -152,8 +187,30 @@ async function main() {
     });
   }
 
+  // Sandbox admin account (OTP via server logs only — never shown in user UI).
+  const adminPhone = '+966500000001';
+  await prisma.user.upsert({
+    where: { phone: adminPhone },
+    create: {
+      phone: adminPhone,
+      displayName: 'مشرف إعلاني',
+      email: 'admin@e3lani.local',
+      accountType: 'COMPANY',
+      roles: ['SUPER_ADMIN'],
+      locale: 'ar',
+      countryCode: 'SA',
+      termsAcceptedAt: new Date(),
+      privacyAcceptedAt: new Date(),
+    },
+    update: {
+      roles: ['SUPER_ADMIN'],
+      displayName: 'مشرف إعلاني',
+      email: 'admin@e3lani.local',
+    },
+  });
+
   console.log(
-    'Seed completed: SA geo, 21 categories, pricing 59 SAR (tax-inclusive publish), sandbox payment provider enabled',
+    'Seed completed: FREE_LAUNCH, SA geo, 21 categories, pricing 59/5/5/10/20/15/5/50, sandbox admin +966500000001',
   );
 }
 

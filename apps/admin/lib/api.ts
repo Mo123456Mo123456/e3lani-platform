@@ -88,6 +88,21 @@ export const api = {
     countryCode?: string;
   }) => request('POST', '/admin/categories', { body }),
   adminPricing: () => request<any[]>('GET', '/admin/pricing'),
+  adminUpdatePricing: (body: {
+    items: Array<{
+      sku: string;
+      amount: number;
+      labelAr?: string;
+      labelEn?: string;
+      durationDays?: number | null;
+    }>;
+  }) => request<any>('PATCH', '/admin/pricing', { body }),
+  adminLaunchMode: () => request<string>('GET', '/admin/launch-mode'),
+  adminSetLaunchMode: (mode: string) =>
+    request('PATCH', '/admin/launch-mode', { body: { mode } }),
+  adminTicker: () => request<any[]>('GET', '/ticker/admin/list'),
+  adminDecideTicker: (id: string, body: { status: string; reason?: string }) =>
+    request('POST', `/ticker/admin/${id}/decide`, { body }),
   adminRefundOrders: () => request<any[]>('GET', '/admin/refunds'),
   refundOrder: (id: string, body: { amount?: number; reason?: string }) =>
     request('POST', `/orders/${id}/refunds`, {

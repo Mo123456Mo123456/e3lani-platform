@@ -47,7 +47,16 @@ AWS SDK داخليًا: `region=auto`, `forcePathStyle=false`. لا تُستخد
 ## Sandbox مقابل Production
 
 - `PAYMENT_MODE=sandbox` و `OTP_MODE=sandbox` للتطوير المحلي فقط.
-- Sandbox OTP المعلن: `123456`.
-- Production/Staging: Fail Closed للوسائط — لا نجاح وهمي عند نقص `R2_*`.
+- Sandbox OTP: `123456` — يظهر في **سجلات الخادم فقط** وليس في واجهات المستخدم.
+- حساب إدارة Sandbox: `+966500000001` / دور `SUPER_ADMIN` / `admin@e3lani.local`
+- وضع التشغيل الافتراضي: `FREE_LAUNCH` (SystemSetting `launch_mode`) — النشر مجاني مباشر.
+- Production/Staging: Fail Closed للوسائط والدفع والـ OTP — لا نجاح وهمي عند نقص المفاتيح.
 - Health العام يبقى `ok` حتى لو التخزين غير مضبوط؛ الرفع يعيد `503 STORAGE_NOT_CONFIGURED` أو `STORAGE_MISCONFIGURED`.
 - Webhooks تتطلب تحقق التوقيع وIdempotency عبر `eventId` فريد.
+
+## خدمات تحتاج مفاتيح خارجية قبل الإطلاق التجاري
+
+1. مزود OTP إقليمي (Twilio Verify / Unifonic / SNS)
+2. مزود دفع سعودي (Moyasar أو MyFatoorah) + Webhook Secret
+3. تخزين كائنات (Cloudflare R2 أو S3)
+4. اختياري: FCM للإشعارات، SMTP للبريد، مزود مراجعة محتوى، Sentry

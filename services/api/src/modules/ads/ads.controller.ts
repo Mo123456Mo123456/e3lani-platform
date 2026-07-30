@@ -62,7 +62,21 @@ export class AdsController {
     return this.ads.getById(id);
   }
 
-  @ApiOperation({ summary: 'Submit a draft ad for moderation review' })
+  @ApiOperation({
+    summary:
+      'Publish draft ad (FREE_LAUNCH → ACTIVE; PAID_ONLY → PAYMENT_PENDING). Automated checks only.',
+  })
+  @ApiBearerAuth()
+  @Post(':id/publish')
+  async publish(
+    @Param('id') id: string,
+    @Headers('authorization') authorization: string | undefined,
+  ) {
+    const user = await requireUserId(this.jwt, authorization, this.prisma);
+    return this.ads.publish(id, user.sub);
+  }
+
+  @ApiOperation({ summary: 'Alias of publish (legacy path)' })
   @ApiBearerAuth()
   @Post(':id/submit-review')
   async submitReview(
@@ -70,7 +84,7 @@ export class AdsController {
     @Headers('authorization') authorization: string | undefined,
   ) {
     const user = await requireUserId(this.jwt, authorization, this.prisma);
-    return this.ads.submitReview(id, user.sub);
+    return this.ads.publish(id, user.sub);
   }
 
   @ApiOperation({ summary: 'Create a new ad revision' })

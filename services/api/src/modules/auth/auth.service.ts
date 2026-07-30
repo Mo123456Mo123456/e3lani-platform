@@ -39,11 +39,17 @@ export class AuthService {
       correlationId: randomUUID(),
     });
 
+    // Never expose sandbox OTP codes to end-user clients.
+    // Sandbox codes are available only via server logs / KEYS docs for operators.
+    if (result.sandboxCode) {
+      // eslint-disable-next-line no-console
+      console.info(`[otp:sandbox] phone=${input.phone} code=${result.sandboxCode}`);
+    }
+
     return {
       requestId: result.requestId,
       expiresAt: result.expiresAt,
       provider: result.provider,
-      ...(result.sandboxCode ? { sandboxCode: result.sandboxCode } : {}),
     };
   }
 

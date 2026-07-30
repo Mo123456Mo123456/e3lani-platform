@@ -96,17 +96,39 @@ enum AppealStatus {
   CLOSED
 }
 
+enum AccountType {
+  INDIVIDUAL
+  STORE
+  BRAND
+  COMPANY
+}
+
+enum TickerLogoStatus {
+  DRAFT
+  AWAITING_PAYMENT
+  PENDING_REVIEW
+  APPROVED
+  ACTIVE
+  REJECTED
+  EXPIRED
+  STOPPED
+}
+
 model User {
   id             String               @id @default(uuid()) @db.Uuid
   phone          String               @unique
   email          String?              @unique
   displayName    String?
   avatarUrl      String?
+  accountType    AccountType          @default(INDIVIDUAL)
+  bio            String?
   locale         String               @default("ar")
   countryCode    String               @default("SA")
   cityId         String?              @db.Uuid
   roles          Role[]               @default([USER])
   isSuspended    Boolean              @default(false)
+  termsAcceptedAt DateTime?
+  privacyAcceptedAt DateTime?
   deletedAt      DateTime?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
@@ -116,7 +138,10 @@ model User {
   verification   UserVerification?
   brandProfile   BrandProfile?
   ads            Ad[]
+  profilePosts   ProfilePost[]
   savedAds       SavedAd[]
+  savedPosts     SavedPost[]
+  tickerLogos    TickerLogo[]
   reports        Report[]
   appeals        Appeal[]
   notifications  Notification[]
@@ -222,12 +247,83 @@ model BrandProfile {
   logoUrl      String?
   coverUrl     String?
   websiteUrl   String?
+  storeUrl     String?
   whatsapp     String?
   phone        String?
+  instagramUrl String?
+  twitterUrl   String?
+  snapchatUrl  String?
   isVerified   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Free profile posts — completely separate from ads. Never appear in the ads feed.
+model ProfilePost {
+  id          String            @id @default(uuid()) @db.Uuid
+  ownerId     String            @db.Uuid
+  title       String
+  description String?
+  categoryId  String?           @db.Uuid
+  cityId      String?           @db.Uuid
+  contactMethods Json?
+  status      String            @default("ACTIVE")
+  viewCount   Int               @default(0)
+  deletedAt   DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  owner       User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  media       ProfilePostMedia[]
+  savedBy     SavedPost[]
+
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ProfilePostMedia {
+  id        String      @id @default(uuid()) @db.Uuid
+  postId    String      @db.Uuid
+  assetId   String      @db.Uuid
+  sortOrder Int         @default(0)
+  kind      MediaKind
+  createdAt DateTime    @default(now())
+  post      ProfilePost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  asset     MediaAsset  @relation(fields: [assetId], references: [id])
+
+  @@index([postId])
+}
+
+model SavedPost {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @db.Uuid
+  postId    String      @db.Uuid
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      ProfilePost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+/// Top ticker logos — non-clickable, continuous horizontal loop. Never stop on touch.
+model TickerLogo {
+  id          String           @id @default(uuid()) @db.Uuid
+  ownerId     String           @db.Uuid
+  title       String
+  logoUrl     String
+  status      TickerLogoStatus @default(DRAFT)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  sortOrder   Int              @default(0)
+  rejectReason String?
+  reviewedById String?         @db.Uuid
+  reviewedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  owner       User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([status, sortOrder])
+  @@index([status, startsAt, endsAt])
 }
 
 model Ad {
@@ -315,6 +411,7 @@ model MediaAsset {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   adMedia       AdMedia[]
+  postMedia     ProfilePostMedia[]
 }
 
 model ModerationReview {

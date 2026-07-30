@@ -75,27 +75,18 @@ export class SandboxModerationAdapter implements ModerationAdapter {
       };
     }
 
-    const needsReview = REVIEW_TERMS.filter((term) => text.includes(term));
-    if (needsReview.length > 0 || title.length > 80) {
-      return {
-        decision: 'NEEDS_HUMAN',
-        riskScore: 0.55,
-        findings:
-          needsReview.length > 0
-            ? needsReview.map((term) => ({
-                code: 'term.review',
-                severity: 'medium',
-                detail: term,
-              }))
-            : [{ code: 'title.long', severity: 'medium', detail: 'Long title needs review' }],
-      };
-    }
-
+    // Soft-risk terms are logged as findings but do NOT block publish.
+    // Human review happens post-publish via reports only (exceptional holds use REJECTED).
+    const softRisk = REVIEW_TERMS.filter((term) => text.includes(term));
     this.log.log(`sandbox moderation auto-approved revision=${adRevision.id}`);
     return {
-      decision: title.length <= 60 ? 'AUTO_APPROVED' : 'NEEDS_HUMAN',
-      riskScore: title.length <= 60 ? 0.1 : 0.35,
-      findings: [],
+      decision: 'AUTO_APPROVED',
+      riskScore: softRisk.length > 0 ? 0.35 : 0.1,
+      findings: softRisk.map((term) => ({
+        code: 'term.soft_risk',
+        severity: 'low' as const,
+        detail: term,
+      })),
     };
   }
 }

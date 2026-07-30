@@ -1,0 +1,12 @@
+{
+  "name": "@e3lani/tsconfig",
+  "version": "0.1.0",
+  "private": true,
+  "files": ["base.json", "nestjs.json", "nextjs.json"],
+  "scripts": {
+    "build": "echo 'ok'",
+    "lint": "echo 'ok'",
+    "test": "echo 'ok'",
+    "typecheck": "echo 'ok'"
+  }
+}

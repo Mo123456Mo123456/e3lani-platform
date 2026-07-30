@@ -4,11 +4,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import type { Category, City } from '@e3lani/api-client';
 import { pollMediaReady, uploadFileToSignedUrl } from '@e3lani/api-client';
-import { DEFAULT_SA_PRICING } from '@e3lani/types';
 import { api, getToken } from '../../../lib/api';
 
 const steps = ['الوسائط', 'العنوان', 'القسم', 'المدينة', 'التواصل', 'معاينة'];
-const publishPrice = DEFAULT_SA_PRICING.AD_PUBLISH_30D;
 
 function mediaKind(file: File): 'image' | 'video' {
   return file.type.startsWith('video/') ? 'video' : 'image';
@@ -48,7 +46,7 @@ export default function CreateAdPage() {
     () => files.filter((file) => mediaKind(file) === 'video').length,
     [files],
   );
-  const canProceedMedia = imageCount >= 1;
+  const canProceedMedia = imageCount >= 1 || videoCount >= 1;
 
   async function uploadOne(adId: string, file: File, sortOrder: number) {
     const kind = mediaKind(file);
@@ -72,8 +70,9 @@ export default function CreateAdPage() {
     setBusy(true);
     setError('');
     try {
-      if (files.length === 0) throw new Error('اختر صورة واحدة على الأقل (وفيديو اختياري)');
-      if (imageCount < 1) throw new Error('يلزم صورة واحدة على الأقل مع الفيديو');
+      if (files.length === 0) throw new Error('اختر صورة أو فيديو');
+      if (imageCount > 5) throw new Error('الحد الأقصى 5 صور');
+      if (videoCount > 1) throw new Error('فيديو واحد فقط لكل إعلان');
 
       const ad = await api.createAd({
         title,
@@ -97,8 +96,14 @@ export default function CreateAdPage() {
         await uploadOne(ad.id, ordered[i], i);
       }
       setMediaStatus('READY');
-      await api.submitReview(ad.id);
-      router.push(`/ads/${ad.id}/status`);
+      const published = await api.publishAd(ad.id);
+      if (published.status === 'ACTIVE') {
+        router.push(`/ads/${ad.id}`);
+      } else if (published.status === 'PAYMENT_PENDING') {
+        router.push(`/ads/${ad.id}/pay`);
+      } else {
+        router.push(`/ads/${ad.id}/status`);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -128,8 +133,7 @@ export default function CreateAdPage() {
               onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
             />
             <p className="muted">
-              صورة واحدة على الأقل (JPG/PNG/WebP) + فيديو اختياري (MP4/MOV حتى 60 ثانية و200MB). يمكن اختيار عدة
-              ملفات معًا.
+              صورة أو فيديو: 1–5 صور (JPG/PNG/WebP) أو فيديو واحد (MP4/MOV حتى 60 ثانية و200MB).
             </p>
             {files.length > 0 ? (
               <ul className="muted" style={{ margin: 0, paddingInlineStart: 18 }}>
@@ -203,9 +207,7 @@ export default function CreateAdPage() {
             <span className="muted">
               وسائط: {imageCount} صورة · {videoCount} فيديو
             </span>
-            <span>
-              المراجعة مجانية. الدفع يظهر بعد القبول فقط ({publishPrice.amount} {publishPrice.currency}).
-            </span>
+            <span>النشر مجاني حاليًا — يُنشر مباشرة بعد الفحص الآلي بدون مراجعة بشرية.</span>
           </div>
         ) : null}
 
@@ -237,7 +239,7 @@ export default function CreateAdPage() {
               onClick={submit}
               disabled={busy || !categoryId || !cityId || !canProceedMedia}
             >
-              {busy ? 'جاري الرفع والمعالجة...' : 'إرسال للمراجعة'}
+              {busy ? 'جاري الرفع والمعالجة...' : 'نشر الإعلان'}
             </button>
           )}
         </div>

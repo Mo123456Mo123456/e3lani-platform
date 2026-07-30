@@ -22,3 +22,22 @@ export const tokens = {
 } as const;
 
 export type DesignTokens = typeof tokens;
+
+/** Full RTL/LTR helpers for web + native shells. */
+export type UiDirection = 'rtl' | 'ltr';
+
+export function directionFromLocale(locale: string): UiDirection {
+  return locale.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr';
+}
+
+export function isRtl(localeOrDir: string): boolean {
+  return localeOrDir === 'rtl' || localeOrDir.toLowerCase().startsWith('ar');
+}
+
+export function logicalStart(dir: UiDirection): 'right' | 'left' {
+  return dir === 'rtl' ? 'right' : 'left';
+}
+
+export function logicalEnd(dir: UiDirection): 'right' | 'left' {
+  return dir === 'rtl' ? 'left' : 'right';
+}

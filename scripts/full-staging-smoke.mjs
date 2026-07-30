@@ -183,7 +183,7 @@ async function resolveAdminToken(userToken) {
   const otp = await json('POST', '/auth/request-otp', {
     body: { phone, acceptedTerms: true, locale: 'ar', countryCode: 'SA' },
   });
-  assert(otp.data?.sandboxCode === '123456', `admin otp missing: ${otp.status} ${otp.text}`);
+  assert([200,201].includes(otp.status), `admin otp failed: ${otp.status} ${otp.text}`);
   const verify = await json('POST', '/auth/verify-otp', {
     body: { phone, code: '123456', deviceId: `full-smoke-admin-${randomUUID().slice(0, 8)}` },
   });
@@ -213,8 +213,8 @@ async function main() {
   const otp = await json('POST', '/auth/request-otp', {
     body: { phone, acceptedTerms: true, locale: 'ar', countryCode: 'SA' },
   });
-  assert(otp.data?.sandboxCode === '123456', `sandbox otp missing: ${otp.status} ${otp.text}`);
-  console.log('STEP OTP sandbox:', otp.status, 'code=123456');
+  assert([200,201].includes(otp.status), `sandbox otp failed: ${otp.status} ${otp.text}`);
+  console.log('STEP OTP sandbox:', otp.status, '(code from server logs only)');
 
   const verify = await json('POST', '/auth/verify-otp', {
     body: { phone, code: '123456', deviceId: `full-smoke-${randomUUID().slice(0, 8)}` },

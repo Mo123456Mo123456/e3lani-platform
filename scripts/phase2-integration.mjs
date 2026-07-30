@@ -57,7 +57,9 @@ async function waitForHealth(timeoutMs = 30000) {
 
 async function main() {
   assert(DEFAULT_SA_PRICING.AD_PUBLISH_30D.amount === 59, 'Pricing must be 59 SAR per product spec');
-  console.log('✓ approved pricing is 59 SAR');
+  assert(DEFAULT_SA_PRICING.AD_REPOST.amount === 5, 'Repost must be 5 SAR');
+  assert(DEFAULT_SA_PRICING.AD_LOGO_STRIP.amount === 50, 'Logo strip must be 50 SAR');
+  console.log('✓ approved pricing catalog 59/5/5/10/20/15/5/50');
 
   await waitForHealth();
   console.log('✓ API healthy');
@@ -74,7 +76,7 @@ async function main() {
     body: { phone, acceptedTerms: true, locale: 'ar', countryCode: 'SA' },
   });
   assert([200, 201].includes(otp.status), `otp request failed: ${otp.status}`);
-  assert(otp.data.sandboxCode === '123456', 'sandbox otp missing');
+  assert(!otp.data.sandboxCode, 'sandbox OTP must not be exposed to clients');
 
   const verify = await json('POST', '/auth/verify-otp', {
     body: { phone, code: '123456' },
@@ -167,107 +169,46 @@ async function main() {
   assert([200, 201].includes(attach.status), `attach media failed: ${attach.status}`);
   console.log('✓ signed upload + thumbnail processing');
 
-  const submitted = await json('POST', `/ads/${adId}/submit-review`, { token });
-  assert(submitted.data.status === 'PENDING_REVIEW', `expected PENDING_REVIEW got ${submitted.data.status}`);
-
-  const needs = await json('POST', `/admin/ads/${adId}/needs-changes`, {
-    token,
-    body: { notes: 'يرجى توضيح وسيلة التواصل' },
-  });
-  assert(needs.data.status === 'NEEDS_CHANGES', `expected NEEDS_CHANGES got ${needs.data.status}`);
-
-  const edited = await json('POST', `/ads/${adId}/revisions`, {
-    token,
-    body: {
-      title: 'إعلان بعد التعديل',
-      categoryId,
-      countryCode: 'SA',
-      cityId,
-      contactMethods: { whatsapp: '+966500000088', storeUrl: 'https://example.com' },
-    },
-  });
-  assert(edited.data.status === 'DRAFT', 'edit after needs_changes should be DRAFT');
-
-  const resubmit = await json('POST', `/ads/${adId}/submit-review`, { token });
-  assert(resubmit.data.status === 'PENDING_REVIEW', 'resubmit failed');
-
-  const approved = await json('POST', `/admin/ads/${adId}/approve`, {
-    token,
-    body: { notes: 'مقبول' },
-  });
+  // FREE_LAUNCH: direct publish DRAFT → ACTIVE (no human review, no payment).
+  const published = await json('POST', `/ads/${adId}/publish`, { token });
   assert(
-    approved.data.status === 'APPROVED_AWAITING_PAYMENT',
-    `expected APPROVED_AWAITING_PAYMENT got ${approved.data.status}`,
+    published.data.status === 'ACTIVE',
+    `FREE_LAUNCH expected ACTIVE got ${published.data.status}`,
   );
-  console.log('✓ review cycle DRAFT→PENDING_REVIEW→NEEDS_CHANGES→APPROVED_AWAITING_PAYMENT');
+  assert(published.data.publishedAt, 'publishedAt required');
+  assert(published.data.expiresAt, 'expiresAt required');
+  console.log('✓ FREE_LAUNCH publish DRAFT→ACTIVE');
+
+  const feed = await json('GET', '/feed');
+  assert(feed.status === 200, 'feed failed');
+  assert(
+    (feed.data.items || []).some((item) => item.id === adId),
+    'published ad must appear in feed',
+  );
+  console.log('✓ active ad appears in feed');
+
+  const post = await json('POST', '/posts', {
+    token,
+    body: { title: 'منشور مجاني للصفحة', description: 'لا يظهر في الموجز' },
+  });
+  assert([200, 201].includes(post.status), `create post failed: ${post.status}`);
+  const feedAfterPost = await json('GET', '/feed');
+  assert(
+    !(feedAfterPost.data.items || []).some((item) => item.id === post.data.id),
+    'free posts must never appear in ads feed',
+  );
+  console.log('✓ profile posts excluded from ads feed');
+
+  const ticker = await json('GET', '/ticker');
+  assert(ticker.status === 200, 'ticker endpoint failed');
+  assert(ticker.data.clickable === false, 'ticker must not be clickable');
+  assert(ticker.data.pauseOnTouch === false, 'ticker must not pause on touch');
+  console.log('✓ ticker strip is non-interactive');
 
   const options = await json('GET', `/ads/${adId}/payment-options?platform=web`);
   assert(options.status === 200, 'payment options failed');
   assert(options.data.quote.total === 59, `quote must be 59, got ${options.data.quote.total}`);
-  assert(options.data.routing.ok === true, 'routing should find sandbox');
-  assert(options.data.routing.provider.name === 'sandbox', 'sandbox provider expected');
-
-  const checkout = await json('POST', '/orders', {
-    token,
-    headers: { 'idempotency-key': `idem_${randomUUID()}` },
-    body: {
-      adId,
-      successUrl: 'http://localhost:3000/payment/success',
-      cancelUrl: 'http://localhost:3000/payment/cancel',
-    },
-  });
-  assert([200, 201].includes(checkout.status), `checkout failed: ${checkout.status} ${JSON.stringify(checkout.data)}`);
-  assert(Number(checkout.data.order.total) === 59, 'order total must be 59');
-  const orderId = checkout.data.order.id;
-  const providerReference = checkout.data.checkout.providerReference;
-
-  const page = await fetch(
-    `${API}/payments/sandbox/checkout?orderId=${orderId}&ref=${providerReference}&redirect=http://localhost:3000/payment/success`,
-  );
-  const html = await page.text();
-  assert(page.ok, 'sandbox checkout page failed');
-  assert(html.includes('لا تنشر الإعلان'), 'checkout page must warn redirect does not publish');
-
-  const redirect = await json('POST', `/orders/${orderId}/verify-redirect`);
-  assert(redirect.data.activated === false, 'redirect must not activate');
-  console.log('✓ redirect activation blocked');
-
-  const payload = {
-    eventId: `evt_${randomUUID()}`,
-    type: 'payment.paid',
-    providerReference,
-    orderId,
-    paid: true,
-    occurredAt: new Date().toISOString(),
-  };
-  const body = JSON.stringify(payload);
-  const timestamp = String(Date.now());
-  const signature = createHmac('sha256', SECRET).update(`${timestamp}.${body}`).digest('hex');
-
-  const webhook = await json('POST', '/webhooks/payments/sandbox', {
-    body,
-    headers: {
-      'x-e3lani-timestamp': timestamp,
-      'x-e3lani-signature': signature,
-    },
-  });
-  assert([200, 201].includes(webhook.status), `webhook failed: ${webhook.status} ${JSON.stringify(webhook.data)}`);
-  assert(webhook.data.activated === true, 'webhook should activate ad');
-
-  const ad = await json('GET', `/ads/${adId}`);
-  assert(ad.data.status === 'ACTIVE', `ad should be ACTIVE, got ${ad.data.status}`);
-  assert(ad.data.publishedAt, 'publishedAt required');
-  assert(ad.data.expiresAt, 'expiresAt required');
-
-  const replay = await json('POST', '/webhooks/payments/sandbox', {
-    body,
-    headers: {
-      'x-e3lani-timestamp': timestamp,
-      'x-e3lani-signature': signature,
-    },
-  });
-  assert(replay.data.duplicate === true, 'webhook replay should be idempotent');
-  console.log('✓ webhook verified activation + idempotency');
+  console.log('✓ payment adapter quote ready for future PAID_ONLY');
 
   console.log('\nPHASE2_INTEGRATION_OK');
 }

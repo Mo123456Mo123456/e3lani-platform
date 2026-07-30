@@ -232,7 +232,7 @@ test('mobile API smoke remains healthy', async () => {
   const otp = await apiJson('POST', '/auth/request-otp', {
     body: { phone, acceptedTerms: true, locale: 'ar', countryCode: 'SA' },
   });
-  expect(otp.sandboxCode).toBe('123456');
+  expect(otp.sandboxCode).toBeUndefined();
   const verify = await apiJson('POST', '/auth/verify-otp', {
     body: { phone, code: '123456' },
   });

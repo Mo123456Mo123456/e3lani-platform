@@ -64,9 +64,10 @@ describe('pricing engine', () => {
       'AD_HIGHLIGHT_7D',
       'AD_TOP_CATEGORY',
       'AD_EXTRA_CITY',
+      'AD_LOGO_STRIP',
     ]);
-    expect(quote.lines.map((line) => line.unitAmount)).toEqual([10, 29, 15, 29, 29, 10]);
-    expect(quote.total).toBe(122);
+    expect(quote.lines.map((line) => line.unitAmount)).toEqual([5, 5, 10, 20, 15, 5, 50]);
+    expect(quote.total).toBe(110);
   });
 });
 

@@ -21,6 +21,8 @@ import { AppealsModule } from './modules/appeals/appeals.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
+import { PostsModule } from './modules/posts/posts.module';
+import { TickerModule } from './modules/ticker/ticker.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { CampaignsModule } from './modules/campaigns/campaigns.module';
     NotificationsModule,
     AnalyticsModule,
     CampaignsModule,
+    PostsModule,
+    TickerModule,
   ],
 })
 export class AppModule {}

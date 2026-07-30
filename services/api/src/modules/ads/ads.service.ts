@@ -5,6 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AD_POLICY, MEDIA_LIMITS } from '@e3lani/config';
+import {
+  DEFAULT_LAUNCH_MODE,
+  isLaunchMode,
+  paymentsRequired,
+  type LaunchMode,
+} from '@e3lani/types';
 import { createAdDraftSchema } from '@e3lani/validation';
 import { AdStatus, MediaKind } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -26,6 +32,18 @@ export class AdsService {
     private readonly audit: AuditService,
   ) {
     this.moderation = createModerationAdapter();
+  }
+
+  async getLaunchMode(): Promise<LaunchMode> {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'launch_mode' },
+    });
+    const value = setting?.value;
+    if (typeof value === 'string' && isLaunchMode(value)) return value;
+    if (value && typeof value === 'object' && 'mode' in value && isLaunchMode((value as { mode: unknown }).mode)) {
+      return (value as { mode: LaunchMode }).mode;
+    }
+    return (AD_POLICY.defaultLaunchMode as LaunchMode) ?? DEFAULT_LAUNCH_MODE;
   }
 
   async listMine(ownerId: string) {
@@ -88,23 +106,42 @@ export class AdsService {
     return { ...ad, media: await decorateAdMedia(ad.media) };
   }
 
+  /**
+   * Publish an ad.
+   * FREE_LAUNCH: DRAFT → ACTIVE (automated safety checks only; no human review).
+   * PAID_ONLY:   DRAFT → PAYMENT_PENDING (activate via verified payment webhook).
+   * Human review only after reports / admin escalation.
+   *
+   * `submitReview` kept as alias for API compatibility.
+   */
   async submitReview(adId: string, ownerId: string) {
+    return this.publish(adId, ownerId);
+  }
+
+  async publish(adId: string, ownerId: string) {
     const ad = await this.getById(adId);
     if (ad.ownerId !== ownerId) throw new ForbiddenException();
     if (!ad.currentRevision) throw new BadRequestException('REVISION_REQUIRED');
+    if (ad.status !== 'DRAFT' && ad.status !== 'NEEDS_CHANGES') {
+      throw new BadRequestException('AD_NOT_PUBLISHABLE');
+    }
     const revision = ad.currentRevision;
+    const launchMode = await this.getLaunchMode();
 
     const images = ad.media.filter((row) => row.asset.kind === MediaKind.IMAGE);
     const videos = ad.media.filter((row) => row.asset.kind === MediaKind.VIDEO);
-    if (images.length < MEDIA_LIMITS.minImages) {
-      throw new BadRequestException(`يلزم صورة واحدة على الأقل (${MEDIA_LIMITS.minImages})`);
+    if (images.length === 0 && videos.length === 0) {
+      throw new BadRequestException('MEDIA_REQUIRED');
+    }
+    if (videos.length > 1) {
+      throw new BadRequestException('Max 1 video per ad');
     }
     if (images.length > MEDIA_LIMITS.maxImages) {
       throw new BadRequestException(`Max ${MEDIA_LIMITS.maxImages} images per ad`);
     }
     const notReady = ad.media.filter((row) => row.asset.status !== 'READY');
     if (notReady.length > 0) {
-      throw new BadRequestException('All media must be READY before review');
+      throw new BadRequestException('All media must be READY before publish');
     }
     if (videos.some((row) => (row.asset.durationSec ?? 0) > MEDIA_LIMITS.maxVideoSeconds)) {
       throw new BadRequestException('Video exceeds 60 seconds');
@@ -122,13 +159,6 @@ export class AdsService {
         url: row.asset.urls.source,
         storageKey: row.asset.storageKey,
       })),
-    });
-
-    const pending = await this.adState.transition({
-      adId,
-      to: 'PENDING_REVIEW',
-      actorId: ownerId,
-      reason: 'Submitted for review',
     });
 
     await this.prisma.$transaction(async (tx) => {
@@ -156,32 +186,59 @@ export class AdsService {
       });
     });
 
-    if (autoModeration.decision === 'AUTO_APPROVED') {
-      await this.prisma.ad.update({
-        where: { id: adId },
-        data: { approvedRevisionId: revision.id },
-      });
-      return this.adState.transition({
-        adId,
-        to: 'APPROVED_AWAITING_PAYMENT',
-        actorId: ownerId,
-        reason: 'Auto-approved by sandbox moderation',
-      });
-    }
-
     if (autoModeration.decision === 'REJECTED') {
       return this.adState.transition({
         adId,
         to: 'REJECTED',
         actorId: ownerId,
-        reason: 'Rejected by auto-moderation',
+        reason: 'Blocked by automated safety checks',
       });
     }
 
-    return {
-      ...pending,
-      moderation: autoModeration,
-    };
+    await this.prisma.ad.update({
+      where: { id: adId },
+      data: {
+        approvedRevisionId: revision.id,
+        activeRevisionId: revision.id,
+      },
+    });
+
+    if (paymentsRequired(launchMode)) {
+      return this.adState.transition({
+        adId,
+        to: 'PAYMENT_PENDING',
+        actorId: ownerId,
+        reason: `Published under ${launchMode}; awaiting payment`,
+      });
+    }
+
+    const now = new Date();
+    await this.prisma.ad.update({
+      where: { id: adId },
+      data: {
+        publishedAt: now,
+        expiresAt: new Date(
+          now.getTime() + AD_POLICY.defaultDurationDays * 24 * 60 * 60 * 1000,
+        ),
+      },
+    });
+
+    const activated = await this.adState.transition({
+      adId,
+      to: 'ACTIVE',
+      actorId: ownerId,
+      reason: `Direct publish under ${launchMode} (no human review)`,
+    });
+
+    await this.notifyAdOwner(
+      ownerId,
+      'ad.published',
+      adId,
+      'تم نشر إعلانك',
+      'إعلانك نشط الآن في الموجز',
+    );
+
+    return { ...activated, launchMode, moderation: autoModeration };
   }
 
   async approve(adId: string, actorId: string, notes?: string) {

@@ -44,7 +44,10 @@ export const AUTH_LIMITS = {
 } as const;
 
 export const AD_POLICY = {
-  reviewBeforePayment: true as const,
+  /** Human review is post-publish (reports only). Automated checks run on upload/publish. */
+  reviewBeforePayment: false as const,
+  /** Default operating mode until admin changes SystemSetting `launch_mode`. */
+  defaultLaunchMode: 'FREE_LAUNCH' as const,
   defaultDurationDays: 30,
   repostCooldownHours: 72,
   extendDays: 15,

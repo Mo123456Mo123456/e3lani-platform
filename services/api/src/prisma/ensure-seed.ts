@@ -88,9 +88,20 @@ export async function ensureSeedData(prisma: PrismaClient): Promise<void> {
     });
   }
 
+  await prisma.systemSetting.upsert({
+    where: { key: 'launch_mode' },
+    create: { key: 'launch_mode', value: 'FREE_LAUNCH' },
+    update: { value: 'FREE_LAUNCH' },
+  });
+
+  await prisma.pricingVersion.updateMany({
+    where: { code: { not: 'sa-default-2026-07-v2' }, isActive: true },
+    data: { isActive: false },
+  });
+
   const pricing = await prisma.pricingVersion.upsert({
-    where: { code: 'sa-default-2026-07' },
-    create: { code: 'sa-default-2026-07', isActive: true },
+    where: { code: 'sa-default-2026-07-v2' },
+    create: { code: 'sa-default-2026-07-v2', isActive: true },
     update: { isActive: true },
   });
 
@@ -136,5 +147,18 @@ export async function ensureSeedData(prisma: PrismaClient): Promise<void> {
     update: { enabled: true, priority: 1 },
   });
 
-  log.log('Bootstrap seed complete (SA geo, 21 categories, pricing 59 SAR tax-inclusive, sandbox payments)');
+  await prisma.user.upsert({
+    where: { phone: '+966500000001' },
+    create: {
+      phone: '+966500000001',
+      displayName: 'مشرف إعلاني',
+      email: 'admin@e3lani.local',
+      roles: ['SUPER_ADMIN'],
+      locale: 'ar',
+      countryCode: 'SA',
+    },
+    update: { roles: ['SUPER_ADMIN'] },
+  });
+
+  log.log('Bootstrap seed complete (FREE_LAUNCH, pricing 59/5/5/10/20/15/5/50, sandbox admin)');
 }

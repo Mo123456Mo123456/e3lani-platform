@@ -145,6 +145,52 @@ button, input, select, textarea { font: inherit; }
 .progress { display: flex; gap: 6px; margin: 10px 0 18px; }
 .progress i { flex: 1; height: 4px; border-radius: 2px; background: #eee; }
 .progress i.on { background: #FFC400; }
+/* Non-interactive logo ticker — continuous loop, no pause, not clickable */
+.logo-ticker {
+  overflow: hidden;
+  height: 44px;
+  margin: 0 0 12px;
+  border-radius: 0;
+  background: rgba(17, 17, 17, 0.04);
+  pointer-events: none;
+  user-select: none;
+  touch-action: none;
+}
+.logo-ticker-track {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  width: max-content;
+  animation: e3lani-ticker 36s linear infinite;
+  will-change: transform;
+}
+html[dir='rtl'] .logo-ticker-track {
+  animation-name: e3lani-ticker-rtl;
+}
+.logo-ticker-item img {
+  height: 28px;
+  width: auto;
+  max-width: 96px;
+  object-fit: contain;
+  filter: grayscale(0.15);
+}
+.logo-ticker-brand {
+  font-size: 11px;
+  font-weight: 800;
+  color: #111111;
+  opacity: 0.55;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+@keyframes e3lani-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes e3lani-ticker-rtl {
+  from { transform: translateX(0); }
+  to { transform: translateX(50%); }
+}
+
 @media (max-width: 820px) {
   .topnav { flex-wrap: wrap; }
   .brand-lockup small { display: none; }

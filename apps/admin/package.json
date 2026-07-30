@@ -13,6 +13,7 @@
   "dependencies": {
     "@e3lani/api-client": "workspace:*",
     "@e3lani/config": "workspace:*",
+    "@e3lani/types": "workspace:*",
     "@e3lani/ui": "workspace:*",
     "next": "^15.1.3",
     "react": "18.3.1",

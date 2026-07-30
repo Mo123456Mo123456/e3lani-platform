@@ -196,7 +196,21 @@ export function createApiClient(options: ApiClientOptions) {
     createAd: (body: CreateAdBody) => request<AdDetail>('POST', '/ads', { body }),
     reviseAd: (id: string, body: CreateAdBody) =>
       request<AdDetail>('POST', `/ads/${id}/revisions`, { body }),
-    submitReview: (id: string) => request<AdDetail>('POST', `/ads/${id}/submit-review`),
+    publishAd: (id: string) => request<AdDetail>('POST', `/ads/${id}/publish`),
+    /** @deprecated use publishAd — kept for compatibility */
+    submitReview: (id: string) => request<AdDetail>('POST', `/ads/${id}/publish`),
+    ticker: () =>
+      request<{
+        items: Array<{ id: string; title: string; logoUrl: string }>;
+        interactive: false;
+        clickable: false;
+      }>('GET', '/ticker', { auth: false }),
+    myPosts: () => request<unknown[]>('GET', '/posts/mine'),
+    createPost: (body: unknown) => request('POST', '/posts', { body }),
+    updatePost: (id: string, body: unknown) => request('PATCH', `/posts/${id}`, { body }),
+    deletePost: (id: string) => request('DELETE', `/posts/${id}`),
+    postsByOwner: (ownerId: string) =>
+      request<unknown[]>('GET', `/posts/by-owner/${ownerId}`, { auth: false }),
     pauseAd: (id: string) => request<AdDetail>('POST', `/ads/${id}/pause`),
     resumeAd: (id: string) => request<AdDetail>('POST', `/ads/${id}/resume`),
     republishAd: (id: string) => request<AdDetail>('POST', `/ads/${id}/republish`),

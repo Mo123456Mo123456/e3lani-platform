@@ -155,9 +155,18 @@ export default function CreateAdScreen() {
       setUploadPhase('ready');
       setUploadProgress(1);
       await api.attachMedia(ad.id, intent.assetId, 0);
-      await api.submitReview(ad.id);
-      Alert.alert(locale === 'ar' ? 'تم الإرسال' : 'Submitted', locale === 'ar' ? 'الإعلان قيد المراجعة' : 'Your ad is under review');
-      router.push('/account');
+      const published = await api.publishAd(ad.id);
+      Alert.alert(
+        locale === 'ar' ? 'تم النشر' : 'Published',
+        published.status === 'ACTIVE'
+          ? locale === 'ar'
+            ? 'إعلانك نشط الآن في الموجز'
+            : 'Your ad is live in the feed'
+          : locale === 'ar'
+            ? `الحالة: ${published.status}`
+            : `Status: ${published.status}`,
+      );
+      router.push(published.status === 'ACTIVE' ? '/' : '/account');
     } catch (e) {
       Alert.alert(t('common.error'), (e as Error).message);
     } finally {

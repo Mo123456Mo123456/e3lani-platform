@@ -1,0 +1,13 @@
+{
+  "name": "@e3lani/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "files": ["index.js"],
+  "scripts": {
+    "build": "echo 'ok'",
+    "lint": "echo 'ok'",
+    "test": "echo 'ok'",
+    "typecheck": "echo 'ok'"
+  }
+}
