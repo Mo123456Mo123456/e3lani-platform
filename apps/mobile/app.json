@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "إعلاني",
+    "slug": "e3lani",
+    "scheme": "e3lani",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "sa.e3lani.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "نحتاج الوصول لاختيار صور أو فيديو إعلانك."
+      }
+    },
+    "android": {
+      "package": "sa.e3lani.app",
+      "edgeToEdgeEnabled": true,
+      "permissions": ["READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO"]
+    },
+    "plugins": ["expo-router", "expo-secure-store", "expo-image-picker"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

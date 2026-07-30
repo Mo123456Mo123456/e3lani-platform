@@ -1,0 +1,36 @@
+@import "@e3lani/ui/styles.css";
+
+html {
+  scroll-snap-type: y mandatory;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes logo-strip {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(50%);
+  }
+}
+
+.logo-strip {
+  animation: logo-strip 22s linear infinite;
+}
+
+[dir="ltr"] .logo-strip {
+  animation-direction: reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-strip {
+    animation-duration: 80s;
+  }
+}

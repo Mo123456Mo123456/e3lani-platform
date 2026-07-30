@@ -1,0 +1,42 @@
+{
+  "name": "@e3lani/api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "lint": "eslint src test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.864.0",
+    "@aws-sdk/s3-request-presigner": "^3.864.0",
+    "@e3lani/config": "workspace:*",
+    "@e3lani/database": "workspace:*",
+    "@e3lani/types": "workspace:*",
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/throttler": "^6.4.0",
+    "argon2": "^0.43.1",
+    "bullmq": "^5.58.0",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.7.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.0.10"
+  },
+  "devDependencies": {
+    "@e3lani/eslint-config": "workspace:*",
+    "@e3lani/tsconfig": "workspace:*",
+    "@nestjs/cli": "^11.0.10",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.1.0",
+    "eslint": "^9.32.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
