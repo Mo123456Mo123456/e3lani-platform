@@ -1,0 +1,32 @@
+@import "@e3lani/ui/styles.css";
+
+html {
+  scroll-behavior: smooth;
+}
+
+.logo-marquee {
+  display: flex;
+  width: max-content;
+  animation: logo-marquee 28s linear infinite;
+  pointer-events: none;
+  user-select: none;
+}
+
+@keyframes logo-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+[dir="rtl"] .logo-marquee {
+  animation-direction: reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-marquee {
+    animation-duration: 70s;
+  }
+}

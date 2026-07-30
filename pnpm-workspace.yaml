@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+  - services/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - esbuild
+  - ffmpeg-static
+  - sharp
