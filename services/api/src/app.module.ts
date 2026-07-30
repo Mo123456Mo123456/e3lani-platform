@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
-import { ThrottlerModule } from "@nestjs/throttler";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 
 import { AiService } from "./ai.service";
 import { AppController } from "./app.controller";
@@ -26,6 +27,10 @@ import { WorldService } from "./world.service";
     WorldRepository,
     WorldService,
     WorldGateway,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
