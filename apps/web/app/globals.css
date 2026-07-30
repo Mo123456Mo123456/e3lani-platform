@@ -1,0 +1,58 @@
+@import "@e3lani/ui/globals.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  min-height: 100%;
+}
+
+.snap-feed {
+  height: calc(100dvh - 8.5rem);
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
+}
+
+.snap-ad {
+  min-height: calc(100dvh - 8.5rem);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+@keyframes logoTickerRtl {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(50%);
+  }
+}
+
+@keyframes logoTickerLtr {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-track {
+  width: max-content;
+  animation: logoTickerRtl 28s linear infinite;
+  pointer-events: none;
+  user-select: none;
+}
+
+[dir="ltr"] .ticker-track {
+  animation-name: logoTickerLtr;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation-duration: 80s;
+  }
+}

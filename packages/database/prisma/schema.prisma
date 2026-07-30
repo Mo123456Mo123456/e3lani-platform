@@ -1,0 +1,672 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADVERTISER
+  BRAND_OWNER
+  MODERATOR
+  SUPPORT
+  CAMPAIGN_MANAGER
+  FINANCE
+  CONTENT_MANAGER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccountType {
+  INDIVIDUAL
+  STORE
+  BRAND
+  COMPANY
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
+enum MediaPurpose {
+  POST
+  AVATAR
+  LOGO
+  COVER
+  TICKER_LOGO
+}
+
+enum MediaStatus {
+  PENDING_UPLOAD
+  UPLOADED
+  QUEUED
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  REMOVED
+}
+
+enum ContactType {
+  STORE_URL
+  PRODUCT_URL
+  WHATSAPP
+  PHONE
+  EXTERNAL_URL
+}
+
+enum DistributionScope {
+  CITY
+  NATIONWIDE
+}
+
+enum DistributionStatus {
+  DRAFT
+  PENDING_PAYMENT
+  ACTIVE
+  PAUSED
+  REJECTED
+  EXPIRED
+  REMOVED
+}
+
+enum ModerationResult {
+  SAFE
+  NEEDS_REVIEW
+  BLOCKED
+}
+
+enum LaunchMode {
+  PROFILE_ONLY
+  FREE_LAUNCH
+  PAID_ONLY
+}
+
+enum EventType {
+  IMPRESSION
+  VIEW
+  VIDEO_START
+  VIDEO_COMPLETE
+  WHATSAPP_CLICK
+  STORE_CLICK
+  PHONE_CLICK
+  SAVE
+  SHARE
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  ACTIONED
+  DISMISSED
+  APPEALED
+}
+
+enum TickerRequestStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PENDING_REVIEW
+  APPROVED
+  ACTIVE
+  REJECTED
+  EXPIRED
+  PAUSED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id                    String               @id @default(cuid())
+  phone                 String               @unique
+  email                 String?              @unique
+  status                UserStatus           @default(ACTIVE)
+  phoneVerifiedAt       DateTime?
+  acceptedTermsAt       DateTime?
+  acceptedPrivacyAt     DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  profile               UserProfile?
+  businessProfile       BusinessProfile?
+  roles                 UserRoleAssignment[]
+  otpChallenges         OtpChallenge[]
+  sessions              AuthSession[]
+  media                 MediaAsset[]
+  posts                 ProfilePost[]
+  distributions         AdDistribution[]
+  favorites             Favorite[]
+  reports               Report[]
+  notifications         Notification[]
+  deviceTokens          DeviceToken[]
+  auditActions          AuditLog[]           @relation("AuditActor")
+  reportActions         ReportAction[]
+  tickerRequests        TickerRequest[]
+  orders                Order[]
+
+  @@map("users")
+}
+
+model UserRoleAssignment {
+  userId      String
+  role        Role
+  grantedAt   DateTime @default(now())
+  grantedById String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@index([role])
+  @@map("user_role_assignments")
+}
+
+model UserProfile {
+  id              String      @id @default(cuid())
+  userId          String      @unique
+  name            String
+  slug            String      @unique
+  accountType     AccountType
+  bio             String?
+  cityId          String
+  avatarMediaId   String?
+  coverMediaId    String?
+  verifiedAt      DateTime?
+  whatsapp        String?
+  phone           String?
+  websiteUrl      String?
+  instagramUrl    String?
+  xUrl            String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city            City        @relation(fields: [cityId], references: [id])
+  avatarMedia     MediaAsset? @relation("ProfileAvatar", fields: [avatarMediaId], references: [id])
+  coverMedia      MediaAsset? @relation("ProfileCover", fields: [coverMediaId], references: [id])
+
+  @@index([cityId])
+  @@map("user_profiles")
+}
+
+model BusinessProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  legalName      String
+  commercialId   String?
+  logoMediaId    String?
+  storeUrl       String?
+  verificationAt DateTime?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logoMedia      MediaAsset? @relation("BusinessLogo", fields: [logoMediaId], references: [id])
+
+  @@map("business_profiles")
+}
+
+model OtpChallenge {
+  id           String   @id @default(cuid())
+  userId       String?
+  phone        String
+  codeHash     String
+  attempts     Int      @default(0)
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  requestedIp  String?
+  createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([phone, createdAt])
+  @@map("otp_challenges")
+}
+
+model AuthSession {
+  id               String   @id @default(cuid())
+  userId           String
+  refreshTokenHash String   @unique
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("auth_sessions")
+}
+
+model Region {
+  id        String @id @default(cuid())
+  code      String @unique
+  nameAr    String
+  nameEn    String
+  sortOrder Int    @default(0)
+  active    Boolean @default(true)
+  cities    City[]
+
+  @@map("regions")
+}
+
+model City {
+  id            String           @id @default(cuid())
+  regionId      String
+  code          String           @unique
+  nameAr        String
+  nameEn        String
+  latitude      Decimal?         @db.Decimal(9, 6)
+  longitude     Decimal?         @db.Decimal(9, 6)
+  sortOrder     Int              @default(0)
+  active        Boolean          @default(true)
+  region        Region           @relation(fields: [regionId], references: [id])
+  profiles      UserProfile[]
+  posts         ProfilePost[]
+  distributions AdDistribution[] @relation("PrimaryCity")
+  targetCities  AdTargetCity[]
+
+  @@index([regionId, active])
+  @@map("cities")
+}
+
+model Category {
+  id            String           @id @default(cuid())
+  parentId      String?
+  slug          String           @unique
+  nameAr        String
+  nameEn        String
+  icon          String?
+  sortOrder     Int              @default(0)
+  active        Boolean          @default(true)
+  parent        Category?        @relation("CategoryTree", fields: [parentId], references: [id])
+  children      Category[]       @relation("CategoryTree")
+  posts         ProfilePost[]    @relation("PostCategory")
+  subcategoryPosts ProfilePost[] @relation("PostSubcategory")
+
+  @@index([parentId, active])
+  @@map("categories")
+}
+
+model MediaAsset {
+  id                  String          @id @default(cuid())
+  ownerId             String
+  kind                MediaKind
+  purpose             MediaPurpose
+  status              MediaStatus     @default(PENDING_UPLOAD)
+  sourceKey           String          @unique
+  mimeType            String
+  sizeBytes           Int
+  checksum            String?
+  width               Int?
+  height              Int?
+  durationSeconds     Float?
+  thumbnailKey        String?
+  optimizedKey        String?
+  processingError     String?
+  moderationResult    ModerationResult?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  owner               User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  postMedia           PostMedia[]
+  profileAvatars      UserProfile[]   @relation("ProfileAvatar")
+  profileCovers       UserProfile[]   @relation("ProfileCover")
+  businessLogos       BusinessProfile[] @relation("BusinessLogo")
+  tickerRequests      TickerRequest[]
+
+  @@index([ownerId, status])
+  @@map("media_assets")
+}
+
+model ProfilePost {
+  id             String       @id @default(cuid())
+  ownerId        String
+  categoryId     String
+  subcategoryId  String?
+  cityId         String
+  title          String
+  description    String?
+  status         PostStatus   @default(DRAFT)
+  contactType    ContactType
+  contactValue   String
+  publishedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  owner          User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  category       Category     @relation("PostCategory", fields: [categoryId], references: [id])
+  subcategory    Category?    @relation("PostSubcategory", fields: [subcategoryId], references: [id])
+  city           City         @relation(fields: [cityId], references: [id])
+  media          PostMedia[]
+  distributions  AdDistribution[]
+
+  @@index([ownerId, status, publishedAt])
+  @@index([categoryId, status])
+  @@map("profile_posts")
+}
+
+model PostMedia {
+  postId       String
+  mediaAssetId String
+  position     Int
+  post         ProfilePost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaAsset   MediaAsset  @relation(fields: [mediaAssetId], references: [id])
+
+  @@id([postId, mediaAssetId])
+  @@unique([postId, position])
+  @@map("post_media")
+}
+
+model AdDistribution {
+  id                  String             @id @default(cuid())
+  postId              String
+  ownerId             String
+  primaryCityId       String?
+  scope               DistributionScope
+  status              DistributionStatus @default(DRAFT)
+  contactType         ContactType
+  contactValue        String
+  moderationResult    ModerationResult?
+  moderationReason    String?
+  featuredUntil       DateTime?
+  sponsored           Boolean            @default(false)
+  startsAt            DateTime?
+  expiresAt           DateTime?
+  priceSnapshotHalalas Int?
+  pricingVersionId    String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  post                ProfilePost         @relation(fields: [postId], references: [id])
+  owner               User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  primaryCity         City?               @relation("PrimaryCity", fields: [primaryCityId], references: [id])
+  pricingVersion      PricingVersion?     @relation(fields: [pricingVersionId], references: [id])
+  targetCities        AdTargetCity[]
+  promotions          DistributionPromotion[]
+  events              AdEvent[]
+  dailyMetrics        DailyMetric[]
+  favorites           Favorite[]
+  reports             Report[]
+  orders              Order[]
+
+  @@index([status, startsAt, expiresAt])
+  @@index([primaryCityId, status])
+  @@index([postId])
+  @@map("ad_distributions")
+}
+
+model AdTargetCity {
+  distributionId String
+  cityId          String
+  distribution   AdDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  city           City           @relation(fields: [cityId], references: [id])
+
+  @@id([distributionId, cityId])
+  @@map("ad_target_cities")
+}
+
+model AdEvent {
+  id             String      @id @default(cuid())
+  distributionId String
+  actorId        String?
+  anonymousId    String?
+  type           EventType
+  cityId         String?
+  source         String
+  watchMs        Int?
+  dedupeKey      String?     @unique
+  occurredAt     DateTime    @default(now())
+  distribution   AdDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  @@index([distributionId, type, occurredAt])
+  @@map("ad_events")
+}
+
+model DailyMetric {
+  distributionId  String
+  date             DateTime @db.Date
+  cityId           String?
+  source           String
+  impressions      Int      @default(0)
+  uniqueReach      Int      @default(0)
+  videoViews       Int      @default(0)
+  watchMs          BigInt   @default(0)
+  completions      Int      @default(0)
+  whatsappClicks   Int      @default(0)
+  storeClicks      Int      @default(0)
+  phoneClicks      Int      @default(0)
+  saves            Int      @default(0)
+  shares           Int      @default(0)
+  distribution     AdDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  @@id([distributionId, date, source])
+  @@index([distributionId, date])
+  @@map("daily_metrics")
+}
+
+model Favorite {
+  userId         String
+  distributionId String
+  createdAt      DateTime       @default(now())
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  distribution   AdDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, distributionId])
+  @@map("favorites")
+}
+
+model PricingVersion {
+  id            String                  @id @default(cuid())
+  version       Int                     @unique
+  currency      String                  @default("SAR")
+  active        Boolean                 @default(false)
+  effectiveFrom DateTime
+  createdAt     DateTime                @default(now())
+  rules         PricingRule[]
+  distributions AdDistribution[]
+
+  @@map("pricing_versions")
+}
+
+model PricingRule {
+  id               String         @id @default(cuid())
+  pricingVersionId String
+  code             String
+  nameAr           String
+  nameEn           String
+  priceHalalas     Int
+  durationDays     Int?
+  active           Boolean        @default(true)
+  pricingVersion   PricingVersion @relation(fields: [pricingVersionId], references: [id], onDelete: Cascade)
+  promotions       DistributionPromotion[]
+
+  @@unique([pricingVersionId, code])
+  @@map("pricing_rules")
+}
+
+model DistributionPromotion {
+  distributionId String
+  pricingRuleId  String
+  priceHalalas   Int
+  distribution   AdDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  pricingRule    PricingRule    @relation(fields: [pricingRuleId], references: [id])
+
+  @@id([distributionId, pricingRuleId])
+  @@map("distribution_promotions")
+}
+
+model AppSetting {
+  key         String   @id
+  value       Json
+  public      Boolean  @default(false)
+  description String?
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  distributionId String
+  reason         String
+  details        String?
+  status         ReportStatus @default(OPEN)
+  resolution     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  reporter       User         @relation(fields: [reporterId], references: [id])
+  distribution   AdDistribution @relation(fields: [distributionId], references: [id])
+  actions        ReportAction[]
+  appeals        Appeal[]
+
+  @@index([status, createdAt])
+  @@map("reports")
+}
+
+model ReportAction {
+  id        String   @id @default(cuid())
+  reportId  String
+  actorId   String
+  action    String
+  reason    String
+  createdAt DateTime @default(now())
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor     User     @relation(fields: [actorId], references: [id])
+
+  @@map("report_actions")
+}
+
+model Appeal {
+  id        String   @id @default(cuid())
+  reportId  String
+  userId    String
+  reason    String
+  status    String   @default("OPEN")
+  decision  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  report    Report   @relation(fields: [reportId], references: [id])
+
+  @@index([status, createdAt])
+  @@map("appeals")
+}
+
+model TickerRequest {
+  id          String              @id @default(cuid())
+  ownerId     String
+  logoMediaId String
+  status      TickerRequestStatus @default(DRAFT)
+  startsAt    DateTime?
+  expiresAt   DateTime?
+  reason      String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  owner       User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  logoMedia   MediaAsset          @relation(fields: [logoMediaId], references: [id])
+
+  @@index([status, startsAt, expiresAt])
+  @@map("ticker_requests")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  titleAr   String
+  titleEn   String
+  bodyAr    String
+  bodyEn    String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("device_tokens")
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  userId         String
+  distributionId String?
+  status         OrderStatus @default(PENDING)
+  amountHalalas  Int
+  currency       String      @default("SAR")
+  idempotencyKey String      @unique
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  user           User        @relation(fields: [userId], references: [id])
+  distribution   AdDistribution? @relation(fields: [distributionId], references: [id])
+  payments       Payment[]
+
+  @@map("orders")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String
+  provider      String
+  providerRef   String?       @unique
+  status        PaymentStatus @default(PENDING)
+  amountHalalas Int
+  rawResponse   Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  order         Order         @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, status])
+  @@map("payments")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  reason     String?
+  before     Json?
+  after      Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@e3lani/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "start": "next start --port 3000",
+    "lint": "next lint",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@e3lani/config": "workspace:*",
+    "@e3lani/types": "workspace:*",
+    "@e3lani/ui": "workspace:*",
+    "lucide-react": "latest",
+    "next": "15",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@e3lani/tsconfig": "workspace:*",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "autoprefixer": "latest",
+    "eslint": "^9.39.5",
+    "postcss": "latest",
+    "tailwindcss": "3",
+    "typescript": "~5.9.3",
+    "vitest": "latest"
+  }
+}

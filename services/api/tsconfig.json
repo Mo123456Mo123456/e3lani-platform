@@ -1,0 +1,11 @@
+{
+  "extends": "@e3lani/tsconfig/node.json",
+  "compilerOptions": {
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "strictPropertyInitialization": false
+  },
+  "include": ["src/**/*.ts"]
+}

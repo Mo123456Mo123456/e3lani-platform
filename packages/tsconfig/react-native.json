@@ -1,0 +1,13 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "declaration": false,
+    "jsx": "react-native",
+    "lib": ["dom", "esnext"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "types": ["react", "react-native"]
+  }
+}

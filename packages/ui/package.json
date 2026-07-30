@@ -1,0 +1,37 @@
+{
+  "name": "@e3lani/ui",
+  "version": "1.0.0",
+  "private": true,
+  "sideEffects": [
+    "./src/globals.css"
+  ],
+  "main": "./src/index.tsx",
+  "exports": {
+    ".": "./src/index.tsx",
+    "./globals.css": "./src/globals.css"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "latest",
+    "class-variance-authority": "latest",
+    "clsx": "latest",
+    "lucide-react": "latest",
+    "tailwind-merge": "latest"
+  },
+  "devDependencies": {
+    "@e3lani/tsconfig": "workspace:*",
+    "@types/react": "latest",
+    "eslint": "^9.39.5",
+    "react": "latest",
+    "typescript": "~5.9.3",
+    "vitest": "latest"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  }
+}

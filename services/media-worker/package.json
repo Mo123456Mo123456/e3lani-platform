@@ -1,0 +1,31 @@
+{
+  "name": "@e3lani/media-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "latest",
+    "@e3lani/database": "workspace:*",
+    "bullmq": "latest",
+    "ffmpeg-static": "latest",
+    "ffprobe-static": "latest",
+    "file-type": "latest",
+    "ioredis": "latest",
+    "sharp": "latest"
+  },
+  "devDependencies": {
+    "@e3lani/tsconfig": "workspace:*",
+    "@types/node": "latest",
+    "eslint": "^9.39.5",
+    "tsx": "latest",
+    "typescript": "~5.9.3",
+    "vitest": "latest"
+  }
+}

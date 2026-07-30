@@ -1,0 +1,38 @@
+{
+  "name": "@e3lani/database",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev",
+    "seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src prisma/seed.ts",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "latest",
+    "@prisma/client": "latest",
+    "dotenv": "latest",
+    "pg": "latest"
+  },
+  "devDependencies": {
+    "@e3lani/tsconfig": "workspace:*",
+    "@types/node": "latest",
+    "@types/pg": "latest",
+    "eslint": "^9.39.5",
+    "prisma": "latest",
+    "tsx": "latest",
+    "typescript": "~5.9.3",
+    "vitest": "latest"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

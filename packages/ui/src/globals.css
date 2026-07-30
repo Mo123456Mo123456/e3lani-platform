@@ -1,0 +1,37 @@
+:root {
+  --e3lani-primary: #ffc400;
+  --e3lani-black: #111111;
+  --e3lani-white: #ffffff;
+  --e3lani-gray: #f7f7f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--e3lani-gray);
+  color: var(--e3lani-black);
+  font-family:
+    Arial,
+    "Noto Sans Arabic",
+    sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--e3lani-primary) 70%, transparent);
+  outline-offset: 2px;
+}
