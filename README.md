@@ -1,86 +1,129 @@
-# إعلاني | E3lani
+# كوكب يولد أمامك
 
-**إعلاني** منصة إعلانات مرئية للجوال، عربية افتراضيًا مع دعم الإنجليزية، تجمع استكشاف الإعلانات وإنشاءها وإدارتها ومراجعتها في تطبيق واحد. صُممت الواجهة لوضع الجوال العمودي والاستخدام بيد واحدة، مع تنقل سفلي خماسي وتجارب منفصلة للزائر والمعلن وفريق الإدارة.[1]
+**عالمك، قرارك، أثر لا ينتهي.**
 
-> النسخة الحالية **نسخة تشغيلية محلية موثقة**: تحفظ حالة المنتج في `AsyncStorage`، وتستخدم رمز دخول ودفعًا تجريبيين معلنين داخل الواجهة. مخطط قاعدة البيانات وطبقة الخادم موجودان للتوسعة، لكن ربط مزودي المصادقة والدفع والتخزين والإشعارات الحقيقيين مطلوب قبل الإطلاق التجاري.[3]
+منصة عالم حي حتمية: يولّد الخادم كوكبًا إجرائيًا من Seed ثابت، ويحفظ كل
+تغيير كحدث سببي في PostgreSQL، بينما تعرض واجهة WebGL البيانات الفعلية
+للتضاريس والمناخ والمناطق الحيوية. الذكاء الاصطناعي يحوّل فكرة المستخدم إلى
+بيانات منظّمة فقط؛ المحرك الخوارزمي هو الذي يحسب الأثر.
 
-## حالة المشروع
+> هذه هي الشريحة التشغيلية الأولى وليست ادعاءً باكتمال جميع المراحل. التدفق
+> الكامل من إنشاء الحساب حتى إضافة عنصر وتشغيل Tick وظهور الحدث بصريًا يعمل.
+> الحروب والتجارة والهجرات والأمراض لها نماذج وعقود أحداث، لكن خوارزمياتها
+> المتقدمة وطبقاتها المرئية موسومة «قيد التطوير».
 
-| البند | الحالة الحالية |
-|---|---|
-| المنصات | iOS وAndroid وWeb عبر Expo SDK 54 |
-| اللغة | العربية RTL افتراضيًا والإنجليزية LTR |
-| التخزين التشغيلي | محلي عبر `AsyncStorage` مع بوابة تحميل وخطأ وإعادة محاولة |
-| المصادقة | OTP تجريبي موثق؛ الرمز `123456` |
-| الدفع | مزود `sandbox` موثق؛ لا توجد حركة مالية حقيقية |
-| قاعدة البيانات | مخطط MySQL/Drizzle جاهز، وغير مستخدم لتدفقات الواجهة المحلية حاليًا |
-| الجودة | TypeScript وESLint وVitest وبناء الخادم وتصدير Expo ناجحة[2] |
+## ما يعمل الآن
 
-## القدرات الرئيسية
+- Next.js وReact Three Fiber وGLSL: كوكب تفاعلي من Data Texture مولّدة من
+  حالة العالم، مع تضاريس، محيط، غلاف جوي، سحب، أحداث، Zoom وOrbit.
+- مولّد حتمي يجمع Fractal Noise وWorley ridges والرطوبة وظل المطر والارتفاع.
+- 1,152 منطقة، 12 حضارة و300 نوع؛ Seed اختياري يضيف 40 مدينة و120 موردًا
+  و800 نبات و50 تقنية.
+- محرك Ticks مستقل، Event Sourcing، causal links، snapshots وإعادة تشغيل.
+- محاكاة Monte Carlo حتمية لـ1 و10 و100 و1,000 سنة مع عدم يقين.
+- PostgreSQL + PostGIS + pgvector، وNATS JetStream، وWebSocket Delta Updates.
+- تسجيل حقيقي بكلمات مرور مجزّأة، JWT قصير، Refresh Token rotation وRBAC.
+- Adapters لـOpenAI وAnthropic وGemini ونموذج محلي وSandbox معلن.
+- واجهة عربية RTL وإنجليزية LTR، جودة Ultra/High/Medium/Eco.
+- لوحة إدارة مستقلة عند المنفذ `3001` لا يظهر رابطها للمستخدم.
+- OpenAPI تفاعلي عند `/docs` واختبارات الحتمية وإعادة التشغيل والأمان البنيوي.
 
-| المجال | ما يتضمنه التطبيق |
-|---|---|
-| الاستكشاف | خلاصة مرئية، أقسام، بحث نصي، فلاتر مدينة وقسم، تفاصيل إعلان، وبراندات |
-| الثقة | حفظ ومشاركة وبلاغ وحظر معلن، مع حالات واضحة للفراغ والخطأ والنجاح |
-| المعلن | معالج إنشاء من خمس خطوات، وسائط، بيانات، تواصل، ترويج، معاينة، دفع، فواتير، وإحصاءات |
-| دورة حياة الإعلان | دفع، مراجعة، قبول أو طلب تعديل أو رفض، تفعيل، إيقاف، استئناف، تمديد، انتهاء، وإعادة نشر |
-| الإدارة | مركز عمل، مراجعة، بلاغات، مدفوعات، مستخدمون وأدوار، براندات، كتالوج، إعدادات، وسجل تدقيق |
-| الوصول | أسماء وأدوار وحالات اختيار وتعطيل، وأهداف لمس مناسبة في المكونات والمسارات الأساسية |
+## التشغيل
 
-## التشغيل المحلي
-
-يتطلب المشروع Node.js و`pnpm`. من جذر المشروع شغّل:
+يتطلب Node.js 22 وpnpm وDocker:
 
 ```bash
+cp .env.example .env
 pnpm install
+docker compose up -d --build --wait postgres redis nats minio
+pnpm db:seed
 pnpm dev
 ```
 
-يشغّل الأمر خادم API وMetro معًا. ويمكن تشغيل كل جزء منفصلًا عبر `pnpm dev:server` و`pnpm dev:metro`. لا يحتاج وضع العرض المحلي إلى قاعدة بيانات أو مفاتيح مزودين خارجيين.
+- المنصة: <http://localhost:3000>
+- API: <http://localhost:4000>
+- OpenAPI: <http://localhost:4000/docs>
+- الإدارة: `pnpm --filter @planet/admin dev` ثم <http://localhost:3001>
 
-### تجربة التدفقات التجريبية
+تشغيل الحاويات كاملة:
 
-استخدم أي رقم جوال صالح بطول لا يقل عن ثمانية محارف، ثم أدخل رمز الاختبار `123456`. عند إنشاء إعلان، يعرض التطبيق السعر والضريبة والإضافات قبل الانتقال إلى الدفع. زر **تأكيد دفع تجريبي** ينقل الطلب إلى المراجعة فقط، ولا ينفذ عملية مالية.
+```bash
+docker compose up --build
+docker compose --profile admin up --build
+```
+
+لبذر بيانات Sandbox داخل بيئة الحاويات:
+
+```bash
+docker compose run --rm -e NODE_ENV=development api node dist/seed.js
+```
+
+### حساب Sandbox الإداري
+
+يعمل بعد `pnpm db:seed` فقط:
+
+```text
+Email: admin@planet.local
+Password: PlanetSandbox!2026
+```
+
+غيّر `SANDBOX_ADMIN_PASSWORD` محليًا عند الحاجة. أمر البذر يرفض العمل في
+`NODE_ENV=production`.
+
+## مزود الذكاء الاصطناعي
+
+الوضع الافتراضي `AI_PROVIDER=sandbox` ويظهر في الواجهة بوضوح
+`Sandbox: قواعد حتمية`؛ لا يُقدَّم على أنه نموذج ذكاء اصطناعي. للإنتاج اختر
+`openai` أو `anthropic` أو `gemini` أو `local` واضبط المفتاح. يرفض الخادم
+تشغيل Sandbox في الإنتاج ما لم تضبط `ALLOW_SANDBOX_AI=true` صراحة.
 
 ## أوامر الجودة
 
-| الأمر | الغرض |
-|---|---|
-| `pnpm check` | فحص TypeScript دون توليد ملفات |
-| `pnpm lint` | تشغيل قواعد Expo ESLint |
-| `pnpm test` | تشغيل اختبارات Vitest للمجال ودورة حياة الإعلان |
-| `pnpm build` | بناء خادم Node عبر esbuild |
-| `npx expo export --platform web --output-dir .expo-export` | التحقق من التصدير الثابت للويب |
-| `pnpm format` | تنسيق ملفات المشروع عبر Prettier |
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm check
+```
 
-## بنية المشروع
+## البنية
 
-| المسار | المسؤولية |
-|---|---|
-| `app/` | مسارات Expo Router للشاشات العامة والحساب والإدارة |
-| `components/e3lani/` | مكونات المنتج المشتركة وبطاقات الإعلان وبوابة الاستعادة |
-| `lib/e3lani-data.ts` | الأنواع والثوابت وقواعد التسعير ودورة الحياة القابلة للاختبار |
-| `lib/e3lani-store.tsx` | الحالة المحلية المتزامنة وإجراءات المنتج |
-| `lib/i18n.tsx` | قاموس العربية والإنجليزية واتجاه الواجهة |
-| `server/` | خادم Express/tRPC والقدرات الأساسية |
-| `drizzle/` | مخطط قاعدة البيانات والمهاجرات |
-| `tests/` | اختبارات المنطق الأساسي والتكامل |
-| `docs/` | دليل التشغيل والمزودين وسجل التحقق |
+```text
+apps/
+  web/                  # لوحة العالم وWebGL
+  admin/                # إدارة RBAC مستقلة
+services/
+  api/                  # REST/OpenAPI/PostgreSQL/WebSocket/NATS
+  ai-orchestrator/      # Structured output + provider adapters
+packages/
+  shared-types/         # Zod contracts
+  simulation-models/    # world generation, ticks, replay, forecasts
+```
 
-## الانتقال إلى الإنتاج
+توجد مصادر المنتج السابق تاريخيًا خارج مسارات الـworkspace الجديدة؛ لا تدخل
+في البناء أو التشغيل أو الاختبارات.
 
-لا ينبغي تحويل أعلام الواجهة أو اسم المزود فقط. يتطلب الإطلاق الحقيقي نقل القرارات الحساسة إلى الخادم، والتحقق من إيصالات الدفع عبر webhook موثوق، ورفع الوسائط إلى تخزين خاص، وتطبيق مصادقة فعلية وصلاحيات خادمية، وحفظ سجل التدقيق في قاعدة البيانات. يوضح [دليل التشغيل والمزودين][3] ترتيب الربط ومتغيرات البيئة وضوابط الإطلاق.
+التوثيق:
 
-عند اعتماد النسخة، استخدم زر **Publish** في واجهة إدارة المشروع بعد وجود نقطة استعادة. تتولى عملية النشر بناء الحزمة المناسبة، بما فيها APK عند اختياره، بدل تنفيذ بناء Android يدويًا داخل بيئة التطوير.
+- [المعمارية وقاعدة البيانات والأمان](docs/planet-architecture.md)
+- [محرك التوليد والمحاكاة والحدود العلمية](docs/simulation-engine.md)
+- [REST وWebSocket وNATS](docs/api-and-realtime.md)
 
-## الوثائق المرجعية
+---
 
-| المرجع | المحتوى |
-|---|---|
-| [1] | تصميم الواجهة والشاشات والتدفقات |
-| [2] | سجل الاختبارات والتحقق الوظيفي |
-| [3] | التشغيل والمزودون والجاهزية الإنتاجية |
+## English
 
-[1]: ./design.md "تصميم تطبيق إعلاني"
-[2]: ./docs/testing-notes.md "ملاحظات التحقق"
-[3]: ./docs/operations-and-providers.md "دليل التشغيل والمزودين"
+**A Planet Born Before You — Your world. Your decision. An endless impact.**
+
+This repository now contains a runnable first vertical slice of a deterministic
+living-world platform. PostgreSQL is the source of truth; the planet shader
+renders generated world data rather than a static image; all accepted changes
+append causal events and snapshots. AI providers only produce schema-validated
+contribution properties. The simulation engine computes outcomes.
+
+Run the stack with the commands above. The implemented scope includes account
+creation, an interactive planet, region inspection, structured contribution
+analysis, probabilistic preview, placement, deterministic ticks, persisted
+events, live deltas, timeline history, and a protected admin status page.
+Advanced war, trade, migration, disease, and full moderation workers remain
+explicitly inactive, as documented in the simulation guide.
