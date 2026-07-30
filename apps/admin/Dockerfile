@@ -5,4 +5,4 @@ COPY . .
 RUN pnpm install --frozen-lockfile && pnpm --filter @living-planet/admin... build
 USER node
 EXPOSE 3001
-CMD ["pnpm", "--filter", "@living-planet/admin", "start"]
+CMD ["node", "node_modules/next/dist/bin/next", "start", "apps/admin", "--port", "3001"]

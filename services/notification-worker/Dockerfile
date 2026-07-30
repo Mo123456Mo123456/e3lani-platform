@@ -4,4 +4,4 @@ WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile && pnpm --filter @living-planet/notification-worker... build
 USER node
-CMD ["pnpm", "--filter", "@living-planet/notification-worker", "start"]
+CMD ["node", "services/notification-worker/dist/index.js"]
