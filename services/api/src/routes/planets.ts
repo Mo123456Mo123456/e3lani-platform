@@ -52,6 +52,34 @@ export async function planetRoutes(app: FastifyInstance) {
     return { species: rows };
   });
 
+  app.get('/planets/:id/plants', async (req) => {
+    const { id } = req.params as { id: string };
+    const q = req.query as { limit?: string };
+    const limit = Math.min(Number(q.limit || 50), 300);
+    const db = getDb();
+    return { plants: await db.select().from(s.plants).where(eq(s.plants.planetId, id)).limit(limit) };
+  });
+
+  app.get('/planets/:id/resources', async (req) => {
+    const { id } = req.params as { id: string };
+    const q = req.query as { limit?: string };
+    const limit = Math.min(Number(q.limit || 50), 300);
+    const db = getDb();
+    return { resources: await db.select().from(s.resources).where(eq(s.resources.planetId, id)).limit(limit) };
+  });
+
+  app.get('/planets/:id/technologies', async (req) => {
+    const { id } = req.params as { id: string };
+    const db = getDb();
+    return { technologies: await db.select().from(s.technologies).where(eq(s.technologies.planetId, id)).limit(100) };
+  });
+
+  app.get('/planets/:id/alliances', async (req) => {
+    const { id } = req.params as { id: string };
+    const db = getDb();
+    return { alliances: await db.select().from(s.alliances).where(eq(s.alliances.planetId, id)).limit(100) };
+  });
+
   app.post('/planets/:id/tick', { preHandler: [authenticate, requireRoles('sim_manager')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const db = getDb();
