@@ -1,0 +1,39 @@
+{
+  "name": "@planet/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@nestjs/common": "latest",
+    "@nestjs/core": "latest",
+    "@nestjs/platform-express": "latest",
+    "@nestjs/platform-socket.io": "latest",
+    "@nestjs/swagger": "latest",
+    "@nestjs/throttler": "latest",
+    "@nestjs/websockets": "latest",
+    "@planet/database": "workspace:*",
+    "@planet/shared-types": "workspace:*",
+    "@planet/simulation-models": "workspace:*",
+    "cookie": "latest",
+    "jose": "latest",
+    "helmet": "latest",
+    "reflect-metadata": "latest",
+    "rxjs": "latest",
+    "socket.io": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "latest",
+    "@types/express": "latest",
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
