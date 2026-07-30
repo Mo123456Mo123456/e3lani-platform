@@ -162,6 +162,12 @@ class MockProvider:
         return header + joined
 
 
+INTENT_PREFIX = re.compile(
+    r"^(أريد\s+(أن\s+)?(إضافة|اضافة)|اريد\s+(إضافة|اضافة)|أضف|اضف|add\s+(a\s+|an\s+|the\s+)?|i\s+want\s+to\s+add\s+(a\s+|an\s+|the\s+)?)",
+    re.I,
+)
+
+
 def _extract_name(text: str, category: Category, locale: str) -> str:
     quoted = re.search(r"[«\"“]([^»\"”]{2,60})[»\"”]", text)
     if quoted:
@@ -169,7 +175,8 @@ def _extract_name(text: str, category: Category, locale: str) -> str:
     named = re.search(r"(?:اسم(?:ه|ها)?\s+|called\s+|named\s+)([\w\u0600-\u06FF][\w\u0600-\u06FF\s-]{1,40})", text)
     if named:
         return " ".join(named.group(1).strip().split()[:4])
-    first = " ".join(text.strip().split()[:3])
+    stripped = INTENT_PREFIX.sub("", text.strip()).strip()
+    first = " ".join((stripped or text.strip()).split()[:3])
     if len(first) >= 4:
         return first
     ar, en = FALLBACK_NAMES[category]

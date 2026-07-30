@@ -177,12 +177,15 @@ function baselineTraits(category: ContributionCategory): Record<string, number> 
   }
 }
 
+const INTENT_PREFIXES = /^(أريد\s+(أن\s+)?(إضافة|اضافة)|اريد\s+(إضافة|اضافة)|أضف|اضف|add\s+(a\s+|an\s+|the\s+)?|i\s+want\s+to\s+add\s+(a\s+|an\s+|the\s+)?)/i;
+
 function extractName(text: string, category: ContributionCategory, locale: Locale): string {
   const quoted = text.match(/[«"“]([^»"”]{2,60})[»"”]/);
   if (quoted) return quoted[1]!.trim();
   const named = text.match(/(?:اسم(?:ه|ها)?\s+|called\s+|named\s+)([\p{L}][\p{L}\s-]{1,40})/u);
   if (named) return named[1]!.trim().split(/\s+/).slice(0, 4).join(" ");
-  const first = text.trim().split(/\s+/).slice(0, 3).join(" ");
+  const stripped = text.trim().replace(INTENT_PREFIXES, "").trim();
+  const first = (stripped || text.trim()).split(/\s+/).slice(0, 3).join(" ");
   const fallback: Record<ContributionCategory, [string, string]> = {
     plant: ["نبتة", "plant"],
     creature: ["مخلوق", "creature"],

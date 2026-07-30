@@ -1,0 +1,71 @@
+/* @planet/ui design tokens + primitives — dark command deck theme */
+:root {
+  --pg-bg: #050a14;
+  --pg-panel: #0a1222;
+  --pg-border: rgba(90, 160, 255, 0.16);
+  --pg-cyan: #4aa3ff;
+  --pg-green: #3bb273;
+  --pg-gold: #c9a227;
+  --pg-violet: #7d5ba6;
+  --pg-red: #e15554;
+  --pg-text: #e8eef7;
+  --pg-text-dim: #8b9bb4;
+  --pg-radius: 12px;
+}
+
+.pg-panel {
+  background: var(--pg-panel);
+  border: 1px solid var(--pg-border);
+  border-radius: var(--pg-radius);
+  padding: 16px;
+}
+.pg-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.pg-panel-head h2 {
+  font-size: 15px;
+  color: var(--pg-cyan);
+}
+
+.pg-btn {
+  border: none;
+  border-radius: 9px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pg-btn-primary { background: var(--pg-cyan); color: #04101f; }
+.pg-btn-ghost {
+  background: none;
+  border: 1px solid var(--pg-border);
+  color: var(--pg-text-dim);
+}
+.pg-btn-danger { background: var(--pg-red); color: #fff; }
+
+.pg-badge {
+  display: inline-block;
+  border-radius: 11px;
+  padding: 2px 10px;
+  font-size: 11px;
+  border: 1px solid currentColor;
+}
+.pg-badge-cyan { color: var(--pg-cyan); }
+.pg-badge-green { color: var(--pg-green); }
+.pg-badge-gold { color: var(--pg-gold); }
+.pg-badge-red { color: var(--pg-red); }
+.pg-badge-violet { color: var(--pg-violet); }
+
+.pg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pg-table th, .pg-table td {
+  text-align: start;
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(90, 160, 255, 0.08);
+}
+.pg-table th { color: var(--pg-text-dim); font-weight: 500; }
+.pg-empty { color: var(--pg-text-dim); font-size: 13px; }

@@ -165,6 +165,14 @@ export class SimulationEngine {
     return (input) => {
       const state = this.state;
       state.counters.event++;
+      // attribution propagates downstream: any event citing a contribution
+      // inherits its owner so impact queries see the full blast radius
+      let originUserId = input.originUserId ?? null;
+      const originContributionId = input.originContributionId ?? null;
+      if (!originUserId && originContributionId) {
+        originUserId =
+          state.contributions.find((c) => c.id === originContributionId)?.userId ?? null;
+      }
       const event: WorldEvent = {
         id: `ev-${state.tick}-${state.counters.event}`,
         planetId: state.planetId,
@@ -178,8 +186,8 @@ export class SimulationEngine {
         data: input.data ?? {},
         confidence: input.confidence ?? 0.9,
         importance: input.importance ?? 0.5,
-        originUserId: input.originUserId ?? null,
-        originContributionId: input.originContributionId ?? null,
+        originUserId,
+        originContributionId,
       };
       this.journal.push(event);
       return event;

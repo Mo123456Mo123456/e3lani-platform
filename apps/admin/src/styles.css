@@ -1,0 +1,54 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--pg-bg);
+  color: var(--pg-text);
+  font-family: "Segoe UI", "Noto Kufi Arabic", Tahoma, system-ui, sans-serif;
+  min-height: 100vh;
+}
+button { font-family: inherit; }
+
+.admin-shell { display: flex; min-height: 100vh; }
+.admin-side {
+  width: 210px;
+  background: var(--pg-panel);
+  border-inline-end: 1px solid var(--pg-border);
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-side h1 { font-size: 15px; color: var(--pg-cyan); margin-bottom: 4px; }
+.admin-side small { color: var(--pg-text-dim); font-size: 10px; display: block; margin-bottom: 16px; }
+.side-btn {
+  background: none; border: none; color: var(--pg-text-dim); text-align: start;
+  padding: 9px 10px; border-radius: 8px; font-size: 13px; cursor: pointer;
+}
+.side-btn:hover { color: var(--pg-cyan); }
+.side-btn.active { background: rgba(74, 163, 255, 0.14); color: var(--pg-cyan); }
+.admin-main { flex: 1; padding: 22px; overflow: auto; }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }
+
+.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card {
+  width: min(380px, 92vw); display: flex; flex-direction: column; gap: 12px;
+}
+.login-card input {
+  background: rgba(5, 10, 20, 0.8); border: 1px solid var(--pg-border);
+  color: var(--pg-text); border-radius: 9px; padding: 11px; font-size: 14px;
+  font-family: inherit;
+}
+.error { color: var(--pg-red); font-size: 12px; }
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.kpi {
+  background: var(--pg-panel); border: 1px solid var(--pg-border);
+  border-radius: var(--pg-radius); padding: 14px; text-align: center;
+}
+.kpi b { display: block; font-size: 22px; color: var(--pg-cyan); }
+.kpi span { font-size: 11px; color: var(--pg-text-dim); }
+.tick-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tick-controls input {
+  width: 90px; background: rgba(5, 10, 20, 0.8); border: 1px solid var(--pg-border);
+  color: var(--pg-text); border-radius: 8px; padding: 7px;
+}
+.hint { font-size: 11px; color: var(--pg-text-dim); margin-top: 8px; }
