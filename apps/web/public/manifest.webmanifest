@@ -1,0 +1,12 @@
+{
+  "name": "كوكب يولد أمامك",
+  "short_name": "الكوكب",
+  "description": "عالمك، قرارك، أثر لا ينتهي.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050B16",
+  "theme_color": "#0891B2",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": []
+}

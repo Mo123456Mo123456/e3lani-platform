@@ -1,68 +1,27 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
-node_modules/
-
-# Expo
-.expo/
-dist/
-web-build/
-.expo-export/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
-*.pem
-
-# local env files
-.env*.local
-
-# typescript
-*.tsbuildinfo
-
-app-example
-
-# generated native folders
-/ios
-/android
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Logs
-logs
+node_modules
+.dist
+dist
+.next
+.turbo
+.expo
+.expo-export
+coverage
 *.log
-.manus-logs/
-
-# OS
-Thumbs.db
-
-# Build files
-*.tgz
-*.tar.gz
-.cache/
-
-# Webdev artifacts (checkpoint zips, migrations, etc.)
-.webdev/
-.project-config.json
+.env
+.env.local
+.DS_Store
+*.tsbuildinfo
+.pnpm-store
+__pycache__
+*.pyc
+.venv
+venv
+.pytest_cache
+.mypy_cache
+*.egg-info
+.idea
+.vscode
+legacy/.git
+apps/web/public/globe-cache
+tmp
+.cache

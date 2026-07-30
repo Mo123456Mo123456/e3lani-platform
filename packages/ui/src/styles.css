@@ -1,0 +1,50 @@
+:root {
+  --planet-bg: #050b16;
+  --planet-bg-alt: #0a1628;
+  --planet-cyan: #22d3ee;
+  --planet-green: #34d399;
+  --planet-gold: #fbbf24;
+  --planet-purple: #a78bfa;
+  --planet-red: #f87171;
+  --planet-orange: #fb923c;
+  --planet-text: #f8fafc;
+  --planet-muted: #94a3b8;
+  --planet-panel: rgba(8, 18, 36, 0.78);
+  --planet-border: rgba(148, 163, 184, 0.18);
+  --font-display: "IBM Plex Sans Arabic", "Cairo", "Segoe UI", sans-serif;
+  --font-body: "IBM Plex Sans Arabic", "Cairo", "Segoe UI", sans-serif;
+}
+
+.planet-panel {
+  background: var(--planet-panel);
+  border: 1px solid var(--planet-border);
+  backdrop-filter: blur(14px);
+  border-radius: 16px;
+}
+
+.planet-btn {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+}
+
+.planet-btn:hover {
+  transform: translateY(-1px);
+}
+
+.planet-btn-primary {
+  background: linear-gradient(135deg, #0891b2, #22d3ee);
+  color: #041018;
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.25);
+}
+
+.planet-btn-ghost {
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--planet-text);
+  border: 1px solid var(--planet-border);
+}
