@@ -1,86 +1,134 @@
-# إعلاني | E3lani
+# كوكب يولد أمامك · A Planet Born Before You
 
-**إعلاني** منصة إعلانات مرئية للجوال، عربية افتراضيًا مع دعم الإنجليزية، تجمع استكشاف الإعلانات وإنشاءها وإدارتها ومراجعتها في تطبيق واحد. صُممت الواجهة لوضع الجوال العمودي والاستخدام بيد واحدة، مع تنقل سفلي خماسي وتجارب منفصلة للزائر والمعلن وفريق الإدارة.[1]
+**عالمك، قرارك، أثر لا ينتهي. · Your world. Your decision. Endless impact.**
 
-> النسخة الحالية **نسخة تشغيلية محلية موثقة**: تحفظ حالة المنتج في `AsyncStorage`، وتستخدم رمز دخول ودفعًا تجريبيين معلنين داخل الواجهة. مخطط قاعدة البيانات وطبقة الخادم موجودان للتوسعة، لكن ربط مزودي المصادقة والدفع والتخزين والإشعارات الحقيقيين مطلوب قبل الإطلاق التجاري.[3]
+منصة عالم حي ثلاثي الأبعاد مبنية حول محاكاة حتمية قابلة لإعادة التشغيل. يضيف المستخدم عنصرًا واحدًا، فيحوّله محلل منظم إلى خصائص رقمية، يوازنها، ثم يمررها إلى محرك سببي مستقل. نموذج اللغة لا يقرر نتيجة العالم؛ وظيفته فهم المدخل وصياغة أحداث أنتجتها المحاكاة فقط.
 
-## حالة المشروع
+This repository contains a deployable vertical slice of a deterministic living-world platform. A contribution is structured and balanced before it reaches a causal simulation engine. Language models cannot mutate world state and may narrate only event IDs produced by the simulator.
 
-| البند | الحالة الحالية |
-|---|---|
-| المنصات | iOS وAndroid وWeb عبر Expo SDK 54 |
-| اللغة | العربية RTL افتراضيًا والإنجليزية LTR |
-| التخزين التشغيلي | محلي عبر `AsyncStorage` مع بوابة تحميل وخطأ وإعادة محاولة |
-| المصادقة | OTP تجريبي موثق؛ الرمز `123456` |
-| الدفع | مزود `sandbox` موثق؛ لا توجد حركة مالية حقيقية |
-| قاعدة البيانات | مخطط MySQL/Drizzle جاهز، وغير مستخدم لتدفقات الواجهة المحلية حاليًا |
-| الجودة | TypeScript وESLint وVitest وبناء الخادم وتصدير Expo ناجحة[2] |
+## ما يعمل فعليًا · Working capabilities
 
-## القدرات الرئيسية
+- كوكب WebGL إجرائي من Seed ثابت، بخامة GLSL للتضاريس والمحيطات والثلوج وأضواء الليل، وسحب وغلاف جوي مستقلين.
+- تدوير وتقريب ولمس، اختيار مناطق فعلية، عشر طبقات عرض، إعدادات جودة، وسجل أحداث وخط زمني.
+- 240 منطقة مترابطة من الارتفاع والرطوبة والحرارة والخصوبة؛ 12 حضارة، 40 مدينة، 120 موردًا، 800 نبات، 300 مخلوق، و50 تقنية في بيانات PostgreSQL التجريبية.
+- محرك Ticks حتمي، PRNG مزروع، Event Sourcing، Snapshots، Replay، Causal Links، وحدود سعة بيئية.
+- نموذج مبسط للمناخ والسكان وضغط الموارد واحتمال الحرب؛ لا يبدأ حدث بلا إشارة سببية محفوظة.
+- تدفق إضافة فعلي: فئة ← فكرة ← Structured Output ← موازنة ← منطقة ملائمة ← 64 مسار Monte Carlo ← حفظ ← Delta لحظي.
+- REST/OpenAPI عند `/docs` وWebSocket عند `/ws`، مع JWT قصير العمر وتدوير Refresh Token وRBAC.
+- PostgreSQL + PostGIS + pgvector، NATS JetStream، Redis، MinIO، وعامل إشعارات.
+- لوحة إدارة منفصلة للتحكم بالدورات والإيقاف والـRollback.
+- موفرو AI قابلون للتبديل: OpenAI-compatible، Anthropic-compatible، Gemini-compatible، local، وSandbox معلن.
+- العربية RTL والإنجليزية LTR، واجهة متجاوبة، وPWA manifest.
 
-| المجال | ما يتضمنه التطبيق |
-|---|---|
-| الاستكشاف | خلاصة مرئية، أقسام، بحث نصي، فلاتر مدينة وقسم، تفاصيل إعلان، وبراندات |
-| الثقة | حفظ ومشاركة وبلاغ وحظر معلن، مع حالات واضحة للفراغ والخطأ والنجاح |
-| المعلن | معالج إنشاء من خمس خطوات، وسائط، بيانات، تواصل، ترويج، معاينة، دفع، فواتير، وإحصاءات |
-| دورة حياة الإعلان | دفع، مراجعة، قبول أو طلب تعديل أو رفض، تفعيل، إيقاف، استئناف، تمديد، انتهاء، وإعادة نشر |
-| الإدارة | مركز عمل، مراجعة، بلاغات، مدفوعات، مستخدمون وأدوار، براندات، كتالوج، إعدادات، وسجل تدقيق |
-| الوصول | أسماء وأدوار وحالات اختيار وتعطيل، وأهداف لمس مناسبة في المكونات والمسارات الأساسية |
+المكوّنات الأعمق المطلوبة في الرؤية — اقتصاد سوق كامل، GOAP متعدد الوكلاء، حدود سياسية شبكية، ومحاكاة سوائل/غلاف جوي عالية الدقة — لها حدود توسعة في النموذج وقاعدة البيانات، لكنها **ليست معروضة كميزات مكتملة** في هذه النسخة.
 
-## التشغيل المحلي
+## تشغيل سريع · Quick start
 
-يتطلب المشروع Node.js و`pnpm`. من جذر المشروع شغّل:
+### وضع التطوير الخفيف
+
+يتطلب Node.js 22 وpnpm 10. لا يحتاج هذا الوضع إلى قاعدة بيانات؛ يستخدم Memory Event Store وAI Sandbox ويعرض الشارتين بوضوح.
 
 ```bash
+cp .env.example .env
 pnpm install
 pnpm dev
 ```
 
-يشغّل الأمر خادم API وMetro معًا. ويمكن تشغيل كل جزء منفصلًا عبر `pnpm dev:server` و`pnpm dev:metro`. لا يحتاج وضع العرض المحلي إلى قاعدة بيانات أو مفاتيح مزودين خارجيين.
+- الويب: <http://localhost:3000>
+- الإدارة: <http://localhost:3001>
+- API وSwagger: <http://localhost:4000/docs>
 
-### تجربة التدفقات التجريبية
+### المكدس الكامل
 
-استخدم أي رقم جوال صالح بطول لا يقل عن ثمانية محارف، ثم أدخل رمز الاختبار `123456`. عند إنشاء إعلان، يعرض التطبيق السعر والضريبة والإضافات قبل الانتقال إلى الدفع. زر **تأكيد دفع تجريبي** ينقل الطلب إلى المراجعة فقط، ولا ينفذ عملية مالية.
+```bash
+docker compose up --build
+```
 
-## أوامر الجودة
+يشغّل PostgreSQL المزوّد بـPostGIS وpgvector، وينفذ migration وseed، ثم يشغّل NATS وRedis وMinIO وAI وAPI والعامل والواجهتين.
 
-| الأمر | الغرض |
-|---|---|
-| `pnpm check` | فحص TypeScript دون توليد ملفات |
-| `pnpm lint` | تشغيل قواعد Expo ESLint |
-| `pnpm test` | تشغيل اختبارات Vitest للمجال ودورة حياة الإعلان |
-| `pnpm build` | بناء خادم Node عبر esbuild |
-| `npx expo export --platform web --output-dir .expo-export` | التحقق من التصدير الثابت للويب |
-| `pnpm format` | تنسيق ملفات المشروع عبر Prettier |
+## حسابات Sandbox
 
-## بنية المشروع
+هذه البيانات محلية فقط وموجودة هنا عمدًا، ولا تُنشأ في `APP_ENV=production`:
+
+| الاستخدام | البريد | كلمة المرور | الدور |
+|---|---|---|---|
+| الويب والإدارة | `explorer@azura.world` | `Azura!2347` | `super_admin` |
+
+`AI_PROVIDER=sandbox` يعيد Structured Output حتميًا وموسومًا `sandbox`. يرفض AI Orchestrator البدء بهذا المزود عندما تكون `APP_ENV=production`. كما يرفض API استخدام Memory Store في `NODE_ENV=production`.
+
+## المعمارية · Architecture
+
+```mermaid
+flowchart LR
+  W[Next.js Web + R3F] -->|REST / JWT| API[Express API]
+  A[Next.js Admin] -->|RBAC| API
+  W <-->|WebSocket deltas| API
+  API --> SIM[Deterministic simulation-models]
+  API --> AI[FastAPI AI Orchestrator]
+  API --> PG[(PostgreSQL + PostGIS + pgvector)]
+  API --> NATS[NATS JetStream]
+  NATS --> NW[Notification Worker]
+  NW --> PG
+  API -. cache .-> R[(Redis)]
+  API -. assets .-> S[(S3 / MinIO)]
+```
 
 | المسار | المسؤولية |
 |---|---|
-| `app/` | مسارات Expo Router للشاشات العامة والحساب والإدارة |
-| `components/e3lani/` | مكونات المنتج المشتركة وبطاقات الإعلان وبوابة الاستعادة |
-| `lib/e3lani-data.ts` | الأنواع والثوابت وقواعد التسعير ودورة الحياة القابلة للاختبار |
-| `lib/e3lani-store.tsx` | الحالة المحلية المتزامنة وإجراءات المنتج |
-| `lib/i18n.tsx` | قاموس العربية والإنجليزية واتجاه الواجهة |
-| `server/` | خادم Express/tRPC والقدرات الأساسية |
-| `drizzle/` | مخطط قاعدة البيانات والمهاجرات |
-| `tests/` | اختبارات المنطق الأساسي والتكامل |
-| `docs/` | دليل التشغيل والمزودين وسجل التحقق |
+| `apps/web` | واجهة العالم والكوكب وخط الإضافة والزمن |
+| `apps/admin` | إدارة المحاكاة المحمية |
+| `services/api` | REST وWebSocket والمصادقة ومستودع الأحداث |
+| `services/ai-orchestrator` | Structured Output وموازنة وسرد مقيد بالأحداث |
+| `services/notification-worker` | تحويل أحداث NATS المرتبطة بالمساهمات إلى إشعارات |
+| `packages/shared-types` | عقود Zod/TypeScript المشتركة |
+| `packages/simulation-models` | المولد الحتمي ومحرك Tick وReplay وMonte Carlo |
+| `services/api/migrations` | مخطط PostgreSQL الفعلي |
+| `docker` | صور Node وPython وPostgreSQL |
 
-## الانتقال إلى الإنتاج
+شفرة Expo القديمة المستوردة مع المستودع باقية خارج `pnpm-workspace.yaml` لأغراض التتبع فقط، ولا تدخل في أي build أو runtime للمنصة الجديدة.
 
-لا ينبغي تحويل أعلام الواجهة أو اسم المزود فقط. يتطلب الإطلاق الحقيقي نقل القرارات الحساسة إلى الخادم، والتحقق من إيصالات الدفع عبر webhook موثوق، ورفع الوسائط إلى تخزين خاص، وتطبيق مصادقة فعلية وصلاحيات خادمية، وحفظ سجل التدقيق في قاعدة البيانات. يوضح [دليل التشغيل والمزودين][3] ترتيب الربط ومتغيرات البيئة وضوابط الإطلاق.
+## دورة البيانات
 
-عند اعتماد النسخة، استخدم زر **Publish** في واجهة إدارة المشروع بعد وجود نقطة استعادة. تتولى عملية النشر بناء الحزمة المناسبة، بما فيها APK عند اختياره، بدل تنفيذ بناء Android يدويًا داخل بيئة التطوير.
+1. يفحص API النص بقواعد الإساءة وPrompt Injection.
+2. يعيد AI Adapter كائنًا مطابقًا لـ`AnalyzedContribution` فقط.
+3. تفرض طبقة الموازنة حدود التكاثر والطاقة والامتصاص.
+4. تتحقق Zod/Pydantic من كل حقل ومن ملاءمة المنطقة الحيوية.
+5. تشغّل Monte Carlo مسارات مزروعة وتعرض الاحتمال وعدم اليقين.
+6. يتحقق الحفظ من `expectedPlanetVersion` لمنع الكتابة فوق عالم تغير.
+7. ينشئ المحرك `CONTRIBUTION_ADDED` ثم أحداثًا مشتقة بروابط سببية.
+8. تحفظ المعاملة الحالة والأحداث والروابط والـSnapshot، ثم ترسل Delta عبر WebSocket وNATS.
 
-## الوثائق المرجعية
+## أوامر الجودة
 
-| المرجع | المحتوى |
-|---|---|
-| [1] | تصميم الواجهة والشاشات والتدفقات |
-| [2] | سجل الاختبارات والتحقق الوظيفي |
-| [3] | التشغيل والمزودون والجاهزية الإنتاجية |
+```bash
+pnpm check
+pnpm test
+pnpm build
+pnpm --filter @living-planet/simulation-models test
+docker compose config --quiet
+```
 
-[1]: ./design.md "تصميم تطبيق إعلاني"
-[2]: ./docs/testing-notes.md "ملاحظات التحقق"
-[3]: ./docs/operations-and-providers.md "دليل التشغيل والمزودين"
+تتحقق اختبارات المحاكاة من ثبات Seed، والتطابق الكامل عند Replay، ووجود سبب لكل حدث، وعدم تجاوز السكان للسعة البيئية.
+
+## قاعدة البيانات
+
+ينشئ migration نماذج فعلية لـUser, Profile, Role, Planet, PlanetRegion, Biome, ClimateCell, Species, Plant, Resource, Civilization, City, Technology, Culture, Language, TradeRoute, Alliance, War, Disease, Migration, UserContribution, SimulationTick, WorldEvent, CausalLink, TimelineSnapshot, AIRequest, ModerationResult, Notification, AuditLog وWorldMemory.
+
+```bash
+pnpm db:migrate
+pnpm db:seed
+```
+
+تفاصيل أكبر في:
+
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/simulation.md`](docs/simulation.md)
+- [`docs/database.md`](docs/database.md)
+- [`docs/api-and-realtime.md`](docs/api-and-realtime.md)
+- [`docs/deployment.md`](docs/deployment.md)
+
+## Production notes
+
+Production requires PostgreSQL, NATS, a 32+ character `JWT_SECRET`, `INTERNAL_SERVICE_TOKEN`, explicit CORS origins, and a configured non-sandbox AI provider. Put TLS and a WAF/reverse proxy in front of the three public services. Secrets must come from the deployment secret manager, never `.env` committed to source control.
+
+The simulation remains deterministic for a seed, tick, and ordered event history. External AI output is validated but never passed to executable code, SQL, shell commands, or internal system prompts.

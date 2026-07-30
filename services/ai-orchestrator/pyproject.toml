@@ -1,0 +1,21 @@
+[project]
+name = "living-planet-ai-orchestrator"
+version = "0.1.0"
+description = "Provider-neutral structured AI layer for Living Planet"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.116",
+  "httpx>=0.28",
+  "pydantic>=2.11",
+  "uvicorn[standard]>=0.35",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4",
+  "ruff>=0.12",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

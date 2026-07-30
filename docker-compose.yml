@@ -1,0 +1,186 @@
+name: living-planet
+
+x-node-service: &node-service
+  build:
+    context: .
+    dockerfile: docker/node.Dockerfile
+  restart: unless-stopped
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: docker/postgres.Dockerfile
+    environment:
+      POSTGRES_DB: living_planet
+      POSTGRES_USER: planet
+      POSTGRES_PASSWORD: planet
+    ports:
+      - "5432:5432"
+    volumes:
+      - planet-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planet -d living_planet"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nats:
+    image: nats:2.11-alpine
+    command: ["-js", "-m", "8222", "--store_dir", "/data"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - planet-nats:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - planet-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: planet
+      MINIO_ROOT_PASSWORD: planet-storage-change-me
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - planet-minio:/data
+
+  migrate:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      args:
+        PACKAGE: "@living-planet/api"
+    restart: "no"
+    command: ["sh", "-c", "pnpm --filter @living-planet/api db:migrate && pnpm --filter @living-planet/api db:seed"]
+    environment:
+      DATABASE_URL: postgres://planet:planet@postgres:5432/living_planet
+      WORLD_SEED: azura-prime-7
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai-orchestrator:
+    build:
+      context: .
+      dockerfile: docker/ai.Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      AI_PROVIDER: sandbox
+      INTERNAL_SERVICE_TOKEN: local-internal-service-token
+    ports:
+      - "8100:8100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 10s
+      timeout: 4s
+      retries: 10
+
+  api:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      args:
+        PACKAGE: "@living-planet/api"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      WORLD_STORE: postgres
+      WORLD_SEED: azura-prime-7
+      DATABASE_URL: postgres://planet:planet@postgres:5432/living_planet
+      NATS_URL: nats://nats:4222
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: local-docker-secret-replace-before-production-1234
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8100
+      INTERNAL_SERVICE_TOKEN: local-internal-service-token
+    ports:
+      - "4000:4000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      ai-orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 4s
+      retries: 10
+
+  notification-worker:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      args:
+        PACKAGE: "@living-planet/notification-worker"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://planet:planet@postgres:5432/living_planet
+      NATS_URL: nats://nats:4222
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      args:
+        PACKAGE: "@living-planet/web"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_SANDBOX_MODE: "true"
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  admin:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      args:
+        PACKAGE: "@living-planet/admin"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - "3001:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  planet-postgres:
+  planet-nats:
+  planet-redis:
+  planet-minio:
