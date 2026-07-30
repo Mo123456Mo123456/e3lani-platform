@@ -1,0 +1,5 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "services/api"
+  - "services/realtime-gateway"

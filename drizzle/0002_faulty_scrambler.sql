@@ -1,1 +1,0 @@
-ALTER TABLE `pricing_rules` ADD CONSTRAINT `pricing_rules_version_code_unique` UNIQUE(`pricingVersionId`,`code`);
