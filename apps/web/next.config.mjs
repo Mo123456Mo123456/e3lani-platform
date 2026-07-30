@@ -5,6 +5,9 @@ const packageDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    useTypeScriptCli: true,
+  },
   output: "standalone",
   outputFileTracingRoot: path.join(packageDirectory, "../.."),
   poweredByHeader: false,
