@@ -1,15 +1,10 @@
-import { defineConfig } from "drizzle-kit";
+import type { Config } from "drizzle-kit";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL is required to run drizzle commands");
-}
-
-export default defineConfig({
-  schema: "./drizzle/schema/*.ts",
-  out: "./drizzle",
-  dialect: "mysql",
+export default {
+  schema: "./services/api/src/db/schema.ts",
+  out: "./services/api/drizzle",
+  dialect: "sqlite",
   dbCredentials: {
-    url: connectionString,
-  },
-});
+    url: process.env.SQLITE_PATH ?? "./data/kawkab.sqlite"
+  }
+} satisfies Config;

@@ -1,0 +1,23 @@
+{
+  "name": "@kawkab/realtime-gateway",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsup src/server.ts --format esm",
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run --passWithNoTests",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kawkab/config": "workspace:*",
+    "ws": "latest"
+  },
+  "devDependencies": {
+    "@types/ws": "latest",
+    "typescript": "6.0.3",
+    "vitest": "latest"
+  }
+}

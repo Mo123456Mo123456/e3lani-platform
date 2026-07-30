@@ -1,0 +1,21 @@
+{
+  "name": "@kawkab/notification-worker",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/worker.js",
+  "scripts": {
+    "build": "tsup src/worker.ts --format esm",
+    "dev": "tsx src/worker.ts",
+    "start": "node dist/worker.js",
+    "test": "vitest run --passWithNoTests",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kawkab/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "latest"
+  }
+}

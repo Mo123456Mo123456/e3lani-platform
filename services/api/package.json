@@ -1,0 +1,40 @@
+{
+  "name": "@kawkab/api",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "scripts": {
+    "build": "tsup src/server.ts src/db/migrate.ts src/db/seed.ts --format esm",
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run --passWithNoTests",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "latest",
+    "@fastify/jwt": "latest",
+    "@fastify/swagger": "latest",
+    "@fastify/swagger-ui": "latest",
+    "@kawkab/ai-orchestrator": "workspace:*",
+    "@kawkab/config": "workspace:*",
+    "@kawkab/shared-types": "workspace:*",
+    "@kawkab/simulation-engine": "workspace:*",
+    "@kawkab/validation": "workspace:*",
+    "better-sqlite3": "latest",
+    "bcryptjs": "latest",
+    "drizzle-orm": "latest",
+    "fastify": "latest",
+    "postgres": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "latest",
+    "@types/bcryptjs": "latest",
+    "typescript": "6.0.3",
+    "vitest": "latest"
+  }
+}
