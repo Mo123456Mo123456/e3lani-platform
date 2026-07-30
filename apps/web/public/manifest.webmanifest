@@ -1,0 +1,22 @@
+{
+  "name": "كوكب يولد أمامك",
+  "short_name": "كوكب",
+  "description": "منصة تشاركية لصناعة مستقبل كوكب حي.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#040a0a",
+  "theme_color": "#06110f",
+  "categories": ["education", "productivity", "social"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

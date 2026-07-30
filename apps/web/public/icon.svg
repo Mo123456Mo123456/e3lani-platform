@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="25%">
+      <stop offset="0" stop-color="#14352c"/>
+      <stop offset="1" stop-color="#030a09"/>
+    </radialGradient>
+    <radialGradient id="planet" cx="30%" cy="22%">
+      <stop offset="0" stop-color="#d8ff8d"/>
+      <stop offset=".3" stop-color="#66e8ae"/>
+      <stop offset="1" stop-color="#0a5a49"/>
+    </radialGradient>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="135" fill="url(#planet)" filter="url(#glow)"/>
+  <path d="M169 193c31 15 46 4 64-16 20-22 62-27 93-8 20 12 31 30 45 50-29 8-42 29-48 56-9 38-43 70-82 80-37-26-55-59-54-99 0-24-8-41-18-63Z" fill="#0a7960" opacity=".72"/>
+  <ellipse cx="256" cy="256" rx="202" ry="68" fill="none" stroke="#9effd7" stroke-width="11" transform="rotate(-16 256 256)"/>
+  <circle cx="439" cy="198" r="15" fill="#e6ff84" filter="url(#glow)"/>
+</svg>

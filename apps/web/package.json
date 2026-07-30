@@ -1,0 +1,33 @@
+{
+  "name": "@kawkab/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kawkab/shared-types": "workspace:*",
+    "@kawkab/simulation-models": "workspace:*",
+    "@react-three/drei": "*",
+    "@react-three/fiber": "*",
+    "@tanstack/react-query": "*",
+    "next": "*",
+    "react": "*",
+    "react-dom": "*",
+    "three": "*",
+    "zustand": "*"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "@types/three": "*",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "@kawkab/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/scripts/migrate.ts",
+    "db:seed": "tsx src/scripts/seed.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "*",
+    "@fastify/cors": "*",
+    "@fastify/helmet": "*",
+    "@fastify/jwt": "*",
+    "@fastify/rate-limit": "*",
+    "@fastify/swagger": "*",
+    "@fastify/swagger-ui": "*",
+    "@fastify/websocket": "*",
+    "@kawkab/shared-types": "workspace:*",
+    "@kawkab/simulation-models": "workspace:*",
+    "dotenv": "*",
+    "drizzle-orm": "*",
+    "fastify": "*",
+    "fastify-plugin": "*",
+    "nats": "*",
+    "postgres": "*",
+    "zod": "*"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "drizzle-kit": "*",
+    "tsx": "*",
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

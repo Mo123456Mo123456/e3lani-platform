@@ -1,0 +1,11 @@
+**
+!apps/
+!apps/admin/
+!apps/admin/**
+!tsconfig.base.json
+apps/admin/.env
+apps/admin/.env.*
+!apps/admin/.env.example
+apps/admin/.next/
+apps/admin/node_modules/
+apps/admin/*.tsbuildinfo

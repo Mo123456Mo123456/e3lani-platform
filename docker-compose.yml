@@ -1,0 +1,140 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: infra/postgres/Dockerfile
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kawkab}
+      POSTGRES_USER: ${POSTGRES_USER:-kawkab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-kawkab} -d ${POSTGRES_DB:-kawkab}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  nats:
+    image: nats:2.11-alpine
+    command: ["--jetstream", "--store_dir=/data", "--http_port=8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-kawkab}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 3001
+      DATABASE_URL: postgres://${POSTGRES_USER:-kawkab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kawkab}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3002
+      SANDBOX_MODE: "true"
+      SANDBOX_ADMIN_KEY: ${SANDBOX_ADMIN_KEY:?set SANDBOX_ADMIN_KEY in .env}
+      SANDBOX_SUPER_ADMIN_EMAIL: ${SANDBOX_SUPER_ADMIN_EMAIL:-}
+      SANDBOX_SUPER_ADMIN_PASSWORD: ${SANDBOX_SUPER_ADMIN_PASSWORD:-}
+      AI_PROVIDER: mock
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: info
+    command:
+      [
+        "sh",
+        "-c",
+        "pnpm --filter @kawkab/api db:migrate && pnpm --filter @kawkab/api db:seed && pnpm --filter @kawkab/api start",
+      ]
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3001
+        NEXT_PUBLIC_SANDBOX_MODE: "false"
+        NEXT_PUBLIC_ALLOW_SANDBOX_REGISTRATION: "true"
+    environment:
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3001
+    environment:
+      PORT: 3000
+    ports:
+      - "3002:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  nats-data:
+  redis-data:
+  minio-data:
