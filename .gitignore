@@ -2,6 +2,12 @@
 
 # dependencies
 node_modules/
+.venv/
+**/.venv/
+.next/
+.turbo/
+__pycache__/
+*.egg-info/
 
 # Expo
 .expo/
