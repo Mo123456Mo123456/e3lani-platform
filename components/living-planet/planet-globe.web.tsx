@@ -163,15 +163,26 @@ const cloudFragmentShader = `
   uniform float uSeed;
   varying vec2 vUv;
   varying vec3 vNormalWorld;
-  float noise(vec2 p) {
+  float random(vec2 p) {
     return fract(sin(dot(p, vec2(12.9898, 78.233)) + uSeed) * 43758.5453);
   }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(random(i), random(i + vec2(1.0, 0.0)), u.x),
+      mix(random(i + vec2(0.0, 1.0)), random(i + vec2(1.0, 1.0)), u.x),
+      u.y
+    );
+  }
   void main() {
-    vec2 cell = floor((vUv + vec2(uTime * 0.0018, 0.0)) * vec2(110.0, 48.0));
-    float a = noise(cell);
-    float b = noise(floor(cell * 0.43));
+    vec2 flow = (vUv + vec2(uTime * 0.0018, 0.0)) * vec2(34.0, 15.0);
+    float a = noise(flow);
+    float b = noise(flow * 2.17 + 7.3);
+    float c = noise(flow * 0.47 - 11.4);
     float bands = sin(vUv.y * 48.0 + sin(vUv.x * 18.0) * 2.2) * 0.12;
-    float cloud = smoothstep(0.62, 0.82, a * 0.56 + b * 0.44 + bands);
+    float cloud = smoothstep(0.5, 0.68, a * 0.42 + b * 0.2 + c * 0.38 + bands);
     float light = 0.35 + max(0.0, dot(vNormalWorld, normalize(vec3(-0.65, 0.28, 0.72)))) * 0.75;
     gl_FragColor = vec4(vec3(0.72, 0.86, 0.94) * light, cloud * 0.45);
   }
