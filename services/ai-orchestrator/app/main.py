@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import hmac
 import os
 import re
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Category = Literal[
@@ -39,6 +40,8 @@ Biome = Literal[
 
 
 class Idea(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     category: Category
     text: str = Field(min_length=8, max_length=2000)
     locale: Literal["ar", "en"] = "ar"
@@ -50,6 +53,8 @@ class Idea(BaseModel):
 
 
 class Traits(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     size: float = Field(ge=0, le=1)
     growthRate: float = Field(ge=0, le=1)
     waterNeed: float = Field(ge=0, le=1)
@@ -63,12 +68,14 @@ class Traits(BaseModel):
 
 
 class Draft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     category: Category
     name: str = Field(min_length=2, max_length=120)
     description: str = Field(min_length=8, max_length=2000)
     traits: Traits
     possibleBiomes: list[Biome] = Field(min_length=1, max_length=8)
-    risks: list[str] = Field(default_factory=list, max_length=20)
+    risks: list[str] = Field(max_length=20)
 
 
 class Moderation(BaseModel):
@@ -144,7 +151,7 @@ class MockProvider(Provider):
             traits["size"] = 0.83
             traits["waterNeed"] = 0.64
             risks.append("high_water_consumption")
-        if re.search(r"يمتص التلوث|absorb.*pollution|clean.*pollution", text, re.I):
+        if re.search(r"(?:ي|ت)متص التلوث|absorb.*pollution|clean.*pollution", text, re.I):
             traits["pollutionAbsorption"] = 0.84
             risks.append("pollutant_bioaccumulation")
         if re.search(r"يضيء|مضيء|glow|lumin", text, re.I):
@@ -264,6 +271,15 @@ def required_key(name: str) -> str:
     return value
 
 
+def authorize_internal(authorization: str | None = Header(default=None)) -> None:
+    expected = os.getenv("AI_ORCHESTRATOR_TOKEN")
+    if not expected:
+        raise HTTPException(status_code=503, detail="AI_ORCHESTRATOR_TOKEN_NOT_CONFIGURED")
+    supplied = authorization.removeprefix("Bearer ") if authorization else ""
+    if not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="INVALID_SERVICE_TOKEN")
+
+
 def selected_provider() -> Provider:
     name = os.getenv("AI_PROVIDER", "").lower()
     providers: dict[str, Provider] = {
@@ -341,7 +357,7 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/v1/contributions/analyze", response_model=Analysis)
-async def analyze(idea: Idea) -> Analysis:
+async def analyze(idea: Idea, _auth: None = Depends(authorize_internal)) -> Analysis:
     provider = selected_provider()
     try:
         draft = await provider.parse(idea)
@@ -353,7 +369,9 @@ async def analyze(idea: Idea) -> Analysis:
 
 
 @app.post("/v1/narratives")
-async def narrate(request: NarrativeRequest) -> dict[str, Any]:
+async def narrate(
+    request: NarrativeRequest, _auth: None = Depends(authorize_internal)
+) -> dict[str, Any]:
     # Grounded deterministic narration is the safe fallback. Every sentence maps to an event.
     text = " ".join(
         event.descriptionAr if request.locale == "ar" else event.descriptionEn

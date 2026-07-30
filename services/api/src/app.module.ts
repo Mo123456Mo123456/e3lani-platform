@@ -2,7 +2,12 @@ import { Controller, Get, Module, UseGuards } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
-import { AccessTokenGuard, AuthModule, RoleGuard, Roles } from "./auth.module.js";
+import {
+  AccessTokenGuard,
+  AuthModule,
+  RoleGuard,
+  Roles,
+} from "./auth.module.js";
 import { DatabaseModule } from "./database.module.js";
 import { DatabaseService } from "./database.service.js";
 import { WorldModule } from "./world.module.js";
@@ -14,7 +19,9 @@ class SystemController {
 
   @Get("health")
   async health() {
-    const rows = await this.database.query<{ now: string }>("SELECT now()::text AS now");
+    const rows = await this.database.query<{ now: string }>(
+      "SELECT now()::text AS now",
+    );
     return {
       status: "ok",
       database: "connected",

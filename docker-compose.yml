@@ -2,7 +2,7 @@ name: planet-born
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: polypheny/postgres-pgvector-postgis:17-debian
     environment:
       POSTGRES_DB: planet
       POSTGRES_USER: planet
@@ -48,8 +48,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_ORCHESTRATOR_TOKEN: ${AI_ORCHESTRATOR_TOKEN:-sandbox-internal-token-change-me}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   api:
     build:
@@ -63,10 +64,11 @@ services:
     environment:
       DATABASE_URL: postgresql://planet:planet@postgres:5432/planet
       API_PORT: 4000
-      WEB_ORIGIN: http://localhost:3000
+      WEB_ORIGIN: http://localhost:3000,http://localhost:3001
       PLANET_SEED: ${PLANET_SEED:-KA-2026-07}
       JWT_SECRET: ${JWT_SECRET:-sandbox-only-secret-change-before-production}
       AI_ORCHESTRATOR_URL: http://ai-orchestrator:8000
+      AI_ORCHESTRATOR_TOKEN: ${AI_ORCHESTRATOR_TOKEN:-sandbox-internal-token-change-me}
     ports:
       - "4000:4000"
 

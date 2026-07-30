@@ -6,7 +6,7 @@ import {
   previewContribution,
   replayEvents,
   runTick,
-} from "./index";
+} from "./index.js";
 
 describe("deterministic world generation", () => {
   it("produces the same world and history from the same seed", () => {
@@ -18,7 +18,9 @@ describe("deterministic world generation", () => {
   });
 
   it("produces a different world from a different seed", () => {
-    expect(generateWorld("seed-a", 128).checksum).not.toBe(generateWorld("seed-b", 128).checksum);
+    expect(generateWorld("seed-a", 128).checksum).not.toBe(
+      generateWorld("seed-b", 128).checksum,
+    );
   });
 });
 
@@ -69,12 +71,29 @@ describe("contribution analysis and causal simulation", () => {
 
   it("never grows civilization populations beyond regional capacity", () => {
     let world = generateWorld("capacity-seed", 256);
+    const firstTick = runTick(world, 1);
+    expect(firstTick.delta.changedRegions.length).toBeGreaterThan(0);
+    expect(firstTick.delta.planet.year).toBe(world.planet.year + 1);
+    for (const civilization of firstTick.state.civilizations) {
+      expect(
+        firstTick.delta.changedRegions.some(
+          (region) =>
+            region.id === civilization.regionId &&
+            typeof region.population === "number",
+        ),
+      ).toBe(true);
+    }
+    world = firstTick.state;
     for (let tick = 0; tick < 120; tick += 1) {
       world = runTick(world, 10).state;
     }
     for (const civilization of world.civilizations) {
-      const region = world.regions.find((item) => item.id === civilization.regionId)!;
-      expect(civilization.population).toBeLessThanOrEqual(region.carryingCapacity);
+      const region = world.regions.find(
+        (item) => item.id === civilization.regionId,
+      )!;
+      expect(civilization.population).toBeLessThanOrEqual(
+        region.carryingCapacity,
+      );
     }
   });
 });

@@ -1,13 +1,15 @@
+import "../src/env.js";
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { Client } from "pg";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
-const here = dirname(fileURLToPath(import.meta.url));
-const sql = await readFile(resolve(here, "../migrations/001_foundation.sql"), "utf8");
+const sql = await readFile(
+  resolve(process.cwd(), "migrations/001_foundation.sql"),
+  "utf8",
+);
 const client = new Client({ connectionString });
 
 await client.connect();

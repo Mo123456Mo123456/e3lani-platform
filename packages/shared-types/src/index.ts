@@ -222,6 +222,7 @@ export interface ScenarioOutcome {
 export interface ContributionPreview {
   analysis: ContributionAnalysis;
   regionId: string;
+  previewToken?: string;
   habitatSuitability: number;
   scenarios: ScenarioOutcome[];
   bestScenario: ScenarioOutcome;
@@ -233,6 +234,7 @@ export interface ContributionPreview {
 export interface DeltaUpdate {
   sequence: number;
   tick: number;
+  planet: PlanetSummary;
   changedRegions: Array<Pick<PlanetRegion, "id"> & Partial<PlanetRegion>>;
   events: WorldEvent[];
 }

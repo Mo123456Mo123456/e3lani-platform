@@ -5,7 +5,13 @@ import type {
   WorldEvent,
   WorldState,
 } from "@planet/shared-types";
-import { clamp, fractalNoise3D, hashSeed, round, SeededRandom } from "./prng";
+import {
+  clamp,
+  fractalNoise3D,
+  hashSeed,
+  round,
+  SeededRandom,
+} from "./prng.js";
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
@@ -53,7 +59,9 @@ function fnvChecksum(value: string): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-export function stateChecksum(state: Omit<WorldState, "checksum"> | WorldState): string {
+export function stateChecksum(
+  state: Omit<WorldState, "checksum"> | WorldState,
+): string {
   return fnvChecksum(
     JSON.stringify({
       seed: state.planet.seed,
@@ -108,31 +116,65 @@ export function generateRegions(seed: string, count = 768): PlanetRegion[] {
     const latitude = Math.asin(y) * (180 / Math.PI);
     const longitude = Math.atan2(z, x) * (180 / Math.PI);
 
-    const continent = fractalNoise3D(numericSeed, x * 1.35 + 7, y * 1.35, z * 1.35, 6);
-    const ridges = Math.abs(fractalNoise3D(numericSeed + 911, x * 4, y * 4, z * 4, 4) - 0.5) * 2;
+    const continent = fractalNoise3D(
+      numericSeed,
+      x * 1.35 + 7,
+      y * 1.35,
+      z * 1.35,
+      6,
+    );
+    const ridges =
+      Math.abs(
+        fractalNoise3D(numericSeed + 911, x * 4, y * 4, z * 4, 4) - 0.5,
+      ) * 2;
     const elevation = clamp(continent * 0.86 + ridges * 0.2 - 0.08);
     const latitudeHeat = Math.cos(Math.abs(latitude) * (Math.PI / 180));
     const altitudeCooling = Math.max(0, elevation - 0.48) * 0.75;
     const temperature = clamp(latitudeHeat * 0.92 - altitudeCooling + 0.04);
-    const oceanInfluence = elevation < 0.47 ? 0.28 : Math.max(0, 0.14 - (elevation - 0.47) * 0.3);
-    const weatherNoise = fractalNoise3D(numericSeed + 2017, x * 2.2, y * 2.2, z * 2.2, 5);
-    const rainShadow = Math.max(0, elevation - 0.67) * Math.max(0, Math.sin(longitude * (Math.PI / 180)));
-    const moisture = clamp(weatherNoise * 0.78 + oceanInfluence - rainShadow * 0.45);
+    const oceanInfluence =
+      elevation < 0.47 ? 0.28 : Math.max(0, 0.14 - (elevation - 0.47) * 0.3);
+    const weatherNoise = fractalNoise3D(
+      numericSeed + 2017,
+      x * 2.2,
+      y * 2.2,
+      z * 2.2,
+      5,
+    );
+    const rainShadow =
+      Math.max(0, elevation - 0.67) *
+      Math.max(0, Math.sin(longitude * (Math.PI / 180)));
+    const moisture = clamp(
+      weatherNoise * 0.78 + oceanInfluence - rainShadow * 0.45,
+    );
     const volcanic = fractalNoise3D(numericSeed + 4049, x * 7, y * 7, z * 7, 3);
     const biome = classifyBiome({ elevation, temperature, moisture, volcanic });
     const isWater = biome === "ocean";
-    const water = isWater ? 1 : clamp(moisture * 0.68 + (biome === "wetlands" || biome === "coast" ? 0.24 : 0));
+    const water = isWater
+      ? 1
+      : clamp(
+          moisture * 0.68 +
+            (biome === "wetlands" || biome === "coast" ? 0.24 : 0),
+        );
     const fertility = isWater
       ? 0
-      : clamp(moisture * 0.56 + temperature * 0.31 - Math.max(0, elevation - 0.7) * 1.5);
-    const vegetation = isWater || biome === "ice" || biome === "desert"
-      ? clamp(fertility * 0.25)
-      : clamp(fertility * 0.84 + moisture * 0.16);
+      : clamp(
+          moisture * 0.56 +
+            temperature * 0.31 -
+            Math.max(0, elevation - 0.7) * 1.5,
+        );
+    const vegetation =
+      isWater || biome === "ice" || biome === "desert"
+        ? clamp(fertility * 0.25)
+        : clamp(fertility * 0.84 + moisture * 0.16);
     const resourceRichness = clamp(
       fractalNoise3D(numericSeed + 7919, x * 5, y * 5, z * 5, 4) * 0.75 +
         (biome === "mountains" || biome === "volcanic" ? 0.23 : 0),
     );
-    const carryingCapacity = isWater ? 0 : Math.round((fertility * 2_500_000 + water * 1_200_000) * (0.5 + vegetation));
+    const carryingCapacity = isWater
+      ? 0
+      : Math.round(
+          (fertility * 2_500_000 + water * 1_200_000) * (0.5 + vegetation),
+        );
 
     regions.push({
       id: `region_${index.toString().padStart(4, "0")}`,
@@ -158,7 +200,10 @@ export function generateRegions(seed: string, count = 768): PlanetRegion[] {
   return regions;
 }
 
-function foundCivilizations(seed: string, regions: PlanetRegion[]): Civilization[] {
+function foundCivilizations(
+  seed: string,
+  regions: PlanetRegion[],
+): Civilization[] {
   const random = new SeededRandom(`${seed}:civilizations`);
   const candidates = regions
     .filter(
@@ -167,7 +212,10 @@ function foundCivilizations(seed: string, regions: PlanetRegion[]): Civilization
         region.water > 0.38 &&
         region.fertility > 0.35,
     )
-    .map((region) => ({ region, score: region.fertility + region.water + random.next() * 0.3 }))
+    .map((region) => ({
+      region,
+      score: region.fertility + region.water + random.next() * 0.3,
+    }))
     .sort((a, b) => b.score - a.score);
   const selected: PlanetRegion[] = [];
 
@@ -184,12 +232,16 @@ function foundCivilizations(seed: string, regions: PlanetRegion[]): Civilization
 
   for (const candidate of candidates) {
     if (selected.length >= CIVILIZATION_NAMES.length) break;
-    if (!selected.some((region) => region.id === candidate.region.id)) selected.push(candidate.region);
+    if (!selected.some((region) => region.id === candidate.region.id))
+      selected.push(candidate.region);
   }
 
   return selected.map((region, index) => {
     const [nameAr, nameEn] = CIVILIZATION_NAMES[index]!;
-    const population = random.int(180_000, Math.min(1_200_000, Math.max(200_000, region.carryingCapacity)));
+    const population = random.int(
+      180_000,
+      Math.min(1_200_000, Math.max(200_000, region.carryingCapacity)),
+    );
     region.population = population;
     region.civilizationId = `civ_${index + 1}`;
     return {
@@ -210,7 +262,10 @@ function foundCivilizations(seed: string, regions: PlanetRegion[]): Civilization
   });
 }
 
-export function generateWorld(seed = "KA-2026-07", regionCount = 768): WorldState {
+export function generateWorld(
+  seed = "KA-2026-07",
+  regionCount = 768,
+): WorldState {
   const regions = generateRegions(seed, regionCount);
   const civilizations = foundCivilizations(seed, regions);
   const planetId = `planet_${fnvChecksum(seed)}`;
@@ -226,8 +281,10 @@ export function generateWorld(seed = "KA-2026-07", regionCount = 768): WorldStat
       payload: { seed, algorithmVersion: "1.0.0", regionCount },
       titleAr: "استقرار العالم المحاكى",
       titleEn: "Simulated world stabilized",
-      descriptionAr: "تولّد العالم إجرائيًا من بذرة ثابتة، وأصبحت كل طبقاته قابلة لإعادة الإنتاج.",
-      descriptionEn: "The world was procedurally generated from a fixed seed; every layer is reproducible.",
+      descriptionAr:
+        "تولّد العالم إجرائيًا من بذرة ثابتة، وأصبحت كل طبقاته قابلة لإعادة الإنتاج.",
+      descriptionEn:
+        "The world was procedurally generated from a fixed seed; every layer is reproducible.",
     }),
     ...civilizations.map((civilization, index) =>
       createEvent(seed, index + 2, {
@@ -242,14 +299,19 @@ export function generateWorld(seed = "KA-2026-07", regionCount = 768): WorldStat
         payload: { civilizationId: civilization.id },
         titleAr: `نشأة ${civilization.nameAr}`,
         titleEn: `${civilization.nameEn} founded`,
-        descriptionAr: "توفر الماء والتربة الخصبة سمحا باستقرار السكان ونشأة حضارة.",
-        descriptionEn: "Water and fertile soil enabled settlement and the rise of a civilization.",
+        descriptionAr:
+          "توفر الماء والتربة الخصبة سمحا باستقرار السكان ونشأة حضارة.",
+        descriptionEn:
+          "Water and fertile soil enabled settlement and the rise of a civilization.",
       }),
     ),
   ];
 
   const landRegions = regions.filter((region) => region.biome !== "ocean");
-  const population = civilizations.reduce((sum, civilization) => sum + civilization.population, 0);
+  const population = civilizations.reduce(
+    (sum, civilization) => sum + civilization.population,
+    0,
+  );
   const state: Omit<WorldState, "checksum"> = {
     planet: {
       id: planetId,
@@ -263,9 +325,14 @@ export function generateWorld(seed = "KA-2026-07", regionCount = 768): WorldStat
       civilizationCount: civilizations.length,
       contributionCount: 0,
       eventCount: events.length,
-      globalTemperature: round(regions.reduce((sum, region) => sum + region.temperature, 0) / regions.length),
+      globalTemperature: round(
+        regions.reduce((sum, region) => sum + region.temperature, 0) /
+          regions.length,
+      ),
       globalPollution: 0,
-      biodiversity: Math.round(landRegions.reduce((sum, region) => sum + region.vegetation, 0) * 24),
+      biodiversity: Math.round(
+        landRegions.reduce((sum, region) => sum + region.vegetation, 0) * 24,
+      ),
       population,
     },
     regions,

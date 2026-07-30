@@ -25,7 +25,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
   });
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ message: response.statusText }));
+    const body = await response
+      .json()
+      .catch(() => ({ message: response.statusText }));
     throw new Error(body.message ?? body.detail ?? `HTTP_${response.status}`);
   }
   return response.json() as Promise<T>;
@@ -35,14 +37,18 @@ export function getWorld(): Promise<WorldState> {
   return request("/world");
 }
 
-export function analyzeContribution(input: ContributionInput): Promise<ContributionAnalysis> {
+export function analyzeContribution(
+  input: ContributionInput,
+): Promise<ContributionAnalysis> {
   return request("/contributions/analyze", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function previewContribution(input: Required<ContributionInput>): Promise<ContributionPreview> {
+export function previewContribution(
+  input: Required<ContributionInput>,
+): Promise<ContributionPreview> {
   return request("/contributions/preview", {
     method: "POST",
     body: JSON.stringify(input),
@@ -50,7 +56,7 @@ export function previewContribution(input: Required<ContributionInput>): Promise
 }
 
 export function confirmContribution(
-  input: Required<ContributionInput>,
+  input: Required<ContributionInput> & { previewToken: string },
   accessToken: string,
 ): Promise<{
   contribution: WorldState["contributions"][number];

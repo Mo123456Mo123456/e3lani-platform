@@ -33,8 +33,11 @@ export class SeededRandom {
   }
 
   pick<T>(values: readonly T[]): T {
-    if (values.length === 0) throw new Error("Cannot pick from an empty collection");
-    return values[Math.min(values.length - 1, Math.floor(this.next() * values.length))]!;
+    if (values.length === 0)
+      throw new Error("Cannot pick from an empty collection");
+    return values[
+      Math.min(values.length - 1, Math.floor(this.next() * values.length))
+    ]!;
   }
 
   fork(label: string): SeededRandom {
@@ -47,12 +50,21 @@ function fade(value: number): number {
 }
 
 function lattice(seed: number, x: number, y: number, z: number): number {
-  let hash = seed ^ Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 2147483647);
+  let hash =
+    seed ^
+    Math.imul(x, 374761393) ^
+    Math.imul(y, 668265263) ^
+    Math.imul(z, 2147483647);
   hash = Math.imul(hash ^ (hash >>> 13), 1274126177);
   return ((hash ^ (hash >>> 16)) >>> 0) / 0xffffffff;
 }
 
-export function valueNoise3D(seed: number, x: number, y: number, z: number): number {
+export function valueNoise3D(
+  seed: number,
+  x: number,
+  y: number,
+  z: number,
+): number {
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
   const z0 = Math.floor(z);
@@ -62,7 +74,12 @@ export function valueNoise3D(seed: number, x: number, y: number, z: number): num
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
   const samples = Array.from({ length: 8 }, (_, index) =>
-    lattice(seed, x0 + (index & 1), y0 + ((index >> 1) & 1), z0 + ((index >> 2) & 1)),
+    lattice(
+      seed,
+      x0 + (index & 1),
+      y0 + ((index >> 1) & 1),
+      z0 + ((index >> 2) & 1),
+    ),
   );
 
   const bottom = lerp(
@@ -91,7 +108,13 @@ export function fractalNoise3D(
   let normalization = 0;
 
   for (let octave = 0; octave < octaves; octave += 1) {
-    total += valueNoise3D(seed + octave * 1013, x * frequency, y * frequency, z * frequency) * amplitude;
+    total +=
+      valueNoise3D(
+        seed + octave * 1013,
+        x * frequency,
+        y * frequency,
+        z * frequency,
+      ) * amplitude;
     normalization += amplitude;
     amplitude *= 0.5;
     frequency *= 2.03;

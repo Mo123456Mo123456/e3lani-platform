@@ -1,3 +1,4 @@
+import "./env.js";
 import "reflect-metadata";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
@@ -18,10 +19,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix("api/v1");
   app.enableCors({
-    origin(origin, callback) {
-      if (!origin || origins.includes(origin)) return callback(null, true);
-      callback(new Error("ORIGIN_NOT_ALLOWED"), false);
-    },
+    origin: origins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   });
@@ -49,7 +47,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("كوكب يولد أمامك API")
-    .setDescription("Deterministic world simulation, contribution, timeline, and authentication API.")
+    .setDescription(
+      "Deterministic world simulation, contribution, timeline, and authentication API.",
+    )
     .setVersion("0.1.0")
     .addBearerAuth()
     .build();

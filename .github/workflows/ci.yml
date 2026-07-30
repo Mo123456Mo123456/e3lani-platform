@@ -1,0 +1,55 @@
+name: Planet platform CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: polypheny/postgres-pgvector-postgis:17-debian
+        env:
+          POSTGRES_DB: planet
+          POSTGRES_USER: planet
+          POSTGRES_PASSWORD: planet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U planet -d planet"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://planet:planet@localhost:5432/planet
+      PLANET_SEED: ci-deterministic-world
+      JWT_SECRET: ci-only-secret-with-at-least-thirty-two-characters
+      AI_PROVIDER: mock
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+      - run: python -m py_compile services/ai-orchestrator/app/main.py
+      - run: pnpm db:migrate
+      - run: pnpm db:seed

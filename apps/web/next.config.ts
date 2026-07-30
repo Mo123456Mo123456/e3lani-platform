@@ -5,7 +5,12 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@planet/shared-types"],
   poweredByHeader: false,
   experimental: {
-    optimizePackageImports: ["@react-three/fiber", "@react-three/drei", "three"],
+    optimizePackageImports: [
+      "@react-three/fiber",
+      "@react-three/drei",
+      "three",
+    ],
+    useTypeScriptCli: true,
   },
   async headers() {
     return [
@@ -14,7 +19,10 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=(self)" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), geolocation=(), microphone=(self)",
+          },
         ],
       },
     ];

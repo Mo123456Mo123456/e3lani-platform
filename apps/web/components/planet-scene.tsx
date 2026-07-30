@@ -16,7 +16,8 @@ import {
 } from "three";
 import { useEffect, useMemo, useRef } from "react";
 
-export type PlanetLayer = "surface" | "temperature" | "pollution" | "civilizations";
+export type PlanetLayer =
+  "surface" | "temperature" | "pollution" | "civilizations";
 export type GraphicsQuality = "ultra" | "high" | "medium" | "eco";
 
 const BIOME_COLORS: Record<string, string> = {
@@ -34,7 +35,11 @@ const BIOME_COLORS: Record<string, string> = {
   ice: "#c5e5e9",
 };
 
-function pointFromCoordinates(latitude: number, longitude: number, radius = 2.04): Vector3 {
+function pointFromCoordinates(
+  latitude: number,
+  longitude: number,
+  radius = 2.04,
+): Vector3 {
   const phi = (90 - latitude) * (Math.PI / 180);
   const theta = (longitude + 180) * (Math.PI / 180);
   return new Vector3(
@@ -56,7 +61,9 @@ function colorForRegion(region: PlanetRegion, layer: PlanetLayer): Color {
     );
   }
   if (layer === "civilizations") {
-    return region.civilizationId ? new Color("#d6a947") : new Color(BIOME_COLORS[region.biome]);
+    return region.civilizationId
+      ? new Color("#d6a947")
+      : new Color(BIOME_COLORS[region.biome]);
   }
   return new Color(BIOME_COLORS[region.biome]);
 }
@@ -78,9 +85,19 @@ function PlanetMesh({
 }) {
   const group = useRef<Group>(null);
   const clouds = useRef<Mesh>(null);
-  const detail = quality === "ultra" ? 6 : quality === "high" ? 5 : quality === "medium" ? 4 : 3;
+  const detail =
+    quality === "ultra"
+      ? 6
+      : quality === "high"
+        ? 5
+        : quality === "medium"
+          ? 4
+          : 3;
   const regionVectors = useMemo(
-    () => regions.map((region) => pointFromCoordinates(region.latitude, region.longitude, 1).normalize()),
+    () =>
+      regions.map((region) =>
+        pointFromCoordinates(region.latitude, region.longitude, 1).normalize(),
+      ),
     [regions],
   );
   const geometry = useMemo(() => {
@@ -93,7 +110,11 @@ function PlanetMesh({
       vector.fromBufferAttribute(positions, index).normalize();
       let nearest = 0;
       let bestDot = -Infinity;
-      for (let regionIndex = 0; regionIndex < regionVectors.length; regionIndex += 1) {
+      for (
+        let regionIndex = 0;
+        regionIndex < regionVectors.length;
+        regionIndex += 1
+      ) {
         const dot = vector.dot(regionVectors[regionIndex]!);
         if (dot > bestDot) {
           bestDot = dot;
@@ -102,7 +123,9 @@ function PlanetMesh({
       }
       const region = regions[nearest]!;
       const radius =
-        region.biome === "ocean" ? 2 : 2 + Math.max(0, region.elevation - 0.44) * 0.22;
+        region.biome === "ocean"
+          ? 2
+          : 2 + Math.max(0, region.elevation - 0.44) * 0.22;
       vector.multiplyScalar(radius);
       positions.setXYZ(index, vector.x, vector.y, vector.z);
       const color = colorForRegion(region, layer);
@@ -127,7 +150,9 @@ function PlanetMesh({
 
   const selectRegion = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
-    const localPoint = group.current?.worldToLocal(event.point.clone()).normalize() ?? event.point.normalize();
+    const localPoint =
+      group.current?.worldToLocal(event.point.clone()).normalize() ??
+      event.point.normalize();
     let nearest = 0;
     let bestDot = -Infinity;
     regionVectors.forEach((regionVector, index) => {
@@ -151,7 +176,13 @@ function PlanetMesh({
       </mesh>
 
       <mesh>
-        <sphereGeometry args={[2.008, quality === "eco" ? 48 : 96, quality === "eco" ? 24 : 64]} />
+        <sphereGeometry
+          args={[
+            2.008,
+            quality === "eco" ? 48 : 96,
+            quality === "eco" ? 24 : 64,
+          ]}
+        />
         <meshPhysicalMaterial
           color="#0b6682"
           transparent
@@ -164,7 +195,13 @@ function PlanetMesh({
 
       {quality !== "eco" && (
         <mesh ref={clouds} scale={1.017}>
-          <sphereGeometry args={[2.04, quality === "ultra" ? 128 : 72, quality === "ultra" ? 72 : 40]} />
+          <sphereGeometry
+            args={[
+              2.04,
+              quality === "ultra" ? 128 : 72,
+              quality === "ultra" ? 72 : 40,
+            ]}
+          />
           <shaderMaterial
             transparent
             depthWrite={false}
@@ -222,7 +259,11 @@ function PlanetMesh({
       {regions
         .filter((region) => region.civilizationId)
         .map((region) => {
-          const point = pointFromCoordinates(region.latitude, region.longitude, 2.065);
+          const point = pointFromCoordinates(
+            region.latitude,
+            region.longitude,
+            2.065,
+          );
           return (
             <mesh key={region.id} position={point}>
               <sphereGeometry args={[0.018, 8, 8]} />
@@ -235,11 +276,27 @@ function PlanetMesh({
       {visibleEvents.map((event) => {
         const region = regions.find((item) => item.id === event.regionId);
         if (!region) return null;
-        const color = event.type.includes("WAR") ? "#ff4f48" : event.type.includes("WATER") ? "#47cbff" : "#8ef0d0";
+        const color = event.type.includes("WAR")
+          ? "#ff4f48"
+          : event.type.includes("WATER")
+            ? "#47cbff"
+            : "#8ef0d0";
         return (
-          <mesh key={event.id} position={pointFromCoordinates(region.latitude, region.longitude, 2.11)}>
+          <mesh
+            key={event.id}
+            position={pointFromCoordinates(
+              region.latitude,
+              region.longitude,
+              2.11,
+            )}
+          >
             <ringGeometry args={[0.025, 0.044, 16]} />
-            <meshBasicMaterial color={color} transparent opacity={0.9} side={2} />
+            <meshBasicMaterial
+              color={color}
+              transparent
+              opacity={0.9}
+              side={2}
+            />
           </mesh>
         );
       })}
@@ -256,19 +313,42 @@ export function PlanetScene(props: {
   onSelect: (regionId: string) => void;
 }) {
   const dpr: [number, number] =
-    props.quality === "ultra" ? [1, 2] : props.quality === "eco" ? [0.65, 1] : [0.8, 1.5];
+    props.quality === "ultra"
+      ? [1, 2]
+      : props.quality === "eco"
+        ? [0.65, 1]
+        : [0.8, 1.5];
   return (
     <Canvas
       dpr={dpr}
       camera={{ position: [0, 0.25, 5.8], fov: 42, near: 0.1, far: 80 }}
-      gl={{ antialias: props.quality !== "eco", alpha: true, powerPreference: "high-performance" }}
+      gl={{
+        antialias: props.quality !== "eco",
+        alpha: true,
+        powerPreference: "high-performance",
+      }}
     >
       <ambientLight intensity={0.2} />
-      <directionalLight position={[4, 2.5, 5]} intensity={2.5} color="#d9f3ff" />
-      <directionalLight position={[-3, -1, -4]} intensity={0.16} color="#2854ff" />
+      <directionalLight
+        position={[4, 2.5, 5]}
+        intensity={2.5}
+        color="#d9f3ff"
+      />
+      <directionalLight
+        position={[-3, -1, -4]}
+        intensity={0.16}
+        color="#2854ff"
+      />
       <PlanetMesh {...props} />
       {props.quality !== "eco" && (
-        <Stars radius={35} depth={25} count={props.quality === "ultra" ? 2600 : 1200} factor={2} fade speed={0.15} />
+        <Stars
+          radius={35}
+          depth={25}
+          count={props.quality === "ultra" ? 2600 : 1200}
+          factor={2}
+          fade
+          speed={0.15}
+        />
       )}
       <OrbitControls
         enablePan={false}

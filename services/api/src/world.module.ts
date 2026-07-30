@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Body,
   Controller,
+  forwardRef,
   Get,
+  Inject,
   Injectable,
   Module,
   NotFoundException,
@@ -40,6 +42,7 @@ import {
   runTick,
 } from "@planet/simulation-models";
 import { IsIn, IsInt, IsString, Length, Max, Min } from "class-validator";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import { z } from "zod";
 import {
@@ -74,7 +77,11 @@ class PreviewContributionDto extends AnalyzeContributionDto {
   simulationRuns = 64;
 }
 
-class ConfirmContributionDto extends PreviewContributionDto {}
+class ConfirmContributionDto extends PreviewContributionDto {
+  @IsString()
+  @Length(40, 20_000)
+  previewToken!: string;
+}
 
 class TickDto {
   @IsIn([1, 10])
@@ -119,7 +126,8 @@ export class WorldService implements OnModuleInit {
 
   constructor(
     private readonly database: DatabaseService,
-    private readonly gateway: WorldGateway,
+    @Inject(forwardRef(() => WorldGateway))
+    private readonly gateway: Pick<WorldGateway, "publishDelta">,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -129,7 +137,10 @@ export class WorldService implements OnModuleInit {
       this.state = stored;
       return;
     }
-    this.state = generateWorld(seed, Number(process.env.PLANET_REGION_COUNT ?? 768));
+    this.state = generateWorld(
+      seed,
+      Number(process.env.PLANET_REGION_COUNT ?? 768),
+    );
     await this.database.saveWorld(this.state, this.state.latestEvents);
   }
 
@@ -142,33 +153,50 @@ export class WorldService implements OnModuleInit {
     if (!region) throw new NotFoundException("REGION_NOT_FOUND");
     return {
       region,
-      civilization: this.state.civilizations.find((item) => item.regionId === regionId) ?? null,
-      contributions: this.state.contributions.filter((item) => item.regionId === regionId),
-      events: this.state.latestEvents.filter((item) => item.regionId === regionId).slice(-30),
+      civilization:
+        this.state.civilizations.find((item) => item.regionId === regionId) ??
+        null,
+      contributions: this.state.contributions.filter(
+        (item) => item.regionId === regionId,
+      ),
+      events: this.state.latestEvents
+        .filter((item) => item.regionId === regionId)
+        .slice(-30),
     };
   }
 
   async listEvents(limit = 50, beforeSequence?: number) {
-    return this.database.listEvents(this.state.planet.id, Math.min(100, Math.max(1, limit)), beforeSequence);
+    return this.database.listEvents(
+      this.state.planet.id,
+      Math.min(100, Math.max(1, limit)),
+      beforeSequence,
+    );
   }
 
   async analyze(idea: ContributionIdea): Promise<ContributionAnalysis> {
     const orchestratorUrl = process.env.AI_ORCHESTRATOR_URL;
     if (orchestratorUrl) {
       try {
-        const response = await fetch(`${orchestratorUrl}/v1/contributions/analyze`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(idea),
-          signal: AbortSignal.timeout(12_000),
-        });
+        const response = await fetch(
+          `${orchestratorUrl}/v1/contributions/analyze`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${process.env.AI_ORCHESTRATOR_TOKEN ?? ""}`,
+            },
+            body: JSON.stringify(idea),
+            signal: AbortSignal.timeout(12_000),
+          },
+        );
         if (!response.ok) throw new Error(`AI_ORCHESTRATOR_${response.status}`);
         return analysisSchema.parse(await response.json());
       } catch (error) {
         if (process.env.AI_PROVIDER !== "mock") {
           throw new ServiceUnavailableException({
             code: "AI_ORCHESTRATOR_UNAVAILABLE",
-            message: "The configured AI provider did not return validated structured output.",
+            message:
+              "The configured AI provider did not return validated structured output.",
           });
         }
       }
@@ -181,15 +209,21 @@ export class WorldService implements OnModuleInit {
 
   async preview(input: PreviewContributionDto) {
     const analysis = await this.analyze(input);
-    const region = this.state.regions.find((item) => item.id === input.regionId);
+    const region = this.state.regions.find(
+      (item) => item.id === input.regionId,
+    );
     if (!region) throw new NotFoundException("REGION_NOT_FOUND");
     try {
-      return previewContribution(
+      const preview = previewContribution(
         this.state.planet.seed,
         analysis,
         region,
         input.simulationRuns,
       );
+      return {
+        ...preview,
+        previewToken: this.signPreview(input, analysis),
+      };
     } catch (error) {
       throw new BadRequestException((error as Error).message);
     }
@@ -197,8 +231,10 @@ export class WorldService implements OnModuleInit {
 
   async confirm(ownerId: string, input: ConfirmContributionDto) {
     return this.serialized(async () => {
-      const analysis = await this.analyze(input);
-      const region = this.state.regions.find((item) => item.id === input.regionId);
+      const analysis = this.verifyPreview(input);
+      const region = this.state.regions.find(
+        (item) => item.id === input.regionId,
+      );
       if (!region) throw new NotFoundException("REGION_NOT_FOUND");
       const preview = previewContribution(
         this.state.planet.seed,
@@ -206,7 +242,12 @@ export class WorldService implements OnModuleInit {
         region,
         input.simulationRuns,
       );
-      const contributionResult = addContribution(this.state, ownerId, analysis, input.regionId);
+      const contributionResult = addContribution(
+        this.state,
+        ownerId,
+        analysis,
+        input.regionId,
+      );
       const startedAt = performance.now();
       const tickResult = runTick(contributionResult.state, 1);
       const events = [...contributionResult.events, ...tickResult.events];
@@ -221,11 +262,13 @@ export class WorldService implements OnModuleInit {
         events,
         changedRegionIds,
         Math.round(performance.now() - startedAt),
+        tickResult.events.length,
       );
       this.state = tickResult.state;
       const delta: DeltaUpdate = {
         sequence: events.at(-1)?.sequence ?? this.state.planet.eventCount,
         tick: this.state.planet.tick,
+        planet: this.state.planet,
         changedRegions: tickResult.delta.changedRegions,
         events,
       };
@@ -268,6 +311,75 @@ export class WorldService implements OnModuleInit {
       release();
     }
   }
+
+  private signPreview(
+    input: PreviewContributionDto,
+    analysis: ContributionAnalysis,
+  ): string {
+    const body = Buffer.from(
+      JSON.stringify({
+        analysis,
+        category: input.category,
+        text: input.text,
+        locale: input.locale,
+        regionId: input.regionId,
+        simulationRuns: input.simulationRuns,
+        worldChecksum: this.state.checksum,
+        expiresAt: Date.now() + 15 * 60 * 1_000,
+      }),
+    ).toString("base64url");
+    const signature = createHmac("sha256", process.env.JWT_SECRET!)
+      .update(body)
+      .digest("base64url");
+    return `${body}.${signature}`;
+  }
+
+  private verifyPreview(input: ConfirmContributionDto): ContributionAnalysis {
+    const [body, signature] = input.previewToken.split(".");
+    if (!body || !signature)
+      throw new BadRequestException("INVALID_PREVIEW_TOKEN");
+    const expected = Buffer.from(
+      createHmac("sha256", process.env.JWT_SECRET!)
+        .update(body)
+        .digest("base64url"),
+      "base64url",
+    );
+    const supplied = Buffer.from(signature, "base64url");
+    if (
+      expected.length !== supplied.length ||
+      !timingSafeEqual(expected, supplied)
+    ) {
+      throw new BadRequestException("INVALID_PREVIEW_TOKEN");
+    }
+    try {
+      const payload = JSON.parse(
+        Buffer.from(body, "base64url").toString("utf8"),
+      ) as {
+        analysis: unknown;
+        category: string;
+        text: string;
+        locale: string;
+        regionId: string;
+        simulationRuns: number;
+        worldChecksum: string;
+        expiresAt: number;
+      };
+      if (
+        payload.expiresAt < Date.now() ||
+        payload.worldChecksum !== this.state.checksum ||
+        payload.category !== input.category ||
+        payload.text !== input.text ||
+        payload.locale !== input.locale ||
+        payload.regionId !== input.regionId ||
+        payload.simulationRuns !== input.simulationRuns
+      ) {
+        throw new Error("PREVIEW_EXPIRED_OR_STALE");
+      }
+      return analysisSchema.parse(payload.analysis);
+    } catch {
+      throw new BadRequestException("PREVIEW_EXPIRED_OR_STALE");
+    }
+  }
 }
 
 @WebSocketGateway({
@@ -286,7 +398,9 @@ export class WorldGateway implements OnGatewayConnection {
 
   async handleConnection(client: Socket): Promise<void> {
     const token =
-      typeof client.handshake.auth.token === "string" ? client.handshake.auth.token : undefined;
+      typeof client.handshake.auth.token === "string"
+        ? client.handshake.auth.token
+        : undefined;
     if (!token) {
       client.data.access = "read-only";
       return;
@@ -301,7 +415,10 @@ export class WorldGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage("world.subscribe")
-  subscribe(@ConnectedSocket() client: Socket, @MessageBody() body: { planetId?: string }) {
+  subscribe(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { planetId?: string },
+  ) {
     client.join(body.planetId ?? "primary-world");
     return { subscribed: true, mode: client.data.access };
   }
@@ -347,7 +464,10 @@ class WorldController {
   @Post("contributions/confirm")
   @ApiBearerAuth()
   @UseGuards(AccessTokenGuard)
-  confirm(@CurrentUser() user: { id: string }, @Body() input: ConfirmContributionDto) {
+  confirm(
+    @CurrentUser() user: { id: string },
+    @Body() input: ConfirmContributionDto,
+  ) {
     return this.world.confirm(user.id, input);
   }
 

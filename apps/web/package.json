@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "pnpm --filter @planet/shared-types build",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "check": "tsc --noEmit",
-    "lint": "next lint",
+    "check": "next typegen && tsc --noEmit",
+    "lint": "next typegen && tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

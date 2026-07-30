@@ -6,11 +6,19 @@ import type {
   WorldEvent,
   WorldState,
 } from "@planet/shared-types";
-import { clamp, round, SeededRandom } from "./prng";
-import { createEvent, stateChecksum } from "./world-generator";
+import { clamp, round, SeededRandom } from "./prng.js";
+import { createEvent, stateChecksum } from "./world-generator.js";
 
 type RegionDelta = Partial<
-  Pick<PlanetRegion, "vegetation" | "pollution" | "water" | "fertility" | "temperature" | "population">
+  Pick<
+    PlanetRegion,
+    | "vegetation"
+    | "pollution"
+    | "water"
+    | "fertility"
+    | "temperature"
+    | "population"
+  >
 >;
 
 function cloneState(state: WorldState): WorldState {
@@ -20,14 +28,21 @@ function cloneState(state: WorldState): WorldState {
 function recalculatePlanet(state: WorldState): void {
   const land = state.regions.filter((region) => region.biome !== "ocean");
   state.planet.globalTemperature = round(
-    state.regions.reduce((sum, region) => sum + region.temperature, 0) / state.regions.length,
+    state.regions.reduce((sum, region) => sum + region.temperature, 0) /
+      state.regions.length,
   );
   state.planet.globalPollution = round(
-    land.reduce((sum, region) => sum + region.pollution, 0) / Math.max(1, land.length),
+    land.reduce((sum, region) => sum + region.pollution, 0) /
+      Math.max(1, land.length),
   );
   state.planet.biodiversity = Math.max(
     0,
-    Math.round(land.reduce((sum, region) => sum + region.vegetation * (1 - region.pollution), 0) * 24),
+    Math.round(
+      land.reduce(
+        (sum, region) => sum + region.vegetation * (1 - region.pollution),
+        0,
+      ) * 24,
+    ),
   );
   state.planet.population = state.civilizations.reduce(
     (sum, civilization) => sum + civilization.population,
@@ -49,7 +64,9 @@ export function applyEvent(state: WorldState, event: WorldEvent): WorldState {
   };
 
   if (event.type === "CONTRIBUTION_ADDED" && payload.contribution) {
-    const exists = next.contributions.some((item) => item.id === payload.contribution?.id);
+    const exists = next.contributions.some(
+      (item) => item.id === payload.contribution?.id,
+    );
     if (!exists) next.contributions.push(payload.contribution);
   }
 
@@ -85,13 +102,25 @@ export function applyEvent(state: WorldState, event: WorldEvent): WorldState {
   return next;
 }
 
-function contributionId(seed: string, ownerId: string, tick: number, name: string): string {
+function contributionId(
+  seed: string,
+  ownerId: string,
+  tick: number,
+  name: string,
+): string {
   const random = new SeededRandom(`${seed}:${ownerId}:${tick}:${name}`);
-  return `contrib_${Math.floor(random.next() * 0xffffffff).toString(16).padStart(8, "0")}`;
+  return `contrib_${Math.floor(random.next() * 0xffffffff)
+    .toString(16)
+    .padStart(8, "0")}`;
 }
 
 function nextEventSequence(state: WorldState): number {
-  return Math.max(state.planet.eventCount, state.latestEvents.at(-1)?.sequence ?? 0) + 1;
+  return (
+    Math.max(
+      state.planet.eventCount,
+      state.latestEvents.at(-1)?.sequence ?? 0,
+    ) + 1
+  );
 }
 
 export function addContribution(
@@ -100,7 +129,8 @@ export function addContribution(
   analysis: ContributionAnalysis,
   regionId: string,
 ): { state: WorldState; events: WorldEvent[]; delta: DeltaUpdate } {
-  if (!analysis.moderation.accepted) throw new Error("CONTRIBUTION_REJECTED_BY_MODERATION");
+  if (!analysis.moderation.accepted)
+    throw new Error("CONTRIBUTION_REJECTED_BY_MODERATION");
   const region = state.regions.find((item) => item.id === regionId);
   if (!region) throw new Error("REGION_NOT_FOUND");
   if (region.biome === "ocean" && !analysis.possibleBiomes.includes("ocean")) {
@@ -108,7 +138,12 @@ export function addContribution(
   }
 
   const contribution: UserContribution = {
-    id: contributionId(state.planet.seed, ownerId, state.planet.tick, analysis.name),
+    id: contributionId(
+      state.planet.seed,
+      ownerId,
+      state.planet.tick,
+      analysis.name,
+    ),
     ownerId,
     category: analysis.category,
     name: analysis.name,
@@ -136,12 +171,16 @@ export function addContribution(
     payload: { contribution },
     titleAr: `إضافة ${contribution.name} إلى العالم`,
     titleEn: `${contribution.name} entered the world`,
-    descriptionAr: "اجتازت الإضافة التحقق والتوازن وبدأ أثرها من المنطقة المختارة.",
-    descriptionEn: "The contribution passed validation and balancing, and started in the selected region.",
+    descriptionAr:
+      "اجتازت الإضافة التحقق والتوازن وبدأ أثرها من المنطقة المختارة.",
+    descriptionEn:
+      "The contribution passed validation and balancing, and started in the selected region.",
   });
   events.push(addedEvent);
 
-  const vegetationDelta = round(analysis.traits.growthRate * region.fertility * 0.045);
+  const vegetationDelta = round(
+    analysis.traits.growthRate * region.fertility * 0.045,
+  );
   if (vegetationDelta > 0.005 && analysis.category === "plant") {
     events.push(
       createEvent(state.planet.seed, sequence++, {
@@ -162,7 +201,8 @@ export function addContribution(
         titleAr: `بدأ ${contribution.name} بالانتشار`,
         titleEn: `${contribution.name} started spreading`,
         descriptionAr: "سمحت خصوبة التربة ومعدل النمو بزيادة الغطاء النباتي.",
-        descriptionEn: "Soil fertility and growth rate increased vegetation cover.",
+        descriptionEn:
+          "Soil fertility and growth rate increased vegetation cover.",
       }),
     );
   }
@@ -190,13 +230,16 @@ export function addContribution(
         titleAr: `انخفض التلوث بفعل ${contribution.name}`,
         titleEn: `${contribution.name} reduced pollution`,
         descriptionAr: "امتص العنصر جزءًا محسوبًا من ملوثات المنطقة.",
-        descriptionEn: "The contribution absorbed a calculated share of regional pollutants.",
+        descriptionEn:
+          "The contribution absorbed a calculated share of regional pollutants.",
       }),
     );
   }
 
   const waterDelta = round(
-    -analysis.traits.waterNeed * analysis.traits.size * (0.012 + analysis.traits.growthRate * 0.008),
+    -analysis.traits.waterNeed *
+      analysis.traits.size *
+      (0.012 + analysis.traits.growthRate * 0.008),
   );
   if (waterDelta < -0.006) {
     events.push(
@@ -217,8 +260,10 @@ export function addContribution(
         },
         titleAr: `ازداد الضغط على مياه ${region.nameAr}`,
         titleEn: `Water stress increased in ${region.nameEn}`,
-        descriptionAr: "رفع الاحتياج المائي والكتلة الحيوية استهلاك المياه السطحية.",
-        descriptionEn: "Water demand and biomass increased surface-water consumption.",
+        descriptionAr:
+          "رفع الاحتياج المائي والكتلة الحيوية استهلاك المياه السطحية.",
+        descriptionEn:
+          "Water demand and biomass increased surface-water consumption.",
       }),
     );
   }
@@ -229,6 +274,7 @@ export function addContribution(
   const delta: DeltaUpdate = {
     sequence: events.at(-1)!.sequence,
     tick: next.planet.tick,
+    planet: next.planet,
     changedRegions: [
       {
         id: regionId,
@@ -249,32 +295,68 @@ export function runTick(
   let next = cloneState(state);
   const tick = state.planet.tick + 1;
   const year = state.planet.year + yearsPerTick;
-  const changedRegions: DeltaUpdate["changedRegions"] = [];
+  const changedRegions = new Map<
+    string,
+    DeltaUpdate["changedRegions"][number]
+  >();
+  const markChanged = (
+    regionId: string,
+    patch: Omit<DeltaUpdate["changedRegions"][number], "id">,
+  ) => {
+    changedRegions.set(regionId, {
+      ...changedRegions.get(regionId),
+      ...patch,
+      id: regionId,
+    });
+  };
   const events: WorldEvent[] = [];
   let sequence = nextEventSequence(state);
 
   for (const region of next.regions) {
     if (region.biome === "ocean") continue;
-    const random = new SeededRandom(`${state.planet.seed}:tick:${tick}:${region.id}`);
-    const seasonalMoisture = (region.precipitation - 0.5) * 0.002 * yearsPerTick;
+    const random = new SeededRandom(
+      `${state.planet.seed}:tick:${tick}:${region.id}`,
+    );
+    const seasonalMoisture =
+      (region.precipitation - 0.5) * 0.002 * yearsPerTick;
     const pollutionWarming = region.pollution * 0.0015 * yearsPerTick;
-    const volcanicForcing = region.biome === "volcanic" ? 0.0004 * yearsPerTick : 0;
+    const volcanicForcing =
+      region.biome === "volcanic" ? 0.0004 * yearsPerTick : 0;
     const boundedWeather = (random.next() - 0.5) * 0.0006 * yearsPerTick;
     const temperatureBefore = region.temperature;
     const waterBefore = region.water;
-    region.temperature = round(clamp(region.temperature + pollutionWarming + volcanicForcing + boundedWeather));
-    region.water = round(clamp(region.water + seasonalMoisture - Math.max(0, region.temperature - 0.72) * 0.001));
+    const vegetationBefore = region.vegetation;
+    region.temperature = round(
+      clamp(
+        region.temperature +
+          pollutionWarming +
+          volcanicForcing +
+          boundedWeather,
+      ),
+    );
+    region.water = round(
+      clamp(
+        region.water +
+          seasonalMoisture -
+          Math.max(0, region.temperature - 0.72) * 0.001,
+      ),
+    );
     region.vegetation = round(
       clamp(
         region.vegetation +
-          (region.fertility * region.water - region.vegetation) * 0.003 * yearsPerTick -
+          (region.fertility * region.water - region.vegetation) *
+            0.003 *
+            yearsPerTick -
           region.pollution * 0.001 * yearsPerTick,
       ),
     );
 
-    if (Math.abs(region.temperature - temperatureBefore) > 0.001 || Math.abs(region.water - waterBefore) > 0.001) {
-      changedRegions.push({
-        id: region.id,
+    if (
+      region.temperature !== temperatureBefore ||
+      region.water !== waterBefore ||
+      region.vegetation !== vegetationBefore
+    ) {
+      markChanged(region.id, {
         temperature: region.temperature,
         water: region.water,
         vegetation: region.vegetation,
@@ -283,7 +365,9 @@ export function runTick(
   }
 
   for (const contribution of next.contributions) {
-    const region = next.regions.find((item) => item.id === contribution.regionId);
+    const region = next.regions.find(
+      (item) => item.id === contribution.regionId,
+    );
     if (!region) continue;
     const growth =
       contribution.traits.growthRate *
@@ -292,13 +376,21 @@ export function runTick(
       yearsPerTick;
     region.vegetation = round(clamp(region.vegetation + growth * 0.002));
     region.water = round(
-      clamp(region.water - contribution.traits.waterNeed * contribution.traits.size * yearsPerTick * 0.0007),
+      clamp(
+        region.water -
+          contribution.traits.waterNeed *
+            contribution.traits.size *
+            yearsPerTick *
+            0.0007,
+      ),
     );
     region.pollution = round(
-      clamp(region.pollution - contribution.traits.pollutionAbsorption * yearsPerTick * 0.0009),
+      clamp(
+        region.pollution -
+          contribution.traits.pollutionAbsorption * yearsPerTick * 0.0009,
+      ),
     );
-    changedRegions.push({
-      id: region.id,
+    markChanged(region.id, {
       vegetation: region.vegetation,
       water: region.water,
       pollution: region.pollution,
@@ -306,12 +398,21 @@ export function runTick(
   }
 
   for (const civilization of next.civilizations) {
-    const region = next.regions.find((item) => item.id === civilization.regionId);
+    const region = next.regions.find(
+      (item) => item.id === civilization.regionId,
+    );
     if (!region) continue;
-    const climatePenalty = Math.max(0, Math.abs(region.temperature - 0.55) - 0.25);
+    const climatePenalty = Math.max(
+      0,
+      Math.abs(region.temperature - 0.55) - 0.25,
+    );
     const effectiveCapacity = Math.max(
       1,
-      Math.round(region.carryingCapacity * (1 - climatePenalty) * (1 - region.pollution * 0.5)),
+      Math.round(
+        region.carryingCapacity *
+          (1 - climatePenalty) *
+          (1 - region.pollution * 0.5),
+      ),
     );
     const logisticGrowth =
       civilization.population *
@@ -320,13 +421,26 @@ export function runTick(
       (1 - civilization.population / effectiveCapacity);
     civilization.population = Math.max(
       0,
-      Math.min(effectiveCapacity, Math.round(civilization.population + logisticGrowth)),
+      Math.min(
+        effectiveCapacity,
+        Math.round(civilization.population + logisticGrowth),
+      ),
     );
     region.population = civilization.population;
     civilization.pollution = round(
-      clamp(civilization.pollution + civilization.economy * 0.0004 * yearsPerTick - civilization.technology * 0.00015),
+      clamp(
+        civilization.pollution +
+          civilization.economy * 0.0004 * yearsPerTick -
+          civilization.technology * 0.00015,
+      ),
     );
-    region.pollution = round(clamp(region.pollution + civilization.pollution * 0.0005 * yearsPerTick));
+    region.pollution = round(
+      clamp(region.pollution + civilization.pollution * 0.0005 * yearsPerTick),
+    );
+    markChanged(region.id, {
+      population: region.population,
+      pollution: region.pollution,
+    });
   }
 
   next.planet.tick = tick;
@@ -334,7 +448,8 @@ export function runTick(
   next.planet.status = "running";
 
   const averageTemperature =
-    next.regions.reduce((sum, region) => sum + region.temperature, 0) / next.regions.length;
+    next.regions.reduce((sum, region) => sum + region.temperature, 0) /
+    next.regions.length;
   if (
     tick % 10 === 0 &&
     Math.abs(averageTemperature - state.planet.globalTemperature) >= 0.0001
@@ -346,15 +461,22 @@ export function runTick(
       cause: "aggregate_pollution_vegetation_and_volcanic_forcing",
       actorIds: [],
       confidence: 0.88,
-      directImpact: { globalTemperature: round(averageTemperature - state.planet.globalTemperature, 6) },
+      directImpact: {
+        globalTemperature: round(
+          averageTemperature - state.planet.globalTemperature,
+          6,
+        ),
+      },
       payload: {
         previousTemperature: state.planet.globalTemperature,
         currentTemperature: round(averageTemperature),
       },
       titleAr: "سُجل تغير مناخي قابل للقياس",
       titleEn: "A measurable climate shift was recorded",
-      descriptionAr: "تراكم أثر التلوث والغطاء النباتي والنشاط البركاني خلال عشر دورات.",
-      descriptionEn: "Pollution, vegetation, and volcanic forcing accumulated over ten ticks.",
+      descriptionAr:
+        "تراكم أثر التلوث والغطاء النباتي والنشاط البركاني خلال عشر دورات.",
+      descriptionEn:
+        "Pollution, vegetation, and volcanic forcing accumulated over ten ticks.",
     });
     events.push(event);
     next.latestEvents.push(event);
@@ -369,13 +491,17 @@ export function runTick(
     delta: {
       sequence: events.at(-1)?.sequence ?? state.planet.eventCount,
       tick,
-      changedRegions: [...new Map(changedRegions.map((region) => [region.id, region])).values()],
+      planet: next.planet,
+      changedRegions: [...changedRegions.values()],
       events,
     },
   };
 }
 
-export function replayEvents(initial: WorldState, events: WorldEvent[]): WorldState {
+export function replayEvents(
+  initial: WorldState,
+  events: WorldEvent[],
+): WorldState {
   return [...events]
     .sort((a, b) => a.sequence - b.sequence)
     .reduce((state, event) => applyEvent(state, event), cloneState(initial));

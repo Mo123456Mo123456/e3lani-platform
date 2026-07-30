@@ -5,6 +5,7 @@ import {
   Controller,
   createParamDecorator,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   Module,
   Post,
@@ -14,7 +15,12 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  scrypt as scryptCallback,
+  timingSafeEqual,
+} from "node:crypto";
 import { promisify } from "node:util";
 import { SignJWT, jwtVerify } from "jose";
 import { IsEmail, IsIn, IsString, Length } from "class-validator";
@@ -66,12 +72,17 @@ class RefreshDto {
 @Injectable()
 export class AuthService {
   private readonly secret: Uint8Array;
-  private readonly accessTtl = Number(process.env.ACCESS_TOKEN_TTL_SECONDS ?? 900);
-  private readonly refreshTtl = Number(process.env.REFRESH_TOKEN_TTL_SECONDS ?? 2_592_000);
+  private readonly accessTtl = Number(
+    process.env.ACCESS_TOKEN_TTL_SECONDS ?? 900,
+  );
+  private readonly refreshTtl = Number(
+    process.env.REFRESH_TOKEN_TTL_SECONDS ?? 2_592_000,
+  );
 
   constructor(private readonly database: DatabaseService) {
     const secret = process.env.JWT_SECRET;
-    if (!secret || secret.length < 32) throw new Error("JWT_SECRET must contain at least 32 characters");
+    if (!secret || secret.length < 32)
+      throw new Error("JWT_SECRET must contain at least 32 characters");
     this.secret = new TextEncoder().encode(secret);
   }
 
@@ -101,14 +112,20 @@ export class AuthService {
   }
 
   async login(input: LoginDto) {
-    const rows = await this.database.query<AuthUser & { passwordHash: string; status: string }>(
+    const rows = await this.database.query<
+      AuthUser & { passwordHash: string; status: string }
+    >(
       `SELECT id,email,role,preferred_locale AS "preferredLocale",
               password_hash AS "passwordHash",status
        FROM users WHERE email=$1`,
       [input.email.trim().toLowerCase()],
     );
     const user = rows[0];
-    if (!user || user.status !== "active" || !(await this.verifyPassword(input.password, user.passwordHash))) {
+    if (
+      !user ||
+      user.status !== "active" ||
+      !(await this.verifyPassword(input.password, user.passwordHash))
+    ) {
       throw new UnauthorizedException("INVALID_CREDENTIALS");
     }
     return this.issueSession(user);
@@ -116,20 +133,22 @@ export class AuthService {
 
   async refresh(rawToken: string) {
     const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-    const rows = await this.database.query<AuthUser & { tokenId: string }>(
-      `SELECT u.id,u.email,u.role,u.preferred_locale AS "preferredLocale",rt.id AS "tokenId"
-       FROM refresh_tokens rt
-       JOIN users u ON u.id=rt.user_id
-       WHERE rt.token_hash=$1 AND rt.revoked_at IS NULL AND rt.rotated_at IS NULL
-         AND rt.expires_at > now() AND u.status='active'`,
+    const rows = await this.database.query<AuthUser>(
+      `WITH consumed AS (
+         UPDATE refresh_tokens
+         SET rotated_at=now()
+         WHERE token_hash=$1 AND revoked_at IS NULL AND rotated_at IS NULL
+           AND expires_at > now()
+         RETURNING user_id
+       )
+       SELECT u.id,u.email,u.role,u.preferred_locale AS "preferredLocale"
+       FROM consumed
+       JOIN users u ON u.id=consumed.user_id
+       WHERE u.status='active'`,
       [tokenHash],
     );
     const user = rows[0];
     if (!user) throw new UnauthorizedException("INVALID_REFRESH_TOKEN");
-    await this.database.query(
-      "UPDATE refresh_tokens SET rotated_at=now() WHERE id=$1 AND rotated_at IS NULL",
-      [user.tokenId],
-    );
     return this.issueSession(user);
   }
 
@@ -139,7 +158,11 @@ export class AuthService {
         issuer: "planet-born-api",
         audience: "planet-born-web",
       });
-      if (!payload.sub || typeof payload.email !== "string" || typeof payload.role !== "string") {
+      if (
+        !payload.sub ||
+        typeof payload.email !== "string" ||
+        typeof payload.role !== "string"
+      ) {
         throw new Error("Invalid token claims");
       }
       return {
@@ -192,12 +215,21 @@ export class AuthService {
     return `scrypt:${salt.toString("hex")}:${key.toString("hex")}`;
   }
 
-  private async verifyPassword(password: string, encoded: string): Promise<boolean> {
+  private async verifyPassword(
+    password: string,
+    encoded: string,
+  ): Promise<boolean> {
     const [algorithm, saltHex, keyHex] = encoded.split(":");
     if (algorithm !== "scrypt" || !saltHex || !keyHex) return false;
     const expected = Buffer.from(keyHex, "hex");
-    const actual = (await scrypt(password, Buffer.from(saltHex, "hex"), expected.length)) as Buffer;
-    return expected.length === actual.length && timingSafeEqual(expected, actual);
+    const actual = (await scrypt(
+      password,
+      Buffer.from(saltHex, "hex"),
+      expected.length,
+    )) as Buffer;
+    return (
+      expected.length === actual.length && timingSafeEqual(expected, actual)
+    );
   }
 }
 
@@ -208,7 +240,8 @@ export class AccessTokenGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const [scheme, token] = request.headers.authorization?.split(" ") ?? [];
-    if (scheme !== "Bearer" || !token) throw new UnauthorizedException("ACCESS_TOKEN_REQUIRED");
+    if (scheme !== "Bearer" || !token)
+      throw new UnauthorizedException("ACCESS_TOKEN_REQUIRED");
     request.user = await this.auth.verifyAccessToken(token);
     return true;
   }
@@ -229,7 +262,7 @@ export class RoleGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const role = request.user?.role;
     if (role === "super_admin" || (role && allowed.includes(role))) return true;
-    throw new UnauthorizedException("ROLE_NOT_ALLOWED");
+    throw new ForbiddenException("ROLE_NOT_ALLOWED");
   }
 }
 

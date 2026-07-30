@@ -9,13 +9,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   constructor() {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
-      throw new Error("DATABASE_URL is required. Use docker compose for a local PostgreSQL sandbox.");
+      throw new Error(
+        "DATABASE_URL is required. Use docker compose for a local PostgreSQL sandbox.",
+      );
     }
     this.pool = new Pool({
       connectionString,
       max: Number(process.env.DATABASE_POOL_SIZE ?? 10),
       idleTimeoutMillis: 30_000,
-      ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: true } : undefined,
+      ssl:
+        process.env.DATABASE_SSL === "true"
+          ? { rejectUnauthorized: true }
+          : undefined,
     });
   }
 
@@ -25,7 +30,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       "SELECT to_regclass('public.planets')::text AS exists",
     );
     if (!result.rows[0]?.exists) {
-      throw new Error("Database is not migrated. Run `pnpm db:migrate` before starting the API.");
+      throw new Error(
+        "Database is not migrated. Run `pnpm db:migrate` before starting the API.",
+      );
     }
   }
 
@@ -33,7 +40,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await this.pool.end();
   }
 
-  async query<T extends QueryResultRow>(text: string, values: unknown[] = []): Promise<T[]> {
+  async query<T extends QueryResultRow>(
+    text: string,
+    values: unknown[] = [],
+  ): Promise<T[]> {
     return (await this.pool.query<T>(text, values)).rows;
   }
 
@@ -50,7 +60,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return rows[0]?.state ?? null;
   }
 
-  async listEvents(planetId: string, limit: number, beforeSequence?: number): Promise<WorldEvent[]> {
+  async listEvents(
+    planetId: string,
+    limit: number,
+    beforeSequence?: number,
+  ): Promise<WorldEvent[]> {
     const rows = await this.query<{ event: WorldEvent }>(
       `SELECT jsonb_build_object(
           'id', id, 'planetId', planet_id, 'sequence', sequence, 'tick', tick, 'year', year,
@@ -73,6 +87,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     events: WorldEvent[],
     changedRegionIds?: string[],
     tickDurationMs = 0,
+    tickEventCount = events.length,
   ): Promise<void> {
     const client = await this.pool.connect();
     try {
@@ -80,7 +95,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       await this.upsertPlanet(client, state);
       const changedSet = changedRegionIds ? new Set(changedRegionIds) : null;
       for (const region of state.regions) {
-        if (!changedSet || changedSet.has(region.id)) await this.upsertRegion(client, state, region);
+        if (!changedSet || changedSet.has(region.id))
+          await this.upsertRegion(client, state, region);
       }
       for (const civilization of state.civilizations) {
         await client.query(
@@ -149,7 +165,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             state.planet.year,
             `${state.planet.seed}:${state.planet.tick}`,
             tickDurationMs,
-            events.length,
+            tickEventCount,
             state.checksum,
           ],
         );
@@ -176,7 +192,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async upsertPlanet(client: PoolClient, state: WorldState): Promise<void> {
+  private async upsertPlanet(
+    client: PoolClient,
+    state: WorldState,
+  ): Promise<void> {
     await client.query(
       `INSERT INTO planets(id,seed,name_ar,name_en,algorithm_version,current_tick,current_year,status)
        VALUES($1,$2,$3,$4,'1.0.0',$5,$6,$7)
@@ -235,7 +254,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  private async insertEvent(client: PoolClient, event: WorldEvent): Promise<void> {
+  private async insertEvent(
+    client: PoolClient,
+    event: WorldEvent,
+  ): Promise<void> {
     await client.query(
       `INSERT INTO world_events(
          id,planet_id,sequence,tick,year,type,cause,region_id,contribution_id,actor_ids,
