@@ -1,0 +1,18 @@
+FROM node:22-bookworm-slim AS base
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json .npmrc ./
+COPY packages ./packages
+COPY services ./services
+RUN pnpm install --frozen-lockfile=false
+RUN pnpm --filter @planet-born/shared-types build \
+ && pnpm --filter @planet-born/config build \
+ && pnpm --filter @planet-born/validation build \
+ && pnpm --filter @planet-born/simulation-models build \
+ && pnpm --filter @planet-born/ai-orchestrator build \
+ && pnpm --filter @planet-born/simulation-engine build \
+ && pnpm --filter @planet-born/realtime-gateway build \
+ && pnpm --filter @planet-born/world-generator build \
+ && pnpm --filter @planet-born/notification-worker build
+EXPOSE 4100 4200 4300 4400 4500
+CMD ["node", "services/realtime-gateway/dist/index.js"]

@@ -1,86 +1,163 @@
-# إعلاني | E3lani
+# كوكب يولد أمامك / A Planet Born Before You
 
-**إعلاني** منصة إعلانات مرئية للجوال، عربية افتراضيًا مع دعم الإنجليزية، تجمع استكشاف الإعلانات وإنشاءها وإدارتها ومراجعتها في تطبيق واحد. صُممت الواجهة لوضع الجوال العمودي والاستخدام بيد واحدة، مع تنقل سفلي خماسي وتجارب منفصلة للزائر والمعلن وفريق الإدارة.[1]
+**عالمك، قرارك، أثر لا ينتهي.**  
+**Your world, your decision, an endless impact.**
 
-> النسخة الحالية **نسخة تشغيلية محلية موثقة**: تحفظ حالة المنتج في `AsyncStorage`، وتستخدم رمز دخول ودفعًا تجريبيين معلنين داخل الواجهة. مخطط قاعدة البيانات وطبقة الخادم موجودان للتوسعة، لكن ربط مزودي المصادقة والدفع والتخزين والإشعارات الحقيقيين مطلوب قبل الإطلاق التجاري.[3]
+منصة ويب حيّة تعرض كوكبًا ثلاثي الأبعاد إجرائيًا يتطور باستمرار. يضيف المستخدم عنصرًا واحدًا، فيحسب **محرك محاكاة سببي حتمي** الآثار، ثم يصوغ الذكاء الاصطناعي شرحًا مرتبطًا بنتائج المحاكاة فقط.
 
-## حالة المشروع
+---
 
-| البند | الحالة الحالية |
-|---|---|
-| المنصات | iOS وAndroid وWeb عبر Expo SDK 54 |
-| اللغة | العربية RTL افتراضيًا والإنجليزية LTR |
-| التخزين التشغيلي | محلي عبر `AsyncStorage` مع بوابة تحميل وخطأ وإعادة محاولة |
-| المصادقة | OTP تجريبي موثق؛ الرمز `123456` |
-| الدفع | مزود `sandbox` موثق؛ لا توجد حركة مالية حقيقية |
-| قاعدة البيانات | مخطط MySQL/Drizzle جاهز، وغير مستخدم لتدفقات الواجهة المحلية حاليًا |
-| الجودة | TypeScript وESLint وVitest وبناء الخادم وتصدير Expo ناجحة[2] |
+## English summary
 
-## القدرات الرئيسية
+A production-oriented monorepo for a living procedural planet: deterministic simulation first, AI for structured parsing/narrative second, WebGL globe, realtime events, admin RBAC, Docker, and tests.
 
-| المجال | ما يتضمنه التطبيق |
-|---|---|
-| الاستكشاف | خلاصة مرئية، أقسام، بحث نصي، فلاتر مدينة وقسم، تفاصيل إعلان، وبراندات |
-| الثقة | حفظ ومشاركة وبلاغ وحظر معلن، مع حالات واضحة للفراغ والخطأ والنجاح |
-| المعلن | معالج إنشاء من خمس خطوات، وسائط، بيانات، تواصل، ترويج، معاينة، دفع، فواتير، وإحصاءات |
-| دورة حياة الإعلان | دفع، مراجعة، قبول أو طلب تعديل أو رفض، تفعيل، إيقاف، استئناف، تمديد، انتهاء، وإعادة نشر |
-| الإدارة | مركز عمل، مراجعة، بلاغات، مدفوعات، مستخدمون وأدوار، براندات، كتالوج، إعدادات، وسجل تدقيق |
-| الوصول | أسماء وأدوار وحالات اختيار وتعطيل، وأهداف لمس مناسبة في المكونات والمسارات الأساسية |
+---
 
-## التشغيل المحلي
+## المعمارية
 
-يتطلب المشروع Node.js و`pnpm`. من جذر المشروع شغّل:
+```
+apps/
+  web/                 Next.js + R3F planet dashboard (ar RTL / en LTR)
+  admin/               Admin console (not linked from public nav)
+services/
+  api/                 Fastify REST + OpenAPI + auth + world API
+  simulation-engine/   HTTP wrapper around simulation-models
+  ai-orchestrator/     Provider adapters (OpenAI/Anthropic/Gemini/Mock)
+  realtime-gateway/    WebSocket delta updates
+  world-generator/     Procedural generation service
+  notification-worker/ Contribution follow-up notifications
+packages/
+  shared-types/        Zod schemas & enums
+  simulation-models/   Seeded RNG, climate, ecology, civs, causal graph
+  validation/          Moderation / injection guards
+  config/              Brand, ports, balance limits
+  ui/                  Shared glass UI primitives
+  analytics/           Privacy-aware event buffer
+```
+
+محرك المحاكاة **منفصل** عن الواجهة وعن نموذج اللغة. النتائج الرقمية تُحسب خوارزميًا؛ السرد يُقيَّد بأحداث المحاكاة.
+
+تفاصيل إضافية:
+- [مخطط المعمارية](./docs/architecture/OVERVIEW.md)
+- [محرك المحاكاة](./docs/algorithms/SIMULATION.md)
+- [ربط الذكاء الاصطناعي](./docs/architecture/AI.md)
+- [مخطط قاعدة البيانات](./docs/architecture/DATABASE.md)
+
+---
+
+## التشغيل السريع (Sandbox بدون Docker)
+
+يتطلب Node.js 22 و`pnpm`.
 
 ```bash
 pnpm install
-pnpm dev
+pnpm --filter @planet-born/shared-types build
+pnpm --filter @planet-born/config build
+pnpm --filter @planet-born/validation build
+pnpm --filter @planet-born/simulation-models build
+
+# طرفيات منفصلة:
+pnpm --filter @planet-born/api dev                 # :4000  (memory mode)
+pnpm --filter @planet-born/ai-orchestrator dev     # :4100  (Mock provider)
+pnpm --filter @planet-born/realtime-gateway dev    # :4300
+pnpm --filter @planet-born/simulation-engine dev   # :4200
+pnpm --filter @planet-born/web dev                 # :3000
+pnpm --filter @planet-born/admin dev               # :3001
 ```
 
-يشغّل الأمر خادم API وMetro معًا. ويمكن تشغيل كل جزء منفصلًا عبر `pnpm dev:server` و`pnpm dev:metro`. لا يحتاج وضع العرض المحلي إلى قاعدة بيانات أو مفاتيح مزودين خارجيين.
+بدون `DATABASE_URL` يعمل الـ API في **وضع الذاكرة** مع بذرة تلقائية.
 
-### تجربة التدفقات التجريبية
+OpenAPI: `http://localhost:4000/docs`
 
-استخدم أي رقم جوال صالح بطول لا يقل عن ثمانية محارف، ثم أدخل رمز الاختبار `123456`. عند إنشاء إعلان، يعرض التطبيق السعر والضريبة والإضافات قبل الانتقال إلى الدفع. زر **تأكيد دفع تجريبي** ينقل الطلب إلى المراجعة فقط، ولا ينفذ عملية مالية.
+---
 
-## أوامر الجودة
+## حسابات Sandbox
 
-| الأمر | الغرض |
+| الدور | البريد | كلمة المرور |
+|---|---|---|
+| Super Admin | `admin@planet.born` | `PlanetAdmin!2026` |
+| مستكشف | `explorer@planet.born` | `Explorer!2026` |
+
+بيانات الإدارة موثّقة هنا فقط؛ لا تُعرض في واجهة المستخدم العادية.
+
+---
+
+## Docker Compose
+
+```bash
+# بنية تحتية فقط إن رغبت بـ Postgres/Redis/MinIO:
+docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+
+export DATABASE_URL=postgres://planet:planet@localhost:5432/planet_born
+pnpm --filter @planet-born/api db:migrate
+pnpm --filter @planet-born/api db:seed
+```
+
+ملفات Docker للخدمات موجودة تحت `infra/docker/`.
+
+---
+
+## متغيرات البيئة
+
+انسخ:
+
+- `.env.example` (جذر)
+- `services/api/.env.example`
+- `services/ai-orchestrator/.env.example`
+- `apps/web/.env.example`
+- `apps/admin/.env.example`
+
+عند غياب مفاتيح الذكاء الاصطناعي يُستخدم **MockProvider** مع `sandbox: true` — لا تُعرض النتائج كذكاء اصطناعي إنتاجي.
+
+مزودو الذكاء الاصطناعي المدعومون عبر المحوّلات: `mock` | `openai` | `anthropic` | `gemini`.
+
+---
+
+## تدفق المستخدم الحرج
+
+1. تسجيل / دخول  
+2. فتح الكوكب وتدويره وتكبيره (WebGL)  
+3. اختيار فئة وكتابة فكرة  
+4. تحليل منظم + توازن  
+5. اختيار موقع وإضافة للعالم  
+6. تشغيل تكات المحاكاة  
+7. ظهور أحداث في السجل وقاعدة البيانات / الذاكرة  
+8. سيناريوهات مستقبلية (Monte Carlo)  
+9. خريطة سببية للأثر  
+
+---
+
+## الاختبارات
+
+```bash
+pnpm --filter @planet-born/simulation-models test
+pnpm --filter @planet-born/api test
+pnpm --filter @planet-born/ai-orchestrator test
+```
+
+اختبارات إلزامية مغطاة جزئيًا/كليًا: حتمية الـ Seed، إعادة التشغيل، التوازن، منع السرد المختلق، عدم خلق حضارة بلا سكان.
+
+---
+
+## حالة الميزات
+
+| الميزة | الحالة |
 |---|---|
-| `pnpm check` | فحص TypeScript دون توليد ملفات |
-| `pnpm lint` | تشغيل قواعد Expo ESLint |
-| `pnpm test` | تشغيل اختبارات Vitest للمجال ودورة حياة الإعلان |
-| `pnpm build` | بناء خادم Node عبر esbuild |
-| `npx expo export --platform web --output-dir .expo-export` | التحقق من التصدير الثابت للويب |
-| `pnpm format` | تنسيق ملفات المشروع عبر Prettier |
+| محرك ticks حتمي + event sourcing في الحالة | مفعّل |
+| توليد كوكب إجرائي + مناخ/بيئة/حضارات | مفعّل |
+| AI adapters + sandbox | مفعّل (Mock افتراضيًا) |
+| كوكب WebGL + طبقات أساسية | مفعّل |
+| RTL/LTR | مفعّل |
+| لوحة إدارة RBAC | مفعّل |
+| PostgreSQL / memory dual mode | مفعّل |
+| NATS JetStream / OpenTelemetry كامل | غير مفعّل بالكامل — مهيأ للتوسع |
+| OAuth Google/Apple | غير مفعّل — البريد/كلمة المرور فقط حالياً |
+| PWA Service Worker | بيان Manifest فقط |
 
-## بنية المشروع
+أي مسار غير موصول يُعلَّم بوضوح في الواجهة أو الوثائق.
 
-| المسار | المسؤولية |
-|---|---|
-| `app/` | مسارات Expo Router للشاشات العامة والحساب والإدارة |
-| `components/e3lani/` | مكونات المنتج المشتركة وبطاقات الإعلان وبوابة الاستعادة |
-| `lib/e3lani-data.ts` | الأنواع والثوابت وقواعد التسعير ودورة الحياة القابلة للاختبار |
-| `lib/e3lani-store.tsx` | الحالة المحلية المتزامنة وإجراءات المنتج |
-| `lib/i18n.tsx` | قاموس العربية والإنجليزية واتجاه الواجهة |
-| `server/` | خادم Express/tRPC والقدرات الأساسية |
-| `drizzle/` | مخطط قاعدة البيانات والمهاجرات |
-| `tests/` | اختبارات المنطق الأساسي والتكامل |
-| `docs/` | دليل التشغيل والمزودين وسجل التحقق |
+---
 
-## الانتقال إلى الإنتاج
+## الترخيص
 
-لا ينبغي تحويل أعلام الواجهة أو اسم المزود فقط. يتطلب الإطلاق الحقيقي نقل القرارات الحساسة إلى الخادم، والتحقق من إيصالات الدفع عبر webhook موثوق، ورفع الوسائط إلى تخزين خاص، وتطبيق مصادقة فعلية وصلاحيات خادمية، وحفظ سجل التدقيق في قاعدة البيانات. يوضح [دليل التشغيل والمزودين][3] ترتيب الربط ومتغيرات البيئة وضوابط الإطلاق.
-
-عند اعتماد النسخة، استخدم زر **Publish** في واجهة إدارة المشروع بعد وجود نقطة استعادة. تتولى عملية النشر بناء الحزمة المناسبة، بما فيها APK عند اختياره، بدل تنفيذ بناء Android يدويًا داخل بيئة التطوير.
-
-## الوثائق المرجعية
-
-| المرجع | المحتوى |
-|---|---|
-| [1] | تصميم الواجهة والشاشات والتدفقات |
-| [2] | سجل الاختبارات والتحقق الوظيفي |
-| [3] | التشغيل والمزودون والجاهزية الإنتاجية |
-
-[1]: ./design.md "تصميم تطبيق إعلاني"
-[2]: ./docs/testing-notes.md "ملاحظات التحقق"
-[3]: ./docs/operations-and-providers.md "دليل التشغيل والمزودين"
+خاص بمشروع التسليم الحالي.

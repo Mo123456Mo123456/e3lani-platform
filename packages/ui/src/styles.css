@@ -1,0 +1,47 @@
+:root {
+  --pb-bg: #050a15;
+  --pb-bg-alt: #0a1224;
+  --pb-surface: rgba(12, 22, 42, 0.72);
+  --pb-border: rgba(120, 160, 220, 0.18);
+  --pb-text: #f2f5fa;
+  --pb-muted: #9aa8c0;
+  --pb-tech: #3dd6f5;
+  --pb-nature: #3dcf7a;
+  --pb-civ: #e6c35c;
+  --pb-migration: #a78bfa;
+  --pb-war: #ef4444;
+  --pb-hazard: #f97316;
+  --pb-radius: 14px;
+  --pb-font: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  --pb-font-display: "Tajawal", "IBM Plex Sans Arabic", sans-serif;
+}
+
+.pb-glass {
+  background: var(--pb-surface);
+  border: 1px solid var(--pb-border);
+  backdrop-filter: blur(16px);
+  border-radius: var(--pb-radius);
+}
+
+.pb-btn {
+  appearance: none;
+  border: 1px solid var(--pb-border);
+  background: linear-gradient(135deg, rgba(61, 214, 245, 0.18), rgba(61, 207, 122, 0.12));
+  color: var(--pb-text);
+  border-radius: 12px;
+  padding: 0.7rem 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.pb-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(61, 214, 245, 0.55);
+  box-shadow: 0 8px 24px rgba(61, 214, 245, 0.12);
+}
+
+.pb-btn-primary {
+  background: linear-gradient(135deg, #1aa7c4, #2f9e62);
+  border-color: transparent;
+}

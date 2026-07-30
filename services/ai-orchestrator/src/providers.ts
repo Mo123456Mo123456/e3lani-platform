@@ -24,18 +24,47 @@ export function mockContribution(
   input: AnalyzeContributionRequest,
 ): StructuredContribution {
   const category = input.category ?? inferCategory(input.idea);
+  const idea = input.idea;
+  const traits: Record<string, number> = {
+    adaptability: 0.55,
+    resilience: 0.5,
+    environmentalImpact: category === "disaster" ? 0.75 : 0.2,
+  };
+  if (/تلوث|pollution/i.test(idea)) traits.pollutionAbsorption = 0.9;
+  if (/يضيء|ليل|lumin|glow|light/i.test(idea)) traits.nightLuminosity = 0.8;
+  if (/عملاق|giant|huge/i.test(idea)) traits.size = 0.9;
+  if (/ماء|water/i.test(idea)) traits.waterNeed = 0.7;
+  if (/حرارة|heat|صحر/i.test(idea)) traits.heatResistance = 0.7;
+  if (/برد|ثلج|cold|ice/i.test(idea)) traits.coldResistance = 0.7;
+  if (/طاقة|energy|شمس|solar/i.test(idea)) traits.energyOutput = 0.75;
+  if (/تكاثر|reproduce/i.test(idea)) traits.reproductionRate = 0.45;
+
+  const biomes: StructuredContribution["possibleBiomes"] =
+    category === "plant"
+      ? ["temperate_forest", "rainforest", "plains"]
+      : category === "disaster"
+        ? ["mountain", "volcanic", "coast"]
+        : ["plains", "temperate_forest"];
+
+  const risks: string[] = [];
+  if ((traits.pollutionAbsorption ?? 0) > 0.7) risks.push("ecosystem_competition");
+  if ((traits.waterNeed ?? 0) > 0.6) risks.push("high_water_consumption");
+  if (category === "disaster") risks.push("regional_damage");
+
+  const benefits: string[] = [];
+  if ((traits.pollutionAbsorption ?? 0) > 0.5) benefits.push("pollution_reduction");
+  if ((traits.nightLuminosity ?? 0) > 0.5) benefits.push("night_visibility");
+  if ((traits.energyOutput ?? 0) > 0.5) benefits.push("energy_source");
+  if (!benefits.length && category !== "disaster") benefits.push("diversity");
+
   return StructuredContributionSchema.parse({
     category,
-    name: input.idea.trim().split(/\s+/).slice(0, 8).join(" ").slice(0, 120),
-    description: input.idea,
-    traits: {
-      adaptability: 0.55,
-      resilience: 0.5,
-      environmentalImpact: category === "disaster" ? 0.75 : 0.2,
-    },
-    possibleBiomes: ["plains", "temperate_forest"],
-    risks: category === "disaster" ? ["regional_damage"] : [],
-    benefits: category === "disaster" ? [] : ["diversity"],
+    name: idea.trim().split(/\s+/).slice(0, 8).join(" ").slice(0, 120),
+    description: idea,
+    traits,
+    possibleBiomes: biomes,
+    risks,
+    benefits,
     wasBalanced: false,
     balanceNotes: [],
   });
