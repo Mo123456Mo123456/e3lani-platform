@@ -231,7 +231,7 @@ export default function PlanetGlobe({
       uniforms: {
         uSurface: { value: new THREE.Texture() },
         uTime: { value: 0 },
-        uPollution: { value: pollution },
+        uPollution: { value: 0 },
       },
     });
     const globe = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), globeMaterial);
