@@ -1,0 +1,88 @@
+name: planet-genesis
+
+# Full local stack: PostgreSQL + API + AI orchestrator + simulation engine +
+# web + admin. Everything also runs WITHOUT this file (in-memory sandbox).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: planet
+      POSTGRES_PASSWORD: planet
+      POSTGRES_DB: planet_genesis
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planet"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    profiles: ["cache"]
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js"]
+    ports: ["4222:4222"]
+    profiles: ["bus"]
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "4100"
+      DATABASE_URL: postgres://planet:planet@postgres:5432/planet_genesis
+      JWT_SECRET: ${JWT_SECRET:-compose-dev-secret-change-me-please}
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8100
+      SIM_ENGINE_URL: http://simulation-engine:8200
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3100
+      AUTO_TICK: "true"
+      AUTO_TICK_INTERVAL_MS: "5000"
+    ports: ["4100:4100"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-orchestrator:
+        condition: service_started
+      simulation-engine:
+        condition: service_started
+
+  ai-orchestrator:
+    build:
+      context: ./services/ai-orchestrator
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports: ["8100:8100"]
+
+  simulation-engine:
+    build:
+      context: ./services/simulation-engine
+    ports: ["8200:8200"]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4100
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        API_URL: http://api:4100
+    ports: ["3100:3100"]
+    depends_on: [api]
+
+volumes:
+  pgdata:

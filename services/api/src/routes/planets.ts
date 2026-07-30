@@ -200,14 +200,95 @@ export function registerPlanetRoutes(app: FastifyInstance, ctx: AppContext): voi
     if (!parsed.success) return reply.code(422).send({ error: "invalid_input" });
     const body = request.body as { contributionId?: string };
     const engine = await ctx.worlds.ensureLoaded(planetId);
+
+    // heavy ensembles can be delegated to the scientific FastAPI service;
+    // otherwise the canonical TS engine runs the scenarios in-process
+    if (ctx.env.SIM_ENGINE_URL) {
+      try {
+        const report = await remoteScenarios(ctx.env.SIM_ENGINE_URL, engine, parsed.data, body?.contributionId);
+        ctx.tracker.track("scenario_requested", { userId: request.user.sub, planetId });
+        return { report, engineBackend: "python-simulation-engine" };
+      } catch {
+        // fall through to the in-process engine
+      }
+    }
     const report = runScenarios(engine, {
       horizonTicks: parsed.data.horizonTicks,
       runs: parsed.data.runs,
       contributionId: body?.contributionId,
     });
     ctx.tracker.track("scenario_requested", { userId: request.user.sub, planetId });
-    return { report };
+    return { report, engineBackend: "ts-canonical" };
   });
+}
+
+/** call the scientific FastAPI service with a compressed world summary */
+async function remoteScenarios(
+  baseUrl: string,
+  engine: import("@planet/simulation-models").SimulationEngine,
+  options: { horizonTicks: number; runs: number },
+  contributionId?: string,
+): Promise<import("@planet/shared-types").ScenarioReport> {
+  const s = engine.state;
+  const livingCivs = s.civs.filter((c) => c.collapsedAtTick === null);
+  const meanStability =
+    livingCivs.length > 0
+      ? livingCivs.reduce((sum, c) => sum + c.stability, 0) / livingCivs.length
+      : 0.3;
+  const meanPollution =
+    s.grid.cells.reduce((sum, c) => sum + c.pollution, 0) / s.grid.cells.length;
+  const contribution = contributionId
+    ? s.contributions.find((c) => c.id === contributionId)
+    : undefined;
+  const response = await fetch(`${baseUrl}/v1/scenarios`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      world: {
+        seed: s.seed,
+        tick: s.tick,
+        stability: meanStability,
+        civilizations: livingCivs.length,
+        mean_population: livingCivs.length > 0 ? livingCivs.reduce((sum, c) => sum + c.population, 0) / livingCivs.length : 500,
+        climate: s.climate.globalTemp,
+        pollution: Math.min(1, meanPollution),
+        vegetation: 0.4,
+        active_wars: s.wars.filter((w) => !w.endedAtTick).length,
+      },
+      contribution: contribution
+        ? { category: contribution.structured.category, traits: contribution.structured.traits }
+        : undefined,
+      horizon_ticks: options.horizonTicks,
+      runs: options.runs,
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new Error(`sim-engine ${response.status}`);
+  const py = (await response.json()) as {
+    most_likely: { run_index: number; score: number; contribution_survives: boolean; end_state: Record<string, number>; notable_events: string[] };
+    best: { run_index: number; score: number; contribution_survives: boolean; end_state: Record<string, number>; notable_events: string[] };
+    worst: { run_index: number; score: number; contribution_survives: boolean; end_state: Record<string, number>; notable_events: string[] };
+    uncertainty: number;
+    decisive_factors: string[];
+    runs: number;
+    horizon_ticks: number;
+  };
+  const mapOutcome = (o: typeof py.best) => ({
+    runIndex: o.run_index,
+    score: o.score,
+    survivalOfContribution: o.contribution_survives,
+    keyEvents: [], // summary-level branches carry no journal events
+    endState: o.end_state,
+  });
+  return {
+    mostLikely: mapOutcome(py.most_likely),
+    best: mapOutcome(py.best),
+    worst: mapOutcome(py.worst),
+    uncertainty: py.uncertainty,
+    decisiveFactors: py.decisive_factors,
+    runs: py.runs,
+    horizonTicks: py.horizon_ticks,
+  };
 }
 
 /** compact per-cell overlay for first paint: owners, pollution, cities */
