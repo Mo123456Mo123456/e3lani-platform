@@ -28,12 +28,12 @@ const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "إعلاني",
-  appSlug: "e3lani",
+  appName: "كوكب يولد أمامك",
+  appSlug: "living-planet",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663180143275/pIqWEvNDzFwBLQuC.png",
-  scheme: "e3lani",
+  logoUrl: "",
+  scheme: "livingplanet",
   iosBundleId: bundleId,
   androidPackage: bundleId,
 };
@@ -134,7 +134,7 @@ const config: ExpoConfig = {
     reactCompiler: true,
   },
   extra: {
-    brandName: "إعلاني | E3lani",
+    brandName: "كوكب يولد أمامك | A Planet Born Before You",
     defaultLocale: "ar-SA",
   },
 };

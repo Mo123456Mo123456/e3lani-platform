@@ -10,7 +10,7 @@ import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
 import { E3laniProvider } from "@/lib/e3lani-store";
-import { AppStateGate } from "@/components/e3lani/app-state-gate";
+import { LivingPlanetProvider } from "@/lib/living-planet-store";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -92,7 +92,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="oauth/callback" />
           </Stack>
-          <StatusBar style="dark" />
+          <StatusBar style="light" />
         </QueryClientProvider>
       </trpc.Provider>
     </GestureHandlerRootView>
@@ -103,16 +103,16 @@ export default function RootLayout() {
   if (shouldOverrideSafeArea) {
     return (
       <ThemeProvider>
-        <I18nProvider><E3laniProvider><SafeAreaProvider initialMetrics={providerInitialMetrics}>
-          <SafeAreaFrameContext.Provider value={frame}><SafeAreaInsetsContext.Provider value={insets}><AppStateGate>{content}</AppStateGate></SafeAreaInsetsContext.Provider></SafeAreaFrameContext.Provider>
-        </SafeAreaProvider></E3laniProvider></I18nProvider>
+        <I18nProvider><E3laniProvider><LivingPlanetProvider><SafeAreaProvider initialMetrics={providerInitialMetrics}>
+          <SafeAreaFrameContext.Provider value={frame}><SafeAreaInsetsContext.Provider value={insets}>{content}</SafeAreaInsetsContext.Provider></SafeAreaFrameContext.Provider>
+        </SafeAreaProvider></LivingPlanetProvider></E3laniProvider></I18nProvider>
       </ThemeProvider>
     );
   }
 
   return (
     <ThemeProvider>
-      <I18nProvider><E3laniProvider><SafeAreaProvider initialMetrics={providerInitialMetrics}><AppStateGate>{content}</AppStateGate></SafeAreaProvider></E3laniProvider></I18nProvider>
+      <I18nProvider><E3laniProvider><LivingPlanetProvider><SafeAreaProvider initialMetrics={providerInitialMetrics}>{content}</SafeAreaProvider></LivingPlanetProvider></E3laniProvider></I18nProvider>
     </ThemeProvider>
   );
 }
