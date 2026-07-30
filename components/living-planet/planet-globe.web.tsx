@@ -389,6 +389,7 @@ export default function PlanetGlobe({
       frameId: requestAnimationFrame(render),
       resizeObserver,
     };
+    renderer.render(scene, camera);
 
     return () => {
       const current = sceneRef.current;
@@ -424,6 +425,7 @@ export default function PlanetGlobe({
     current.texture = texture;
     current.globe.material.uniforms.uSurface.value = texture;
     current.globe.material.needsUpdate = true;
+    current.renderer.render(current.scene, current.camera);
   }, [seed, surfaceKey]);
 
   useEffect(() => {
@@ -464,6 +466,7 @@ export default function PlanetGlobe({
       ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
       current.markers.add(ring);
     }
+    current.renderer.render(current.scene, current.camera);
   }, [events, pollution, regions, selectedRegionId]);
 
   return (

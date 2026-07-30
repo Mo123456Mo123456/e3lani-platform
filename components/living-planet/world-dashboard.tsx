@@ -144,7 +144,7 @@ export function WorldDashboard() {
           styles.main,
           compact
             ? styles.mainCompact
-            : { flexDirection: isRTL ? "row-reverse" : "row" },
+            : { flexDirection: isRTL ? "row" : "row-reverse" },
         ]}
       >
         <ContributionPanel
@@ -327,7 +327,7 @@ function Header({
     { id: "movement", ar: "الهجرات", en: "Migration" },
   ];
   return (
-    <View style={[styles.header, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+    <View style={[styles.header, { flexDirection: "row" }]}>
       <View style={[styles.brand, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <View style={styles.logo}>
           <MaterialIcons name="public" size={27} color="#89e7ff" />
