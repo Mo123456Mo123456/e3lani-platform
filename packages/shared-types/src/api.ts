@@ -105,6 +105,7 @@ export interface AiUsageRow {
   tokensIn: number;
   tokensOut: number;
   costUsd: number;
+  latencyMs: number;
   sandbox: boolean;
   createdAt: string;
 }
