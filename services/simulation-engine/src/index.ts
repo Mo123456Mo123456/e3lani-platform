@@ -326,12 +326,13 @@ export function rollbackToSnapshot(state: SimulationState, tick: number): Simula
 }
 
 export function replayEvents(initialState: SimulationState, events: WorldEvent[]): SimulationState {
-  return events.reduce((state, event) => applyEvent(state, event), {
+  const replayState: SimulationState = {
     ...initialState,
     events: [],
     causalLinks: [],
     snapshots: [],
-  });
+  };
+  return events.reduce<SimulationState>((state, event) => applyEvent(state, event), replayState);
 }
 
 function trait(contribution: AnalyzedContribution, key: string, fallback: number): number {

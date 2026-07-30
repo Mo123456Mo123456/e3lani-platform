@@ -8,5 +8,12 @@
   "theme_color": "#030b12",
   "lang": "ar",
   "dir": "rtl",
-  "icons": []
+  "icons": [
+    {
+      "src": "/planet-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }

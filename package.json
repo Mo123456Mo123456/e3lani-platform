@@ -22,6 +22,6 @@
   },
   "devDependencies": {
     "prettier": "latest",
-    "typescript": "latest"
+    "typescript": "^6.0.3"
   }
 }

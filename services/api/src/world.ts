@@ -12,9 +12,11 @@ import {
   type SimulationState,
   type TickResult,
 } from "@living-planet/simulation-engine";
+import type { JSONValue, TransactionSql } from "postgres";
 import { getDatabase } from "./database.js";
 
 const asNumber = (value: unknown): number => Number(value ?? 0);
+const toJson = (value: unknown): JSONValue => JSON.parse(JSON.stringify(value)) as JSONValue;
 
 interface PlanetRow {
   id: string;
@@ -178,6 +180,9 @@ export async function loadSimulationState(planetId: string): Promise<SimulationS
   const planet = await loadPlanet(planetId);
   const rows = await loadRegions(planetId);
   const events = (await loadEvents(planetId, 10_000)).sort((left, right) => left.tick - right.tick);
+  const eventCountRows = await getDatabase()<[{ count: number | string }]>`
+    SELECT count(*) FROM world_events WHERE planet_id = ${planetId}
+  `;
   const generated = createInitialState(planet.seed, planet.id);
   for (const row of rows) {
     const region = generated.regions[row.id];
@@ -218,7 +223,7 @@ export async function loadSimulationState(planetId: string): Promise<SimulationS
     ...generated,
     tick: asNumber(planet.current_tick),
     year: asNumber(planet.current_year),
-    sequence: events.length,
+    sequence: asNumber(eventCountRows[0]?.count),
     events,
     causalLinks: linkRows.map((row): CausalLink => ({
       id: row.id,
@@ -231,7 +236,7 @@ export async function loadSimulationState(planetId: string): Promise<SimulationS
 }
 
 async function persistEvent(
-  transaction: ReturnType<typeof getDatabase>,
+  transaction: TransactionSql,
   event: WorldEvent,
 ): Promise<void> {
   await transaction`
@@ -291,10 +296,10 @@ export async function persistTick(result: TickResult, durationMs: number): Promi
         INSERT INTO timeline_snapshots (planet_id, tick, year, state, checksum)
         VALUES (
           ${result.state.planetId}, ${result.state.tick}, ${result.state.year},
-          ${transaction.json({
+          ${transaction.json(toJson({
             regions: result.state.regions,
-            eventOffset: result.state.events.length,
-          })},
+            eventOffset: result.state.sequence,
+          }))},
           ${getStateChecksum(result.state)}
         )
         ON CONFLICT (planet_id, tick) DO NOTHING

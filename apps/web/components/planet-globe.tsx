@@ -62,7 +62,15 @@ const fragmentShader = `
     float pollution = data.a;
     vec3 color;
 
-    if (uLayer == 2) {
+    if (uLayer == 1) {
+      if (elevation < 0.42) color = vec3(0.03, 0.22, 0.52);
+      else if (temperature < 0.11) color = vec3(0.88, 0.96, 1.0);
+      else if (elevation > 0.78) color = vec3(0.48, 0.43, 0.39);
+      else if (moisture < 0.22 && temperature > 0.48) color = vec3(0.92, 0.62, 0.18);
+      else if (moisture > 0.76) color = vec3(0.06, 0.58, 0.43);
+      else if (moisture > 0.52) color = vec3(0.08, 0.43, 0.19);
+      else color = vec3(0.48, 0.65, 0.22);
+    } else if (uLayer == 2) {
       color = gradient(moisture, vec3(0.30, 0.17, 0.06), vec3(0.10, 0.68, 0.88));
     } else if (uLayer == 6) {
       color = gradient(pollution * 4.0, vec3(0.05, 0.38, 0.28), vec3(0.92, 0.16, 0.08));

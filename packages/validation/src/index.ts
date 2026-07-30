@@ -64,7 +64,7 @@ export const confirmContributionSchema = previewContributionSchema.extend({
 });
 
 const forbiddenPatterns = [
-  /ignore\s+(all|previous|system)\s+instructions/i,
+  /ignore\b.{0,40}\b(all|previous|system)\b.{0,30}\binstructions/i,
   /<\s*script/i,
   /\b(drop|truncate|alter)\s+table\b/i,
   /\b(exec|spawn|system)\s*\(/i,

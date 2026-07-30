@@ -144,6 +144,16 @@ class OpenAIProvider(AIProvider):
         body = response.json()
         raw = body.get("output_text")
         if not raw:
+            raw = next(
+                (
+                    content.get("text")
+                    for output in body.get("output", [])
+                    for content in output.get("content", [])
+                    if content.get("type") in {"output_text", "text"} and content.get("text")
+                ),
+                None,
+            )
+        if not raw:
             raise ProviderError("OpenAI response had no structured output")
         return extract_json(raw)
 

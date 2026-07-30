@@ -39,7 +39,7 @@ export async function signAccessToken(user: RequestUser): Promise<string> {
     .sign(accessSecret());
 }
 
-export async function issueRefreshToken(userId: string, familyId = randomUUID()): Promise<string> {
+export async function issueRefreshToken(userId: string, familyId: string = randomUUID()): Promise<string> {
   const sql = getDatabase();
   const id = randomUUID();
   const secret = randomBytes(48).toString("base64url");
@@ -93,6 +93,7 @@ export async function rotateRefreshToken(token: string): Promise<{ user: Request
   if (stored.expires_at.getTime() <= Date.now()) throw new Error("Refresh token expired");
   const replacement = await issueRefreshToken(stored.user_id, stored.family_id);
   const replacementId = replacement.split(".")[0];
+  if (!replacementId) throw new Error("Failed to create replacement token");
   await sql`
     UPDATE refresh_tokens
     SET revoked_at = now(), replaced_by = ${replacementId}

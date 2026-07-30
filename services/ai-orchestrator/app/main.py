@@ -29,7 +29,7 @@ class AnalyzeRequest(BaseModel):
     @classmethod
     def reject_injection(cls, value: str) -> str:
         blocked = (
-            r"ignore\s+(all|previous|system)\s+instructions",
+            r"ignore\b.{0,40}\b(all|previous|system)\b.{0,30}\binstructions",
             r"<\s*script",
             r"\b(drop|truncate)\s+table\b",
             r"\b(exec|spawn|system)\s*\(",
@@ -138,9 +138,9 @@ async def analyze(request: AnalyzeRequest) -> AnalysisResponse:
     try:
         raw = await provider.analyze(request.category, request.idea, request.locale)
         raw, balance_result = balance(raw, request.idea)
+        raw["category"] = request.category
         return AnalysisResponse(
             **raw,
-            category=request.category,
             balance=balance_result,
             provider=provider.name,
             sandbox=provider.sandbox,

@@ -70,6 +70,7 @@ corepack enable
 pnpm install
 docker compose up -d postgres redis nats minio ai-orchestrator
 pnpm db:migrate
+SANDBOX_MODE=true pnpm db:seed
 pnpm dev
 ```
 
@@ -116,7 +117,7 @@ packages/
 
 ## البيانات التجريبية
 
-`002_seed.sql` ينشئ:
+`services/api/seeds/001_sandbox.sql` ينشئ:
 
 - كوكب أوريانا و288 منطقة مترابطة جغرافيًا.
 - 12 حضارة، 40 مدينة، 120 موردًا.

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDatabase, closeDatabase } from "./database.js";
 
@@ -35,7 +36,7 @@ export async function migrate(): Promise<void> {
   }
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   migrate()
     .then(() => closeDatabase())
     .catch(async (error: unknown) => {

@@ -8,9 +8,9 @@
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run src",
     "db:migrate": "tsx src/migrate.ts",
-    "db:seed": "tsx src/migrate.ts"
+    "db:seed": "tsx src/seed.ts"
   },
   "dependencies": {
     "@fastify/cookie": "latest",
@@ -35,7 +35,7 @@
   "devDependencies": {
     "@types/node": "latest",
     "tsx": "latest",
-    "typescript": "latest",
+    "typescript": "^6.0.3",
     "vitest": "latest"
   }
 }

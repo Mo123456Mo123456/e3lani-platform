@@ -50,6 +50,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.pyc
+*.egg-info/
 
 # Runtime data
 .data/

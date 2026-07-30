@@ -15,7 +15,7 @@
 
 ## Controls present
 
-- Argon-compatible bcrypt hashes بكلفة 12 للـSandbox، ولا تُخزن كلمة مرور خام.
+- bcrypt hashes بكلفة 12 للـSandbox، ولا تُخزن كلمة مرور خام.
 - access JWT قصير (15 دقيقة).
 - refresh token عشوائي، مخزن كـSHA-256، rotation وعائلة تُلغى عند reuse.
 - HttpOnly + Secure في الإنتاج + SameSite Strict.

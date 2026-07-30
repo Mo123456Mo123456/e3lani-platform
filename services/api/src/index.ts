@@ -16,6 +16,7 @@ import {
   Histogram,
   Registry,
 } from "prom-client";
+import type { JSONValue } from "postgres";
 import {
   analyzeContributionSchema,
   confirmContributionSchema,
@@ -53,6 +54,7 @@ const DEFAULT_PLANET_ID = "00000000-0000-4000-8000-000000000001";
 const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
 const adminOrigin = process.env.ADMIN_ORIGIN ?? "http://localhost:3001";
 const secureCookies = process.env.NODE_ENV === "production";
+const toJson = (value: unknown): JSONValue => JSON.parse(JSON.stringify(value)) as JSONValue;
 
 interface SocketLike {
   readyState: number;
@@ -126,7 +128,7 @@ async function analyzeWithProvider(
     ) VALUES (
       ${userId}, ${provider}, 'contribution_analysis',
       ${createHash("sha256").update(input.idea).digest("hex")},
-      ${sql.json(output)}, ${Boolean(output.sandbox)}, 'completed',
+      ${sql.json(toJson(output))}, ${Boolean(output.sandbox)}, 'completed',
       ${Math.round(performance.now() - started)}
     )
   `;
@@ -444,10 +446,11 @@ export async function buildServer() {
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ error }, "request_failed");
-    const status = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
+    const requestError = error as Error & { statusCode?: number };
+    const status = requestError.statusCode && requestError.statusCode < 500 ? requestError.statusCode : 500;
     return reply.code(status).send({
       error: status === 500 ? "INTERNAL_ERROR" : "REQUEST_ERROR",
-      message: status === 500 ? "The request could not be completed" : error.message,
+      message: status === 500 ? "The request could not be completed" : requestError.message,
       requestId: request.id,
     });
   });
