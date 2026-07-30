@@ -8,9 +8,25 @@ import { createAndProcessContribution, injectContribution } from '../services/co
 import { analyzeContribution } from '../services/ai-client.js';
 import { runSimulationTick } from '../services/simulation-client.js';
 
+const contributionTypes = z.enum([
+  'species',
+  'creature',
+  'plant',
+  'resource',
+  'civilization',
+  'invention',
+  'element',
+  'natural_phenomenon',
+  'disease',
+  'culture',
+  'world_law',
+  'event',
+  'custom',
+]);
+
 const createSchema = z.object({
   planetId: z.string().min(1),
-  type: z.enum(['species', 'plant', 'element', 'invention', 'event', 'culture']),
+  type: contributionTypes,
   title: z.string().min(2).max(120),
   description: z.string().max(5000).optional(),
   payload: z.record(z.unknown()).optional(),
@@ -19,7 +35,7 @@ const createSchema = z.object({
 
 const analyzeSchema = z.object({
   planetId: z.string().min(1).optional(),
-  type: z.enum(['species', 'plant', 'element', 'invention', 'event', 'culture']),
+  type: contributionTypes,
   title: z.string().min(2).max(120),
   description: z.string().max(5000).optional(),
   payload: z.record(z.unknown()).optional(),

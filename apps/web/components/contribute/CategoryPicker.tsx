@@ -5,16 +5,31 @@ import { usePlanetStore } from "@/lib/planet-store";
 import { t } from "@/lib/i18n";
 import { Badge } from "@/components/ui/Badge";
 
-const CATS = ["species", "plant", "element", "invention", "event", "culture"] as const;
+const CATS = [
+  "species",
+  "plant",
+  "resource",
+  "civilization",
+  "invention",
+  "natural_phenomenon",
+  "disease",
+  "culture",
+  "world_law",
+  "custom",
+] as const;
 
-const tones = {
+const tones: Record<(typeof CATS)[number], "green" | "cyan" | "muted" | "gold" | "orange" | "purple" | "red"> = {
   species: "green",
   plant: "cyan",
-  element: "muted",
-  invention: "gold",
-  event: "orange",
+  resource: "muted",
+  civilization: "gold",
+  invention: "cyan",
+  natural_phenomenon: "orange",
+  disease: "red",
   culture: "purple",
-} as const;
+  world_law: "gold",
+  custom: "muted",
+};
 
 export function CategoryPicker({
   value,

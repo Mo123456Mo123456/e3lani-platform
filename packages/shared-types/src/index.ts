@@ -1,6 +1,16 @@
 /** Domain types for كوكب يولد أمامك — Planet Born Before You */
 
-export type Role = "visitor" | "contributor" | "moderator" | "admin" | "scientist";
+export type Role =
+  | "visitor"
+  | "user"
+  | "explorer"
+  | "life_maker"
+  | "civ_creator"
+  | "historian"
+  | "content_mod"
+  | "sim_manager"
+  | "admin"
+  | "super_admin";
 
 export type ElementCategory =
   | "creature"

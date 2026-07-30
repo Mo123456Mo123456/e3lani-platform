@@ -15,10 +15,15 @@ export const elementCategorySchema = z.enum([
 
 export const roleSchema = z.enum([
   "visitor",
-  "contributor",
-  "moderator",
+  "user",
+  "explorer",
+  "life_maker",
+  "civ_creator",
+  "historian",
+  "content_mod",
+  "sim_manager",
   "admin",
-  "scientist",
+  "super_admin",
 ]);
 
 export const registerSchema = z.object({

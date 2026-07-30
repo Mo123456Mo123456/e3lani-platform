@@ -1,86 +1,220 @@
-# إعلاني | E3lani
+# كوكب يولد أمامك — Planet Born Before You
 
-**إعلاني** منصة إعلانات مرئية للجوال، عربية افتراضيًا مع دعم الإنجليزية، تجمع استكشاف الإعلانات وإنشاءها وإدارتها ومراجعتها في تطبيق واحد. صُممت الواجهة لوضع الجوال العمودي والاستخدام بيد واحدة، مع تنقل سفلي خماسي وتجارب منفصلة للزائر والمعلن وفريق الإدارة.[1]
+> **Slogan:** A living world unfolds before your eyes — every contribution leaves a causal scar on history.
 
-> النسخة الحالية **نسخة تشغيلية محلية موثقة**: تحفظ حالة المنتج في `AsyncStorage`، وتستخدم رمز دخول ودفعًا تجريبيين معلنين داخل الواجهة. مخطط قاعدة البيانات وطبقة الخادم موجودان للتوسعة، لكن ربط مزودي المصادقة والدفع والتخزين والإشعارات الحقيقيين مطلوب قبل الإطلاق التجاري.[3]
+**كوكب يولد أمامك** is a collaborative planetary simulation platform. Users inject life, cultures, inventions, and events into a deterministic world engine. AI assists with moderation, balance, and narration — never inventing facts outside the simulation state.
 
-## حالة المشروع
+Arabic docs: [README.ar.md](./README.ar.md)
 
-| البند | الحالة الحالية |
-|---|---|
-| المنصات | iOS وAndroid وWeb عبر Expo SDK 54 |
-| اللغة | العربية RTL افتراضيًا والإنجليزية LTR |
-| التخزين التشغيلي | محلي عبر `AsyncStorage` مع بوابة تحميل وخطأ وإعادة محاولة |
-| المصادقة | OTP تجريبي موثق؛ الرمز `123456` |
-| الدفع | مزود `sandbox` موثق؛ لا توجد حركة مالية حقيقية |
-| قاعدة البيانات | مخطط MySQL/Drizzle جاهز، وغير مستخدم لتدفقات الواجهة المحلية حاليًا |
-| الجودة | TypeScript وESLint وVitest وبناء الخادم وتصدير Expo ناجحة[2] |
+---
 
-## القدرات الرئيسية
+## Vision
 
-| المجال | ما يتضمنه التطبيق |
-|---|---|
-| الاستكشاف | خلاصة مرئية، أقسام، بحث نصي، فلاتر مدينة وقسم، تفاصيل إعلان، وبراندات |
-| الثقة | حفظ ومشاركة وبلاغ وحظر معلن، مع حالات واضحة للفراغ والخطأ والنجاح |
-| المعلن | معالج إنشاء من خمس خطوات، وسائط، بيانات، تواصل، ترويج، معاينة، دفع، فواتير، وإحصاءات |
-| دورة حياة الإعلان | دفع، مراجعة، قبول أو طلب تعديل أو رفض، تفعيل، إيقاف، استئناف، تمديد، انتهاء، وإعادة نشر |
-| الإدارة | مركز عمل، مراجعة، بلاغات، مدفوعات، مستخدمون وأدوار، براندات، كتالوج، إعدادات، وسجل تدقيق |
-| الوصول | أسماء وأدوار وحالات اختيار وتعطيل، وأهداف لمس مناسبة في المكونات والمسارات الأساسية |
+Watch a planet age in accelerated time: biomes form, species rise and fall, civilizations trade and wage war, and every user element becomes part of a causal graph you can audit. The public web is for explorers and creators; the admin console (port 3001) is a separate ops surface with **no link from the public web**.
 
-## التشغيل المحلي
+---
 
-يتطلب المشروع Node.js و`pnpm`. من جذر المشروع شغّل:
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph clients [Clients]
+    Web["@planet/web :3000"]
+    Admin["@planet/admin :3001"]
+  end
+  subgraph gateway [Edge]
+    API["@planet/api :4000"]
+    RT["realtime-gateway :4001"]
+  end
+  subgraph engines [Engines]
+    Sim["simulation-engine :8001"]
+    AI["ai-orchestrator :8002"]
+  end
+  subgraph data [Data]
+    SQLite[(SQLite / Postgres)]
+    Redis[(Redis)]
+    MinIO[(MinIO)]
+  end
+  Web --> API
+  Admin --> API
+  API --> Sim
+  API --> AI
+  API --> SQLite
+  API --> RT
+  RT --> Redis
+  API --> MinIO
+  Sim -.->|"deterministic ticks"| API
+  AI -.->|"parse / balance / narrate"| API
+```
+
+**Separation of concerns**
+
+| Layer | Responsibility |
+|-------|----------------|
+| Simulation | Authoritative world state, ticks, snapshots, causality |
+| AI | Parse contributions, balance traits, narrate from facts only |
+| UI (web/admin) | Presentation + auth; never invents sim truth |
+
+See [docs/architecture.md](./docs/architecture.md).
+
+---
+
+## Monorepo structure
+
+```
+apps/
+  web/                 # Public Next.js app (:3000)
+  admin/               # Ops console @planet/admin (:3001)
+packages/
+  shared-types/        # Domain TypeScript types
+  simulation-models/   # TS tick engine, noise, ecology, civ AI
+  validation/          # Zod / shared schemas
+  config/              # Ports, theme CSS vars, presets
+  analytics/           # @planet/analytics track() helper
+  ui/                  # Shared UI primitives (optional)
+services/
+  api/                 # Fastify REST + Swagger /docs
+  realtime-gateway/    # WebSocket delta fan-out
+  simulation-engine/   # Python FastAPI sim
+  ai-orchestrator/     # Python AI pipeline
+  world-generator/     # Terrain helpers
+  notification-worker/ # Notification poller
+docs/                  # Architecture, algorithms, API, security…
+infra/docker/          # Dockerfiles
+```
+
+---
+
+## Quick start
+
+Prerequisites: **Node 20+**, **pnpm 9**, **Python 3.11+**.
 
 ```bash
 pnpm install
-pnpm dev
+cp .env.example .env
+
+pnpm db:migrate
+pnpm db:seed
+
+# Terminals (or use docker compose)
+pnpm dev:api          # :4000  — OpenAPI at http://localhost:4000/docs
+pnpm dev:sim          # :8001
+pnpm dev:ai           # :8002
+pnpm dev:web          # :3000
+pnpm dev:admin        # :3001
 ```
 
-يشغّل الأمر خادم API وMetro معًا. ويمكن تشغيل كل جزء منفصلًا عبر `pnpm dev:server` و`pnpm dev:metro`. لا يحتاج وضع العرض المحلي إلى قاعدة بيانات أو مفاتيح مزودين خارجيين.
+Root `pnpm dev` runs api + web + realtime + admin in parallel.
 
-### تجربة التدفقات التجريبية
+---
 
-استخدم أي رقم جوال صالح بطول لا يقل عن ثمانية محارف، ثم أدخل رمز الاختبار `123456`. عند إنشاء إعلان، يعرض التطبيق السعر والضريبة والإضافات قبل الانتقال إلى الدفع. زر **تأكيد دفع تجريبي** ينقل الطلب إلى المراجعة فقط، ولا ينفذ عملية مالية.
+## Sandbox accounts
 
-## أوامر الجودة
+| Account | Email | Password | Notes |
+|---------|-------|----------|-------|
+| **Super Admin** | `admin@planet.local` | `Admin@Planet2026!` | Documented **here only** — never expose in the public UI |
+| Demo explorer | `explorer@planet.local` | `Explorer@123` | Seeded contributor |
 
-| الأمر | الغرض |
-|---|---|
-| `pnpm check` | فحص TypeScript دون توليد ملفات |
-| `pnpm lint` | تشغيل قواعد Expo ESLint |
-| `pnpm test` | تشغيل اختبارات Vitest للمجال ودورة حياة الإعلان |
-| `pnpm build` | بناء خادم Node عبر esbuild |
-| `npx expo export --platform web --output-dir .expo-export` | التحقق من التصدير الثابت للويب |
-| `pnpm format` | تنسيق ملفات المشروع عبر Prettier |
+Admin console: http://localhost:3001/login
 
-## بنية المشروع
+---
 
-| المسار | المسؤولية |
-|---|---|
-| `app/` | مسارات Expo Router للشاشات العامة والحساب والإدارة |
-| `components/e3lani/` | مكونات المنتج المشتركة وبطاقات الإعلان وبوابة الاستعادة |
-| `lib/e3lani-data.ts` | الأنواع والثوابت وقواعد التسعير ودورة الحياة القابلة للاختبار |
-| `lib/e3lani-store.tsx` | الحالة المحلية المتزامنة وإجراءات المنتج |
-| `lib/i18n.tsx` | قاموس العربية والإنجليزية واتجاه الواجهة |
-| `server/` | خادم Express/tRPC والقدرات الأساسية |
-| `drizzle/` | مخطط قاعدة البيانات والمهاجرات |
-| `tests/` | اختبارات المنطق الأساسي والتكامل |
-| `docs/` | دليل التشغيل والمزودين وسجل التحقق |
+## AI providers / sandbox mode
 
-## الانتقال إلى الإنتاج
+Default: **`AI_PROVIDER=mock`** (sandbox). No API keys required. Narratives are fact-strict; the mock provider labels itself as sandbox.
 
-لا ينبغي تحويل أعلام الواجهة أو اسم المزود فقط. يتطلب الإطلاق الحقيقي نقل القرارات الحساسة إلى الخادم، والتحقق من إيصالات الدفع عبر webhook موثوق، ورفع الوسائط إلى تخزين خاص، وتطبيق مصادقة فعلية وصلاحيات خادمية، وحفظ سجل التدقيق في قاعدة البيانات. يوضح [دليل التشغيل والمزودين][3] ترتيب الربط ومتغيرات البيئة وضوابط الإطلاق.
+| Provider | Env |
+|----------|-----|
+| mock (default) | none |
+| openai | `OPENAI_API_KEY` |
+| anthropic | `ANTHROPIC_API_KEY` |
+| gemini | `GEMINI_API_KEY` |
 
-عند اعتماد النسخة، استخدم زر **Publish** في واجهة إدارة المشروع بعد وجود نقطة استعادة. تتولى عملية النشر بناء الحزمة المناسبة، بما فيها APK عند اختياره، بدل تنفيذ بناء Android يدويًا داخل بيئة التطوير.
+See [docs/ai-integration.md](./docs/ai-integration.md).
 
-## الوثائق المرجعية
+---
 
-| المرجع | المحتوى |
-|---|---|
-| [1] | تصميم الواجهة والشاشات والتدفقات |
-| [2] | سجل الاختبارات والتحقق الوظيفي |
-| [3] | التشغيل والمزودون والجاهزية الإنتاجية |
+## Simulation engine overview
 
-[1]: ./design.md "تصميم تطبيق إعلاني"
-[2]: ./docs/testing-notes.md "ملاحظات التحقق"
-[3]: ./docs/operations-and-providers.md "دليل التشغيل والمزودين"
+Deterministic ticks over seed + injection log:
+
+1. Climate diffusion  
+2. Ecology (Lotka–Volterra)  
+3. Markets + Dijkstra trade  
+4. Civilization utility AI / wars  
+5. Append events to causal graph + optional snapshot  
+
+Details: [docs/simulation-engine.md](./docs/simulation-engine.md) · Algorithms: [docs/algorithms.md](./docs/algorithms.md)
+
+---
+
+## API docs
+
+Interactive OpenAPI: **http://localhost:4000/docs**  
+Reference: [docs/api.md](./docs/api.md)
+
+WebSocket deltas: `planet.delta`, `planet.rollback` via realtime-gateway.
+
+---
+
+## Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Services: postgres, redis, minio, api, sim, ai, realtime, web, admin, notification-worker.
+
+See [docs/deployment.md](./docs/deployment.md).
+
+---
+
+## Testing
+
+```bash
+pnpm --filter @planet/simulation-models test
+pnpm --filter @planet/api test
+cd services/simulation-engine && python3 -m pytest -q
+cd services/ai-orchestrator && python3 -m pytest -q
+```
+
+CI: `.github/workflows/ci.yml` — install, build packages, unit tests, pytest both Python services, build web + admin.
+
+---
+
+## Deployment
+
+1. Set secrets (`JWT_SECRET`, `JWT_REFRESH_SECRET`, DB, S3).  
+2. Prefer Postgres + Redis in production (`DATABASE_URL`).  
+3. Run migrations + seed (or migrate-only).  
+4. Disable mock AI if using real providers.  
+5. Put admin behind VPN / IP allowlist — **no public nav link**.  
+
+Checklist: [docs/deployment.md](./docs/deployment.md) · Security: [docs/security.md](./docs/security.md)
+
+---
+
+## Feature completeness matrix
+
+| Feature | Status |
+|---------|--------|
+| Auth (register / login / JWT refresh) | **Live** |
+| RBAC roles (visitor → super_admin) | **Live** |
+| Planet list / detail / tick | **Live** |
+| Contributions + AI analyze (mock) | **Live** |
+| Local / remote simulation tick | **Live** |
+| Causal events + timeline snapshots | **Live** (snapshots depend on seed/engine) |
+| Realtime WebSocket deltas | **Live** (optional if gateway up) |
+| Admin console (stats, users, sim, mod, AI, audit) | **Live** |
+| Monte Carlo forecast API | **Live** in sim engine; web UI may be partial |
+| Full Postgres dual-driver in API | **Partial** — local default SQLite; compose ships PostGIS schema |
+| Object storage (MinIO) uploads | **Not enabled** end-to-end in API routes |
+| Production AI cost metering | **Placeholder** (admin shows $0 + note) |
+| Durable admin system settings | **Not enabled** (in-process map only) |
+| Public link to admin from web | **Intentionally absent** |
+
+---
+
+## License
+
+Private / project license — see repository owners.

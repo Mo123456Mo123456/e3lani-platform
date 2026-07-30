@@ -17,7 +17,7 @@
     "lint": "pnpm -r lint --if-present",
     "db:migrate": "pnpm --filter @planet/api db:migrate",
     "db:seed": "pnpm --filter @planet/api db:seed",
-    "check": "pnpm -r --filter \"./packages/*\" exec tsc --noEmit --if-present; pnpm --filter @planet/api exec tsc --noEmit; pnpm --filter @planet/web exec tsc --noEmit",
+    "check": "pnpm -r --filter \"./packages/*\" exec tsc --noEmit --if-present; pnpm --filter @planet/api exec tsc --noEmit; pnpm --filter @planet/web exec tsc --noEmit; pnpm --filter @planet/admin exec tsc --noEmit",
     "setup": "pnpm install && pnpm db:migrate && pnpm db:seed"
   },
   "engines": {

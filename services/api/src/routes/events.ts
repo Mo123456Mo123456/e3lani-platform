@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import * as s from '../db/schema.js';
 
@@ -18,9 +18,15 @@ export async function eventRoutes(app: FastifyInstance) {
         .select()
         .from(s.worldEvents)
         .where(and(eq(s.worldEvents.planetId, planetId), gte(s.worldEvents.tick, fromTick), lte(s.worldEvents.tick, toTick)))
+        .orderBy(desc(s.worldEvents.tick))
         .limit(limit);
     } else {
-      rows = await db.select().from(s.worldEvents).where(eq(s.worldEvents.planetId, planetId)).limit(limit);
+      rows = await db
+        .select()
+        .from(s.worldEvents)
+        .where(eq(s.worldEvents.planetId, planetId))
+        .orderBy(desc(s.worldEvents.tick))
+        .limit(limit);
     }
 
     const links = await db.select().from(s.causalLinks).where(eq(s.causalLinks.planetId, planetId)).limit(limit);

@@ -57,19 +57,47 @@ async function trySimulationModels(input: SimInjectInput): Promise<SimDelta | nu
     const engine = new Engine(input.seed);
     let records = engine.runTicks(1);
     if (input.contribution && typeof engine.injectUserElement === 'function') {
+      const type = input.contribution.type;
+      // Map API contribution types onto simulation-models UserElement categories
       const category =
-        input.contribution.type === 'species'
-          ? 'species'
-          : input.contribution.type === 'plant'
-            ? 'flora'
-            : input.contribution.type === 'invention'
-              ? 'technology'
-              : 'element';
+        type === 'species' || type === 'creature'
+          ? 'creature'
+          : type === 'plant'
+            ? 'plant'
+            : type === 'invention' || type === 'technology'
+              ? 'invention'
+              : type === 'resource' || type === 'element'
+                ? 'resource'
+                : type === 'civilization'
+                  ? 'civilization'
+                  : type === 'disease'
+                    ? 'disease'
+                    : type === 'culture'
+                      ? 'culture'
+                      : type === 'natural_phenomenon'
+                        ? 'natural_phenomenon'
+                        : type === 'world_law'
+                          ? 'world_law'
+                          : 'custom';
       records = engine.injectUserElement({
         contributionId: 'api',
-        category,
+        category: category as
+          | 'creature'
+          | 'plant'
+          | 'resource'
+          | 'civilization'
+          | 'invention'
+          | 'natural_phenomenon'
+          | 'disease'
+          | 'culture'
+          | 'world_law'
+          | 'custom',
         title: input.contribution.title,
         traits: input.contribution.payload,
+        regionId:
+          typeof input.contribution.payload.regionId === 'string'
+            ? input.contribution.payload.regionId
+            : undefined,
       });
     }
 

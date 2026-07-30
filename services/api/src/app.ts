@@ -25,8 +25,9 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     logger: opts.logger ?? true,
   });
 
+  const corsOrigins = [process.env.WEB_URL, process.env.ADMIN_URL].filter(Boolean) as string[];
   await app.register(cors, {
-    origin: process.env.WEB_URL || true,
+    origin: corsOrigins.length ? corsOrigins : true,
     credentials: true,
   });
 

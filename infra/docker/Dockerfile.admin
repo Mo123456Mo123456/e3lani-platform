@@ -1,4 +1,14 @@
 FROM node:20-bookworm-slim
 WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY packages ./packages
+COPY apps/admin ./apps/admin
+RUN pnpm install --filter @planet/admin...
+RUN pnpm --filter @planet/analytics build && pnpm --filter @planet/config build
+ENV NEXT_PUBLIC_API_URL=http://localhost:4000
+ENV NODE_ENV=production
+RUN pnpm --filter @planet/admin build
+WORKDIR /app/apps/admin
 EXPOSE 3000
-CMD ["node", "-e", "require('http').createServer((q,s)=>s.end('admin placeholder')).listen(3000)"]
+CMD ["pnpm", "exec", "next", "start", "-H", "0.0.0.0", "-p", "3000"]

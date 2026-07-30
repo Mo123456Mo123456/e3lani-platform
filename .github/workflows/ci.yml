@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm -r --filter "./packages/*" build
+
+      - name: Test simulation-models
+        run: pnpm --filter @planet/simulation-models test
+
+      - name: Test API
+        run: pnpm --filter @planet/api test
+
+      - name: Install Python deps (sim + AI)
+        run: |
+          python3 -m pip install --user -r services/simulation-engine/requirements.txt
+          python3 -m pip install --user -r services/ai-orchestrator/requirements.txt
+
+      - name: Pytest simulation-engine
+        working-directory: services/simulation-engine
+        run: python3 -m pytest -q
+
+      - name: Pytest ai-orchestrator
+        working-directory: services/ai-orchestrator
+        run: python3 -m pytest -q
+
+      - name: Build web
+        run: pnpm --filter @planet/web build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000
+          NEXT_PUBLIC_REALTIME_URL: ws://localhost:4001
+
+      - name: Build admin
+        run: pnpm --filter @planet/admin build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000
