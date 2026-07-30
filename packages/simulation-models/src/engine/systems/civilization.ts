@@ -285,10 +285,17 @@ function decide(ctx: SystemCtx, civ: Civilization, cells: number[]): void {
       grid.cells[idx]!.fertility > 0.3 &&
       !state.cities.some((c) => c.cell === idx && !c.destroyedAtTick),
   );
-  if (cityless.length > 0 && civ.population > 500 * (civ.cityIds.length + 1) && civ.food > 150) {
+  // a civilization sustains roughly one city per five owned cells
+  const cityCap = Math.max(1, Math.floor(cells.length / 5));
+  if (
+    cityless.length > 0 &&
+    civ.cityIds.length < cityCap &&
+    civ.population > 900 * (civ.cityIds.length + 1) &&
+    civ.food > 400
+  ) {
     actions.push({
       kind: "build_city",
-      score: 0.4 + civ.economy * 0.3 + rng.next() * 0.05,
+      score: 0.32 + civ.economy * 0.2 + rng.next() * 0.05,
       targetCell: pickBestCell(state, cityless),
     });
   }
@@ -305,7 +312,7 @@ function decide(ctx: SystemCtx, civ: Civilization, cells: number[]): void {
           (w.attackerCivId === other.id && w.defenderCivId === civ.id)),
     );
 
-    if (!allied && !atWar && relation > 0.15) {
+    if (!allied && !atWar && relation > 0.02) {
       actions.push({ kind: "trade", score: 0.3 + relation * 0.3 + civ.economy * 0.2, targetCivId: other.id });
     }
     if (!allied && relation > 0.45) {
@@ -323,14 +330,14 @@ function decide(ctx: SystemCtx, civ: Civilization, cells: number[]): void {
       const powerRatio =
         militaryPower(civ, state) / Math.max(0.05, militaryPower(other, state));
       const warScore =
-        grievance * 0.5 +
-        competition * 0.4 +
-        civ.aggression * 0.25 +
-        (adjacent ? 0.15 : -0.1) +
-        (powerRatio > 1.4 ? 0.2 : powerRatio < 0.7 ? -0.25 : 0) -
-        Math.max(0, relation) * 0.5 -
-        civ.stability * 0.15;
-      if (warScore > 0.55) {
+        grievance * 0.55 +
+        competition * 0.45 +
+        civ.aggression * 0.3 +
+        (adjacent ? 0.2 : -0.08) +
+        (powerRatio > 1.4 ? 0.2 : powerRatio < 0.7 ? -0.2 : 0) -
+        Math.max(0, relation) * 0.45 -
+        civ.stability * 0.12;
+      if (warScore > 0.45) {
         actions.push({ kind: "war", score: warScore, targetCivId: other.id });
       }
     }
@@ -506,12 +513,18 @@ function resourceCompetition(state: WorldState, a: Civilization, b: Civilization
     for (const d of cell.resources) if (d.quantity > 0 && d.value > 0.5) scarceTypes.add(d.type);
   }
   if (scarceTypes.size === 0) return 0;
-  let overlap = 0;
+  let shared = 0;
+  const seen = new Set<string>();
   for (const cell of state.grid.cells) {
     if (cell.ownerId !== b.id) continue;
-    for (const d of cell.resources) if (scarceTypes.has(d.type) && d.quantity > 0) overlap += 0.2;
+    for (const d of cell.resources) {
+      if (scarceTypes.has(d.type) && d.quantity > 0 && !seen.has(d.type)) {
+        seen.add(d.type);
+        shared += 0.18;
+      }
+    }
   }
-  return clamp01(overlap);
+  return clamp01(shared);
 }
 
 function territoriesAdjacent(state: WorldState, aId: string, bId: string): boolean {

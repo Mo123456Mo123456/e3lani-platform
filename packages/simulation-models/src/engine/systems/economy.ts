@@ -73,7 +73,7 @@ export function economySystem(ctx: SystemCtx): void {
       const a = civs[i]!;
       const b = civs[j]!;
       const relation = a.relations[b.id] ?? 0;
-      if (relation < 0.12) continue;
+      if (relation < 0.05) continue;
       const exists = state.tradeRoutes.some((r) => {
         const ca = state.cities.find((c) => c.id === r.fromCityId);
         const cb = state.cities.find((c) => c.id === r.toCityId);

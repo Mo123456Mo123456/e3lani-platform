@@ -3,7 +3,7 @@
  * civilizations and the seeded technology registry. All emitted as events so
  * the journal explains the world from its first tick.
  */
-import type { Biome, Plant, Species, Technology } from "@planet/shared-types";
+import type { Biome, Civilization, Plant, Species, Technology } from "@planet/shared-types";
 import { generateCultureValues, generateName, generateTechName } from "../names";
 import type { Rng } from "../rng";
 import { BIOME_HABITABLE } from "../worldgen/biomes";
@@ -49,9 +49,13 @@ export function genesisBiosphere(state: WorldState, rng: Rng, emit: Emit, counts
   const plantTotal = Math.max(counts.plantCount, GENESIS_PLANTS.length);
   for (let i = 0; i < plantTotal; i++) {
     const proto = GENESIS_PLANTS[i % GENESIS_PLANTS.length]!;
-    const suitable = grid.cells.filter(
+    let suitable = grid.cells.filter(
       (c) => proto.biomes.includes(c.biome) && c.moisture >= proto.waterNeed * 0.5,
     );
+    if (suitable.length === 0) {
+      // fallback: any moist land keeps the archetype alive at low coverage
+      suitable = grid.cells.filter((c) => c.height >= grid.seaLevel && c.moisture > 0.35);
+    }
     if (suitable.length === 0) continue;
     const plant: Plant = {
       id: nextEntityId(state, "plant"),
@@ -241,7 +245,7 @@ export function foundCivilization(
   state.languages.push(language);
 
   const civId = nextEntityId(state, "civ");
-  const civ = {
+  const civ: Civilization = {
     id: civId,
     name: generateName(rng, 2),
     color: CIV_COLORS[state.civs.length % CIV_COLORS.length] ?? "#c9a227",
@@ -260,7 +264,7 @@ export function foundCivilization(
     education: rng.range(0.1, 0.3),
     happiness: rng.range(0.4, 0.7),
     pollution: 0,
-    aggression: rng.range(0.15, 0.7),
+    aggression: rng.range(0.2, 0.85),
     innovation: rng.range(0.2, 0.7),
     relations: {},
     memory: {},
@@ -268,6 +272,12 @@ export function foundCivilization(
     collapsedAtTick: null,
     originContributionId,
   };
+  // seed initial diplomatic dispositions so trade and rivalry can emerge
+  for (const other of state.civs) {
+    const disposition = rng.range(-0.15, 0.35);
+    civ.relations[other.id] = Math.round(disposition * 100) / 100;
+    other.relations[civId] = Math.round((disposition + rng.range(-0.1, 0.1)) * 100) / 100;
+  }
   state.civs.push(civ);
 
   // claim a small starting territory
