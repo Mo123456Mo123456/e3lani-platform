@@ -100,6 +100,19 @@ export class WorldsService {
       coverage: p.cells.size > 0 ? p.cells.size : p.estimatedCoverage,
       extinct: p.extinct, originContributionId: p.originContributionId, createdTick: p.createdTick,
       tracked: p.cells.size > 0,
+      // tracked plants expose their live cells (capped) for map rendering
+      cells: p.cells.size > 0 ? [...p.cells].slice(0, 600).map((i) => ({ lat: engine.grid.lat(i), lon: engine.grid.lon(i), index: i })) : [],
+    }));
+  }
+
+  getCities(planetId: string) {
+    const engine = this.manager.get(planetId);
+    if (!engine) throw new ServiceUnavailableException("planet engine is not loaded");
+    return [...engine.state.cities.values()].map((c) => ({
+      id: c.id, name: c.name, civId: c.civId, population: Math.round(c.population),
+      isCapital: c.isCapital, lat: engine.grid.lat(c.cellIndex), lon: engine.grid.lon(c.cellIndex), index: c.cellIndex,
+      health: c.health, prosperity: c.prosperity,
+      color: engine.state.civs.get(c.civId)?.color ?? "#f5c452",
     }));
   }
 
@@ -126,6 +139,16 @@ export class WorldsService {
     const engine = this.manager.get(planetId);
     if (!engine) throw new ServiceUnavailableException("planet engine is not loaded");
     return [...engine.state.alliances.values()].map((a) => ({ ...a, memberCivIds: a.memberCivIds }));
+  }
+
+  getMigrations(planetId: string) {
+    const engine = this.manager.get(planetId);
+    if (!engine) throw new ServiceUnavailableException("planet engine is not loaded");
+    return [...engine.state.migrations.values()].map((m) => ({
+      id: m.id, civId: m.civId, speciesId: m.speciesId, size: Math.round(m.size),
+      startedTick: m.startedTick, completedTick: m.completedTick, progress: m.progress,
+      path: m.path.map((i) => ({ lat: engine.grid.lat(i), lon: engine.grid.lon(i) })),
+    }));
   }
 
   getWars(planetId: string) {

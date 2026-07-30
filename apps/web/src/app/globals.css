@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #050b14;
+  --panel: #0a1420;
+  --line: #1b2b40;
+  --tech: #38bdf8;
+  --nature: #34d399;
+  --civ: #f5c452;
+  --war: #f87171;
+  --hazard: #fb923c;
+}
+
+html, body {
+  background: var(--bg);
+  color: #e6edf3;
+  overscroll-behavior: none;
+}
+
+@keyframes kawkab-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* slim scrollbars that fit the command-deck look */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #1b2b40; border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* range input on the timeline */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: #1b2b40;
+  border-radius: 999px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--tech);
+  box-shadow: 0 0 10px #38bdf899;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--tech);
+  cursor: pointer;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

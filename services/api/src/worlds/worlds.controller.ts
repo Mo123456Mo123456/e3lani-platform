@@ -65,6 +65,12 @@ export class WorldsController {
   }
 
   @Public()
+  @Get(":id/cities")
+  cities(@Param("id") id: string) {
+    return this.worlds.getCities(id);
+  }
+
+  @Public()
   @Get(":id/plants")
   plants(@Param("id") id: string) {
     return this.worlds.getPlantsList(id);
@@ -92,5 +98,11 @@ export class WorldsController {
   @Get(":id/wars")
   wars(@Param("id") id: string) {
     return this.worlds.getWars(id);
+  }
+
+  @Public()
+  @Get(":id/migrations")
+  migrations(@Param("id") id: string) {
+    return this.worlds.getMigrations(id);
   }
 }
