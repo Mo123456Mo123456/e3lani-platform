@@ -1,0 +1,76 @@
+name: planet-born
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: planet
+      POSTGRES_USER: planet
+      POSTGRES_PASSWORD: planet
+    ports:
+      - "5432:5432"
+    volumes:
+      - planet_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planet -d planet"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - planet_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nats:
+    image: nats:2-alpine
+    command: ["-js", "-sd", "/data"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - planet_nats:/data
+
+  ai-orchestrator:
+    build:
+      context: .
+      dockerfile: services/ai-orchestrator/Dockerfile
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "8000:8000"
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-orchestrator:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://planet:planet@postgres:5432/planet
+      API_PORT: 4000
+      WEB_ORIGIN: http://localhost:3000
+      PLANET_SEED: ${PLANET_SEED:-KA-2026-07}
+      JWT_SECRET: ${JWT_SECRET:-sandbox-only-secret-change-before-production}
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8000
+    ports:
+      - "4000:4000"
+
+volumes:
+  planet_postgres:
+  planet_redis:
+  planet_nats:
