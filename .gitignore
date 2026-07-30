@@ -1,68 +1,34 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
 # dependencies
 node_modules/
+.pnpm-store/
 
-# Expo
-.expo/
+# builds
 dist/
-web-build/
-.expo-export/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
-*.pem
-
-# local env files
-.env*.local
-
-# typescript
+.next/
+out/
+build/
 *.tsbuildinfo
 
-app-example
+# env
+.env
+.env.local
+.env.*.local
 
-# generated native folders
-/ios
-/android
+# data / runtime
+data/
+*.sqlite
+coverage/
+.turbo/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Logs
-logs
+# logs
 *.log
-.manus-logs/
+npm-debug.log*
+pnpm-debug.log*
 
-# OS
-Thumbs.db
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
 
-# Build files
-*.tgz
-*.tar.gz
-.cache/
-
-# Webdev artifacts (checkpoint zips, migrations, etc.)
-.webdev/
-.project-config.json
+# prisma generated client is inside node_modules; keep migrations versioned
+!services/api/prisma/migrations/
