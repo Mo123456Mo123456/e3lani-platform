@@ -15,3 +15,4 @@ logs
 minio-data
 redis-data
 postgres-data
+*.tsbuildinfo
