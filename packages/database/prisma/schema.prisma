@@ -122,18 +122,18 @@ enum AnalyticsSource {
 }
 
 model User {
-  id                 String         @id @default(uuid())
-  phone              String         @unique
-  email              String?        @unique
+  id                 String           @id @default(uuid())
+  phone              String           @unique
+  email              String?          @unique
   name               String?
   accountType        AccountType?
-  status             UserStatus     @default(ACTIVE)
+  status             UserStatus       @default(ACTIVE)
   staffRole          StaffRole?
   profileCompletedAt DateTime?
   avatarUrl          String?
   acceptedTermsAt    DateTime?
   cityId             String?
-  city               City?          @relation(fields: [cityId], references: [id])
+  city               City?            @relation(fields: [cityId], references: [id])
   businessProfile    BusinessProfile?
   sessions           Session[]
   otpChallenges      OtpChallenge[]
@@ -143,25 +143,25 @@ model User {
   banners            BannerRequest[]
   favorites          Favorite[]
   postFavorites      PostFavorite[]
-  reports            Report[]       @relation("Reporter")
-  reportActions      Report[]       @relation("ReportActionBy")
-  appeals            Appeal[]       @relation("AppealOwner")
-  resolvedAppeals    Appeal[]       @relation("AppealResolver")
+  reports            Report[]         @relation("Reporter")
+  reportActions      Report[]         @relation("ReportActionBy")
+  appeals            Appeal[]         @relation("AppealOwner")
+  resolvedAppeals    Appeal[]         @relation("AppealResolver")
   notifications      Notification[]
   analyticsEvents    AnalyticsEvent[]
   orders             PaymentOrder[]
-  auditLogs          AuditLog[]      @relation("AuditActor")
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  auditLogs          AuditLog[]       @relation("AuditActor")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@index([cityId])
   @@index([staffRole])
 }
 
 model BusinessProfile {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   bio         String?
   logoUrl     String?
   coverUrl    String?
@@ -170,36 +170,36 @@ model BusinessProfile {
   whatsapp    String?
   socialLinks Json?
   verifiedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Session {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshTokenHash String   @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique
   userAgent        String?
   ipAddress        String?
   expiresAt        DateTime
   revokedAt        DateTime?
-  lastSeenAt       DateTime @default(now())
-  createdAt        DateTime @default(now())
+  lastSeenAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
 
   @@index([userId, revokedAt])
 }
 
 model OtpChallenge {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   phone       String
   codeHash    String
-  attempts    Int      @default(0)
+  attempts    Int       @default(0)
   expiresAt   DateTime
   consumedAt  DateTime?
   requestedIp String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([phone, createdAt])
 }
@@ -216,20 +216,20 @@ model Region {
 }
 
 model City {
-  id        String   @id @default(uuid())
+  id        String           @id @default(uuid())
   regionId  String
-  region    Region   @relation(fields: [regionId], references: [id])
-  slug      String   @unique
+  region    Region           @relation(fields: [regionId], references: [id])
+  slug      String           @unique
   nameAr    String
   nameEn    String
-  latitude  Decimal? @db.Decimal(9, 6)
-  longitude Decimal? @db.Decimal(9, 6)
-  active    Boolean  @default(true)
+  latitude  Decimal?         @db.Decimal(9, 6)
+  longitude Decimal?         @db.Decimal(9, 6)
+  active    Boolean          @default(true)
   users     User[]
   ads       Ad[]
   events    AnalyticsEvent[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   @@index([regionId, active])
 }
@@ -254,12 +254,12 @@ model Category {
 }
 
 model MediaAsset {
-  id             String      @id @default(uuid())
+  id             String            @id @default(uuid())
   ownerId        String
-  owner          User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner          User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   kind           MediaKind
-  status         MediaStatus @default(UPLOADING)
-  originalKey    String      @unique
+  status         MediaStatus       @default(UPLOADING)
+  originalKey    String            @unique
   optimizedKey   String?
   thumbnailKey   String?
   blurHash       String?
@@ -273,30 +273,30 @@ model MediaAsset {
   ads            AdMedia[]
   posts          PostMedia[]
   bannerRequests BannerRequest[]
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([ownerId, status])
 }
 
 model Ad {
-  id               String           @id @default(uuid())
+  id               String             @id @default(uuid())
   ownerId          String
-  owner            User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner            User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   categoryId       String
-  category         Category         @relation("AdCategory", fields: [categoryId], references: [id])
+  category         Category           @relation("AdCategory", fields: [categoryId], references: [id])
   subcategoryId    String
-  subcategory      Category         @relation("AdSubcategory", fields: [subcategoryId], references: [id])
+  subcategory      Category           @relation("AdSubcategory", fields: [subcategoryId], references: [id])
   cityId           String
-  city             City             @relation(fields: [cityId], references: [id])
+  city             City               @relation(fields: [cityId], references: [id])
   title            String
   description      String?
-  price            Decimal?         @db.Decimal(12, 2)
+  price            Decimal?           @db.Decimal(12, 2)
   scope            DisplayScope
-  status           AdStatus         @default(DRAFT)
+  status           AdStatus           @default(DRAFT)
   contactType      ContactType
   contactValue     String
-  moderation       ModerationResult @default(SAFE)
+  moderation       ModerationResult   @default(SAFE)
   featuredUntil    DateTime?
   sponsoredUntil   DateTime?
   topCategoryUntil DateTime?
@@ -310,8 +310,8 @@ model Ad {
   analyticsEvents  AnalyticsEvent[]
   metrics          AdMetricDaily[]
   orderItems       PaymentOrderItem[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([status, createdAt])
   @@index([categoryId, status, createdAt])
@@ -339,17 +339,17 @@ model AdTargetCity {
 }
 
 model ProfilePost {
-  id        String         @id @default(uuid())
-  ownerId   String
-  owner     User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  title     String
-  body      String?
-  status    PostStatus     @default(DRAFT)
+  id          String         @id @default(uuid())
+  ownerId     String
+  owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  body        String?
+  status      PostStatus     @default(DRAFT)
   publishedAt DateTime?
-  media     PostMedia[]
-  favorites PostFavorite[]
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  media       PostMedia[]
+  favorites   PostFavorite[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([ownerId, status, createdAt])
 }
@@ -386,18 +386,18 @@ model PostFavorite {
 }
 
 model BannerRequest {
-  id           String       @id @default(uuid())
+  id           String             @id @default(uuid())
   ownerId      String
-  owner        User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner        User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   mediaId      String
-  media        MediaAsset   @relation(fields: [mediaId], references: [id])
-  status       BannerStatus @default(DRAFT)
+  media        MediaAsset         @relation(fields: [mediaId], references: [id])
+  status       BannerStatus       @default(DRAFT)
   reviewReason String?
   startsAt     DateTime?
   endsAt       DateTime?
   orderItems   PaymentOrderItem[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@index([status, startsAt, endsAt])
 }
@@ -423,31 +423,31 @@ model PlatformSetting {
 }
 
 model PaymentOrder {
-  id              String         @id @default(uuid())
+  id              String             @id @default(uuid())
   userId          String
-  user            User           @relation(fields: [userId], references: [id])
-  status          PaymentStatus  @default(PENDING)
+  user            User               @relation(fields: [userId], references: [id])
+  status          PaymentStatus      @default(PENDING)
   totalHalalas    Int
-  currency        String         @default("SAR")
+  currency        String             @default("SAR")
   provider        String
-  providerOrderId String?        @unique
-  idempotencyKey  String         @unique
+  providerOrderId String?            @unique
+  idempotencyKey  String             @unique
   items           PaymentOrderItem[]
   attempts        PaymentAttempt[]
   paidAt          DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 }
 
 model PaymentOrderItem {
-  id            String        @id @default(uuid())
+  id            String         @id @default(uuid())
   orderId       String
-  order         PaymentOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order         PaymentOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   priceCode     String
   amountHalalas Int
-  quantity      Int           @default(1)
+  quantity      Int            @default(1)
   adId          String?
-  ad            Ad?           @relation(fields: [adId], references: [id])
+  ad            Ad?            @relation(fields: [adId], references: [id])
   bannerId      String?
   banner        BannerRequest? @relation(fields: [bannerId], references: [id])
 }
@@ -463,24 +463,24 @@ model PaymentAttempt {
 }
 
 model Report {
-  id          String       @id @default(uuid())
-  reporterId  String
-  reporter    User         @relation("Reporter", fields: [reporterId], references: [id])
-  adId        String
-  ad          Ad           @relation(fields: [adId], references: [id], onDelete: Cascade)
-  reason      String
-  details     String?
-  status      ReportStatus @default(OPEN)
-  actionById  String?
-  actionBy    User?        @relation("ReportActionBy", fields: [actionById], references: [id])
+  id           String       @id @default(uuid())
+  reporterId   String
+  reporter     User         @relation("Reporter", fields: [reporterId], references: [id])
+  adId         String
+  ad           Ad           @relation(fields: [adId], references: [id], onDelete: Cascade)
+  reason       String
+  details      String?
+  status       ReportStatus @default(OPEN)
+  actionById   String?
+  actionBy     User?        @relation("ReportActionBy", fields: [actionById], references: [id])
   actionReason String?
-  reviewedAt  DateTime?
-  appeals     Appeal[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  reviewedAt   DateTime?
+  appeals      Appeal[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  @@index([status, createdAt])
   @@unique([reporterId, adId, reason])
+  @@index([status, createdAt])
 }
 
 model Appeal {
@@ -529,25 +529,25 @@ model AnalyticsEvent {
   type           String
   watchMs        Int?
   source         AnalyticsSource @default(ORGANIC)
-  idempotencyKey String           @unique
-  occurredAt     DateTime         @default(now())
+  idempotencyKey String          @unique
+  occurredAt     DateTime        @default(now())
 
   @@index([adId, occurredAt])
 }
 
 model AdMetricDaily {
-  id             String   @id @default(uuid())
-  adId           String
-  ad             Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
-  date           DateTime @db.Date
-  impressions    Int      @default(0)
-  uniqueReach    Int      @default(0)
-  videoViews     Int      @default(0)
-  watchMs        BigInt   @default(0)
-  completions    Int      @default(0)
-  contactClicks  Int      @default(0)
-  saves          Int      @default(0)
-  shares         Int      @default(0)
+  id            String   @id @default(uuid())
+  adId          String
+  ad            Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  date          DateTime @db.Date
+  impressions   Int      @default(0)
+  uniqueReach   Int      @default(0)
+  videoViews    Int      @default(0)
+  watchMs       BigInt   @default(0)
+  completions   Int      @default(0)
+  contactClicks Int      @default(0)
+  saves         Int      @default(0)
+  shares        Int      @default(0)
 
   @@unique([adId, date])
   @@index([date])

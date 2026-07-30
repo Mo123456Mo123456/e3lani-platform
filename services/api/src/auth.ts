@@ -3,10 +3,10 @@ import {
   Body,
   Controller,
   Get,
+  HttpException,
   Injectable,
   Post,
   Req,
-  TooManyRequestsException,
   UnauthorizedException
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
@@ -49,7 +49,7 @@ export class AuthService {
       orderBy: { createdAt: "desc" }
     });
     if (recent && Date.now() - recent.createdAt.getTime() < env.OTP_RESEND_SECONDS * 1000) {
-      throw new TooManyRequestsException("OTP_RESEND_WAIT");
+      throw new HttpException("OTP_RESEND_WAIT", 429);
     }
     const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
     await prisma.otpChallenge.create({
@@ -74,7 +74,7 @@ export class AuthService {
       throw new UnauthorizedException("OTP_EXPIRED");
     }
     if (challenge.attempts >= env.OTP_MAX_ATTEMPTS) {
-      throw new TooManyRequestsException("OTP_ATTEMPTS_EXCEEDED");
+      throw new HttpException("OTP_ATTEMPTS_EXCEEDED", 429);
     }
     if (!(await argon2.verify(challenge.codeHash, data.code))) {
       await prisma.otpChallenge.update({

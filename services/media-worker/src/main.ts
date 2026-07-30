@@ -125,8 +125,8 @@ async function processVideo(assetId: string, input: Buffer) {
     return {
       optimizedKey,
       thumbnailKey,
-      width: metadata.streams?.[0]?.width,
-      height: metadata.streams?.[0]?.height,
+      width: metadata.streams?.[0]?.width ?? null,
+      height: metadata.streams?.[0]?.height ?? null,
       durationMs: Math.round(duration * 1000)
     };
   } finally {

@@ -138,23 +138,25 @@ export class OperationsService {
     if (!["DISMISS", "PAUSE", "REMOVE", "REACTIVATE"].includes(body.action ?? "") || !body.reason) {
       throw new BadRequestException("ACTION_AND_REASON_REQUIRED");
     }
+    const action = body.action as "DISMISS" | "PAUSE" | "REMOVE" | "REACTIVATE";
+    const reason = body.reason;
     const report = await prisma.report.findUnique({
       where: { id: reportId },
       include: { ad: true }
     });
     if (!report) throw new NotFoundException("REPORT_NOT_FOUND");
     const nextStatus =
-      body.action === "REMOVE" ? "REMOVED" : body.action === "PAUSE" ? "PAUSED" : body.action === "REACTIVATE" ? "ACTIVE" : report.ad.status;
+      action === "REMOVE" ? "REMOVED" : action === "PAUSE" ? "PAUSED" : action === "REACTIVATE" ? "ACTIVE" : report.ad.status;
     return prisma.$transaction(async (tx) => {
-      if (body.action !== "DISMISS") {
+      if (action !== "DISMISS") {
         await tx.ad.update({ where: { id: report.adId }, data: { status: nextStatus } });
       }
       const updated = await tx.report.update({
         where: { id: reportId },
         data: {
-          status: body.action === "DISMISS" ? "DISMISSED" : "ACTIONED",
+          status: action === "DISMISS" ? "DISMISSED" : "ACTIONED",
           actionById: actor.id,
-          actionReason: body.reason,
+          actionReason: reason,
           reviewedAt: new Date()
         }
       });
@@ -164,19 +166,19 @@ export class OperationsService {
           type: "REPORT_DECISION",
           titleAr: "قرار بشأن بلاغ",
           titleEn: "Report decision",
-          bodyAr: body.reason,
-          bodyEn: body.reason,
-          data: { reportId, adId: report.adId, action: body.action }
+          bodyAr: reason,
+          bodyEn: reason,
+          data: { reportId, adId: report.adId, action }
         }
       });
       await tx.auditLog.create({
         data: {
           actorId: actor.id,
-          action: `REPORT_${body.action}`,
+          action: `REPORT_${action}`,
           entityType: "Report",
           entityId: reportId,
           before: { reportStatus: report.status, adStatus: report.ad.status },
-          after: { reportStatus: updated.status, adStatus: nextStatus, reason: body.reason }
+          after: { reportStatus: updated.status, adStatus: nextStatus, reason }
         }
       });
       return updated;
@@ -248,7 +250,7 @@ export class OperationsService {
           entityType: "BannerRequest",
           entityId: id,
           before: { status: banner.status },
-          after: { status: updated.status, reason }
+          after: { status: updated.status, reason: reason ?? null }
         }
       });
       return updated;

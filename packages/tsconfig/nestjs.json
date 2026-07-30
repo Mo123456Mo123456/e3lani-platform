@@ -5,9 +5,11 @@
     "moduleResolution": "Node",
     "outDir": "dist",
     "declaration": false,
+    "declarationMap": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "strictPropertyInitialization": false
+    "strictPropertyInitialization": false,
+    "exactOptionalPropertyTypes": false
   },
   "exclude": ["node_modules", "dist", "test"]
 }

@@ -23,7 +23,7 @@ export interface PaymentProvider {
 
 @Injectable()
 export class DisabledPaymentProvider implements PaymentProvider {
-  async createIntent(): Promise<never> {
+  async createIntent(_orderId: string, _amountHalalas: number): Promise<PaymentIntent> {
     throw new ServiceUnavailableException("PAYMENTS_DISABLED");
   }
 

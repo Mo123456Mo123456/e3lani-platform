@@ -42,7 +42,7 @@ const adInclude = {
     orderBy: { sortOrder: "asc" as const },
     include: { media: true }
   }
-};
+} satisfies Prisma.AdInclude;
 
 function mediaUrl(key: string | null) {
   return key ? `${env.MEDIA_PUBLIC_URL.replace(/\/$/, "")}/${key}` : null;
