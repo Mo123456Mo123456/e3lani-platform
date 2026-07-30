@@ -12,12 +12,6 @@
     "noEmit": true
   },
   "exclude": [
-    "node_modules",
-    "app",
-    "server",
-    "lib",
-    "components",
-    "drizzle",
-    "tests"
+    "node_modules"
   ]
 }
