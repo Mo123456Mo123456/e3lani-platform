@@ -1,0 +1,10 @@
+{
+  "name": "@planet/world-generator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "World generation lives in @planet/simulation-models and is exposed via simulation-engine /v1/generate.",
+  "scripts": {
+    "dev": "node -e \"console.log('Use simulation-engine /v1/generate')\"",
+    "test": "node -e \"process.exit(0)\""
+  }
+}

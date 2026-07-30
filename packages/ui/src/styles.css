@@ -1,0 +1,46 @@
+:root {
+  --pb-bg: #050a14;
+  --pb-bg-elevated: #0b1526;
+  --pb-bg-panel: rgba(11, 21, 38, 0.88);
+  --pb-cyan: #3ecbff;
+  --pb-green: #3dff9a;
+  --pb-gold: #f0c14b;
+  --pb-purple: #b07cff;
+  --pb-red: #ff4d6d;
+  --pb-orange: #ff8a3d;
+  --pb-white: #f2f5f8;
+  --pb-gray: #8b98a8;
+  --pb-border: rgba(62, 203, 255, 0.18);
+  --pb-glow: rgba(62, 203, 255, 0.35);
+  --pb-font-display: "Orbitron", "Tajawal", sans-serif;
+  --pb-font-body: "Tajawal", "Exo 2", sans-serif;
+}
+
+.pb-panel {
+  background: var(--pb-bg-panel);
+  border: 1px solid var(--pb-border);
+  backdrop-filter: blur(16px);
+  border-radius: 16px;
+}
+
+.pb-btn {
+  font-family: var(--pb-font-body);
+  border: 1px solid var(--pb-border);
+  background: linear-gradient(135deg, rgba(62, 203, 255, 0.2), rgba(176, 124, 255, 0.12));
+  color: var(--pb-white);
+  padding: 0.65rem 1.1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pb-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 24px var(--pb-glow);
+}
+
+.pb-btn-primary {
+  background: linear-gradient(135deg, #1a6d8f, #3ecbff);
+  border-color: rgba(62, 203, 255, 0.5);
+  font-weight: 700;
+}

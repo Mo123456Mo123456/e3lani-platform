@@ -1,0 +1,15 @@
+export const categoryAccent: Record<string, string> = {
+  creature: "var(--pb-cyan)",
+  plant: "var(--pb-green)",
+  resource: "var(--pb-cyan)",
+  civilization: "var(--pb-gold)",
+  invention: "var(--pb-cyan)",
+  technology: "var(--pb-cyan)",
+  disease: "var(--pb-red)",
+  climate_phenomenon: "var(--pb-cyan)",
+  disaster: "var(--pb-orange)",
+  alliance: "var(--pb-purple)",
+  culture: "var(--pb-purple)",
+  migration: "var(--pb-purple)",
+  war: "var(--pb-red)",
+};

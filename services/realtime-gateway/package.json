@@ -1,0 +1,10 @@
+{
+  "name": "@planet/realtime-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Realtime currently embedded in services/api (Socket.IO). This package is a placeholder for horizontal split.",
+  "scripts": {
+    "dev": "node -e \"console.log('Realtime gateway is embedded in @planet/api (/ws). Split pending.')\"",
+    "test": "node -e \"process.exit(0)\""
+  }
+}

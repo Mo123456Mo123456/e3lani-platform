@@ -1,0 +1,10 @@
+{
+  "name": "@planet/notification-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Notifications currently written inline by API on contribution echoes. Worker extraction pending.",
+  "scripts": {
+    "dev": "node -e \"console.log('Notification worker not yet split from API')\"",
+    "test": "node -e \"process.exit(0)\""
+  }
+}

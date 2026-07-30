@@ -1,0 +1,10 @@
+FROM node:22-alpine
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-workspace.yaml ./
+COPY packages ./packages
+COPY services/simulation-engine ./services/simulation-engine
+RUN pnpm install --filter @planet/simulation-engine...
+RUN pnpm --filter @planet/shared-types build && pnpm --filter @planet/simulation-models build
+EXPOSE 4001
+CMD ["pnpm", "--filter", "@planet/simulation-engine", "dev"]
