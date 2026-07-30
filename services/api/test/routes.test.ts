@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import WebSocket from "ws";
 import { createApp } from "../src/app.js";
 import type { AppConfig } from "../src/config.js";
 
@@ -185,9 +186,11 @@ describe("API routes", () => {
         headers: { cookie },
       })
     ).json().data;
-    const socket = await app.injectWS(`/ws?planetId=${summary.id}`, {
-      headers: { cookie },
-    });
+    const address = await app.listen({ host: "127.0.0.1", port: 0 });
+    const socket = new WebSocket(
+      `${address.replace(/^http/, "ws")}/ws?planetId=${summary.id}`,
+      { headers: { cookie } },
+    );
     const messageOfType = (type: string) =>
       new Promise<Record<string, unknown>>((resolve) => {
         const onMessage = (value: { toString(): string }) => {
@@ -199,6 +202,10 @@ describe("API routes", () => {
         socket.on("message", onMessage);
       });
 
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
     const delta = messageOfType("simulation.paused");
     await app.eventBus.publish("world.delta", {
       type: "simulation.paused",
@@ -212,6 +219,6 @@ describe("API routes", () => {
       planetId: summary.id,
       payload: { reason: "test" },
     });
-    socket.close();
+    socket.terminate();
   });
 });

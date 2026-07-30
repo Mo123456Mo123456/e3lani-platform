@@ -37,10 +37,12 @@
   },
   "devDependencies": {
     "@types/node": "*",
+    "@types/ws": "^8.18.1",
     "drizzle-kit": "*",
     "tsx": "*",
     "typescript": "*",
-    "vitest": "*"
+    "vitest": "*",
+    "ws": "^8.21.1"
   },
   "engines": {
     "node": ">=22"
