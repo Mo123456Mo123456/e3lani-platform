@@ -231,6 +231,9 @@ importers:
       '@kawkab/simulation-engine':
         specifier: workspace:*
         version: link:../simulation-engine
+      '@kawkab/simulation-models':
+        specifier: workspace:^
+        version: link:../../packages/simulation-models
       '@kawkab/validation':
         specifier: workspace:*
         version: link:../../packages/validation

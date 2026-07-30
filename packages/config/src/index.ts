@@ -17,7 +17,7 @@ export const EnvSchema = z.object({
   SQLITE_PATH: z.string().default("./data/kawkab.sqlite"),
   JWT_SECRET: z.string().default("dev-secret-change-me"),
   JWT_REFRESH_SECRET: z.string().default("dev-refresh-change-me"),
-  SIMULATION_SEED: z.string().default("kawkab-demo-seed"),
+  SIMULATION_SEED: z.string().default("kawkab-rich-demo"),
   SIMULATION_TICK_MS: z.coerce.number().int().positive().default(2000),
   AI_PROVIDER: z.enum(["openai", "anthropic", "gemini", "mock"]).default("mock"),
   FEATURE_AI: boolFromEnv(true),

@@ -10,6 +10,18 @@ Core guarantees:
 4. replaying an event log over the same seed restores state;
 5. population updates respect carrying capacity.
 
+Current modules:
+
+- climate mutates region temperature, moisture, and pollution;
+- plants spread, increase capacity, and can reduce pollution;
+- ecosystem updates species populations deterministically;
+- civilizations can found in multiple eligible regions and grow cities/economies;
+- migration uses Dijkstra paths between regions;
+- wars can start when pressure scores are high enough;
+- `applyContribution` emits `CONTRIBUTION_APPLIED` plus category-specific caused follow-on events;
+- `runFutureScenarios` forks deterministic subseeds for Monte Carlo previews;
+- `serializeState` / `deserializeState` keep state persistence-friendly.
+
 Run:
 
 ```bash

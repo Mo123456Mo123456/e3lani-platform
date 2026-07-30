@@ -86,6 +86,7 @@ export function generatePlanet(seed: string, resolution = 32): GeneratedPlanetGr
         elevation,
         moisture,
         temperature,
+        pollution: 0,
         biome,
         resources,
         riverStrength,

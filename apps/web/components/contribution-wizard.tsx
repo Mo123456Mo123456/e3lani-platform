@@ -1,26 +1,45 @@
+
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
-import { createContribution } from "../lib/api";
+import type { PlanetRegion } from "@kawkab/shared-types";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createContribution, previewContribution, confirmContribution } from "../lib/api";
 import type { Locale } from "../lib/i18n";
 import { dictionaries } from "../lib/i18n";
 import { useWorldStore } from "../store/world-store";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-export function ContributionWizard({ planetId, locale }: { planetId: string; locale: Locale }) {
+export function ContributionWizard({ planetId, regions, locale, onConfirmed }: { planetId: string; regions: PlanetRegion[]; locale: Locale; onConfirmed(result: any): void }) {
   const t = dictionaries[locale];
   const token = useWorldStore((state) => state.token);
-  const setToken = useWorldStore((state) => state.setToken);
+  const client = useQueryClient();
   const [prompt, setPrompt] = useState(locale === "ar" ? "نبات ليلي يخزن الضوء قرب الأنهار" : "A night plant that stores light near rivers");
   const [category, setCategory] = useState("plant");
-  const mutation = useMutation({
-    mutationFn: () => createContribution(token, { planetId, prompt, category, locale })
+  const [targetRegionId, setTargetRegionId] = useState("");
+  const [contributionId, setContributionId] = useState("");
+  const [preview, setPreview] = useState<any>();
+
+  const selectableRegions = useMemo(() => regions.filter((region) => region.biome !== "deep_ocean").slice(0, 80), [regions]);
+
+  const createMutation = useMutation({
+    mutationFn: () => createContribution(token, { planetId, prompt, category, locale, targetRegionId: targetRegionId || undefined }),
+    onSuccess: (data) => setContributionId(data.contribution.id)
+  });
+  const previewMutation = useMutation({
+    mutationFn: () => previewContribution(token, contributionId),
+    onSuccess: (data) => setPreview(data)
+  });
+  const confirmMutation = useMutation({
+    mutationFn: () => confirmContribution(token, contributionId),
+    onSuccess: async (data) => {
+      onConfirmed(data);
+      await Promise.all([client.invalidateQueries({ queryKey: ["planet"] }), client.invalidateQueries({ queryKey: ["events"] }), client.invalidateQueries({ queryKey: ["timeline"] }), client.invalidateQueries({ queryKey: ["notifications"] })]);
+    }
   });
 
   return (
     <div className="wizard">
-      <strong>{t.stepWrite}</strong>
-      <textarea rows={5} value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+      <strong>{t.stepCategory}</strong>
       <select value={category} onChange={(event) => setCategory(event.target.value)}>
         <option value="creature">creature</option>
         <option value="plant">plant</option>
@@ -33,15 +52,22 @@ export function ContributionWizard({ planetId, locale }: { planetId: string; loc
         <option value="world_law">world law</option>
         <option value="custom">custom</option>
       </select>
-      <input placeholder="JWT access token" value={token} onChange={(event) => setToken(event.target.value)} />
+      <strong>{t.stepIdea}</strong>
+      <textarea rows={4} value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+      <strong>{t.stepRegion}</strong>
+      <select value={targetRegionId} onChange={(event) => setTargetRegionId(event.target.value)}>
+        <option value="">Auto / تلقائي</option>
+        {selectableRegions.map((region) => <option key={region.id} value={region.id}>{region.x},{region.y} - {region.biome} - cap {region.populationCapacity}</option>)}
+      </select>
       {!token ? <small className="status-warn">{t.authRequired}</small> : null}
-      <button className="primary-button" disabled={!token || mutation.isPending} onClick={() => mutation.mutate()}>
-        {mutation.isPending ? "..." : t.submit}
-      </button>
-      <strong>{t.stepBalance}</strong>
-      <pre>{mutation.data ? JSON.stringify(mutation.data, null, 2) : `${t.notEnabled}: moderation confirmation UI`}</pre>
+      <button className="primary-button" disabled={!token || createMutation.isPending} onClick={() => createMutation.mutate()}>{createMutation.isPending ? "..." : t.analyze}</button>
+      {createMutation.data ? <pre>{JSON.stringify(createMutation.data.contribution.structuredPayload, null, 2)}</pre> : null}
+      <strong>{t.stepPreview}</strong>
+      <button className="secondary-button" disabled={!contributionId || previewMutation.isPending} onClick={() => previewMutation.mutate()}>{previewMutation.isPending ? "..." : t.preview}</button>
+      {preview ? <div className="preview-box"><p>Success: {Math.round(preview.successProbability * 100)}%</p><p>Risks: {preview.risks.join(", ") || "none"}</p><pre>{JSON.stringify(preview.deltas, null, 2)}</pre></div> : null}
       <strong>{t.stepConfirm}</strong>
-      <small>{t.notEnabled}: confirmation button will call /contributions/:id/confirm after moderation.</small>
+      <button className="primary-button" disabled={!preview || confirmMutation.isPending} onClick={() => confirmMutation.mutate()}>{confirmMutation.isPending ? "..." : t.confirm}</button>
+      {confirmMutation.error ? <small className="status-warn">{String(confirmMutation.error.message)}</small> : null}
     </div>
   );
 }

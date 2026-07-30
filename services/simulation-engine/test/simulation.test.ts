@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checksum } from "@kawkab/simulation-models";
-import { canFoundCivilization, createInitialState, replayEvents, runTicks } from "../src/index";
+import type { UserContribution } from "@kawkab/shared-types";
+import { applyContribution, canFoundCivilization, createInitialState, createRichDemoState, replayEvents, runFutureScenarios, runTicks } from "../src/index";
 
 describe("deterministic simulation core", () => {
   it("same seed produces same history", () => {
@@ -30,5 +31,47 @@ describe("deterministic simulation core", () => {
     for (const species of Object.values(state.species)) {
       expect(species.population).toBeLessThanOrEqual(species.carryingCapacity);
     }
+  });
+
+  it("applyContribution produces caused events", () => {
+    const state = createRichDemoState("contribution-seed", 14, 2);
+    const contribution: UserContribution = {
+      id: "contrib-1",
+      userId: "user-1",
+      planetId: state.planet.id,
+      category: "plant",
+      prompt: "نبات يرمم التلوث",
+      structuredPayload: { name: "نبات يرمم التلوث", targetRegionId: state.planet.regions.find((region) => region.biome !== "deep_ocean")?.id },
+      status: "previewed",
+      balanceNotes: [],
+      previewEventIds: [],
+      confirmedEventIds: [],
+      createdAt: new Date(0).toISOString()
+    };
+    const result = applyContribution(state, contribution);
+    expect(result.events.length).toBeGreaterThanOrEqual(2);
+    expect(result.events.every((event) => event.causeEventIds.length > 0)).toBe(true);
+    expect(result.events.some((event) => event.type === "CONTRIBUTION_APPLIED")).toBe(true);
+  });
+
+  it("Monte Carlo futures return uncertainty", () => {
+    const state = createRichDemoState("scenario-seed", 14, 2);
+    const scenarios = runFutureScenarios(state, 5, 4);
+    expect(scenarios.scenarios).toHaveLength(4);
+    expect(scenarios.uncertainty).toBeGreaterThanOrEqual(0);
+    expect(scenarios.best.score).toBeGreaterThanOrEqual(scenarios.worst.score);
+  });
+
+  it("rich demo supports multiple civilizations", () => {
+    const state = createRichDemoState("multi-civ-seed", 14, 1);
+    expect(Object.keys(state.civilizations).length).toBeGreaterThanOrEqual(12);
+  });
+
+  it("climate mutates region values", () => {
+    const state = createInitialState({ seed: "climate-seed", resolution: 10 });
+    const before = checksum(state.planet.regions.map((region) => [region.id, region.temperature, region.moisture, region.pollution]));
+    const after = runTicks({ seed: "climate-seed", resolution: 10 }, 3);
+    const afterChecksum = checksum(after.planet.regions.map((region) => [region.id, region.temperature, region.moisture, region.pollution]));
+    expect(afterChecksum).not.toEqual(before);
   });
 });

@@ -49,3 +49,11 @@ export const notifications = sqliteTable("notifications", {
   read: integer("read", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull()
 });
+
+export const stateSnapshots = sqliteTable("state_snapshots", {
+  id: text("id").primaryKey(),
+  planetId: text("planet_id").notNull(),
+  tick: integer("tick").notNull(),
+  payload: text("payload", { mode: "json" }).notNull(),
+  createdAt: text("created_at").notNull()
+});

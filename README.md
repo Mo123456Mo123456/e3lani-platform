@@ -1,90 +1,96 @@
+
 # كوكب يولد أمامك
 
 **عالمك، قرارك، أثر لا ينتهي.**
 
-هذا المستودع هو أساس monorepo لمنصة محاكاة كوكبية تضع الخوارزميات أولاً: توليد إجرائي للعالم، محرك محاكاة حتمي، مساهمات المستخدمين، طبقة AI للمساعدة لا للاستبدال، وتطبيق ويب عربي RTL افتراضياً.
+Monorepo لمنصة محاكاة كوكبية تعتمد على الخوارزميات أولاً: توليد عالم حتمي، محرك محاكاة event-sourced، مساهمات مستخدمين تمر عبر موازنة ومعاينة، ثم تطبيق حي يكتب الأحداث والإشعارات والزمن في قاعدة البيانات.
 
-> الحالة الحالية: الأساس يعمل محلياً. بعض مسارات الإنتاج موسومة بوضوح بـ **غير مفعّل** مثل حارس الإدارة الكامل، الرسوم المالية للـ AI، والجدولة التلقائية داخل API.
+## ما يعمل الآن
 
-## البنية
+- عالم demo غني بالبذرة `kawkab-rich-demo`:
+  - 12 حضارة، 40 مدينة، 120+ مورد، 300+ نوع، 800+ نبات، 50+ تقنية.
+  - seed الحالي في الاختبار المحلي أنشأ: 12 حضارة، 40 مدينة، 467 مورد، 311 نوع، 1000 نبات، 64 تقنية، 223 حدث.
+- API يحمل حالة الكوكب من SQLite عند البدء أو ينشئها إن لم توجد.
+- مساهمة كاملة:
+  1. تسجيل / دخول JWT.
+  2. `POST /contributions` يحلل الفكرة عبر Mock AI ويوازنها.
+  3. `GET /contributions/:id/preview` يطبقها على fork، يشغل ticks قصيرة + Monte Carlo، ويرجع deltas/risks/successProbability/suitableBiomes.
+  4. `POST /contributions/:id/confirm` يطبقها على العالم الحي، يحفظ `world_events` و snapshot/state، ينشئ notifications، ويبث realtime.
+- endpoints إضافية: causal graph، compare، timeline، notifications، scenarios.
+- Realtime gateway يقبل `POST /broadcast` ويبث إلى WebSocket.
+- Web app: RTL افتراضي، login/register، wizard كامل، timeline scrub، causal graph SVG، compare/futures panels، city lights/event markers/layers على الكوكب.
+- Admin app: login حقيقي، users، contributions moderation، tick/pause/resume.
 
-```txt
-apps/web                  واجهة عامة Next.js 15 + React Three Fiber
-apps/admin                لوحة إدارة منفصلة غير مرتبطة من الواجهة العامة
-services/api              Fastify REST + Swagger + JWT + Drizzle schema + SQLite dev
-services/simulation-engine محرك حتمي event-sourced مع CLI واختبارات
-services/world-generator  توليد كوكب من seed: خرائط ارتفاع/رطوبة/حرارة/أقاليم/أنهار
-services/ai-orchestrator  واجهات OpenAI/Anthropic/Gemini/Mock؛ Mock يعمل بلا مفاتيح
-services/realtime-gateway WebSocket delta topics
-services/notification-worker طابور محلي بسيط للإشعارات
-packages/shared-types     Zod schemas وأنواع TypeScript مشتركة
-packages/simulation-models خوارزميات deterministic RNG/noise/biomes/population/war/pathfinding/causal graph
-packages/validation       قواعد توازن مساهمات المستخدمين
-packages/config           env/ports/feature flags
-packages/ui               design tokens وثيم زجاجي داكن
-packages/analytics        واجهة analytics داخلية بسيطة
-```
+## غير مفعّل / حدود صادقة
+
+- تكاليف AI ورسوم billing: **غير مفعّل** حتى ربط مزودي الإنتاج.
+- مزودو OpenAI/Anthropic/Gemini معرفون كواجهات؛ Mock يعمل دائماً دون مفاتيح.
+- Redis queue production worker غير مربوط بعد؛ API ينشئ notifications مباشرة حالياً.
+- Docker Compose يجهز PostgreSQL، لكن مسار التطوير الحالي يستخدم SQLite إذا لم تضبط تكامل Postgres كامل.
 
 ## التشغيل السريع
 
 ```bash
 corepack enable
 pnpm install
-pnpm test
+cp .env.example .env
 pnpm --filter @kawkab/api db:migrate
 pnpm --filter @kawkab/api db:seed
-pnpm --filter @kawkab/api dev
 pnpm --filter @kawkab/realtime-gateway dev
+pnpm --filter @kawkab/api dev
 pnpm --filter @kawkab/web dev
 pnpm --filter @kawkab/admin dev
 ```
 
-- الويب: <http://localhost:3000>
-- الإدارة: <http://localhost:3001>
+- Web: <http://localhost:3000>
+- Admin: <http://localhost:3001>
 - API: <http://localhost:4000>
 - Swagger: <http://localhost:4000/docs>
-- WebSocket: `ws://localhost:4010`
+- WebSocket/HTTP broadcast: `ws://localhost:4010` و `POST http://localhost:4010/broadcast`
 
 ## حساب الإدارة التجريبي
 
-شغّل:
-
-```bash
-pnpm --filter @kawkab/api db:seed
-```
-
-ثم استخدم القيم الافتراضية أو غيّرها في `.env`:
+بعد `pnpm --filter @kawkab/api db:seed`:
 
 - البريد: `admin@kawkab.local`
 - كلمة المرور: `change-me-admin`
 
+للمستخدم العادي يمكن التسجيل من الواجهة أو `POST /auth/register`.
+
 ## أوامر مهمة
 
 ```bash
-pnpm dev          # تشغيل كل dev tasks عبر Turbo
-pnpm build        # بناء كل الحزم والتطبيقات
-pnpm test         # Vitest
-pnpm lint         # فحص TypeScript
-pnpm db:migrate   # إنشاء جداول SQLite المحلية
-pnpm db:seed      # إنشاء super admin تجريبي
-pnpm docker:up    # Postgres/Redis/MinIO/API/Simulation/Web
+pnpm dev
+pnpm build
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm db:migrate
+pnpm db:seed
+pnpm docker:up
 pnpm --filter @kawkab/simulation-engine simulate
 ```
 
-## مبادئ التصميم
-
-- الـ AI ليس المحاكاة؛ المحاكاة حتمية وخوارزمية أولاً.
-- نفس `seed` ونفس سجل الأحداث ينتجان نفس الحالة.
-- كل حدث عالمي يجب أن يحمل سبباً (`causeEventIds`).
-- المنطق المحاكي داخل الخدمات والحزم، وليس في الواجهة.
-- الواجهة تستخدم ألوان: navy الخلفية، cyan للتقنية، green للنباتات، gold للحضارات، purple للهجرات، red للحروب، orange للبراكين.
-
-## Docker
+## مسار المساهمة عبر API
 
 ```bash
-cp .env.example .env
-pnpm install
-pnpm docker:up
+# 1) register/login -> accessToken
+# 2) create
+POST /contributions
+# 3) preview
+GET /contributions/:id/preview
+# 4) confirm
+POST /contributions/:id/confirm
+# 5) read resulting notifications/events/timeline
+GET /notifications
+GET /planets/:id/events
+GET /planets/:id/timeline
+GET /planets/:id/causal-graph
 ```
 
-PostgreSQL مهيأ في compose، بينما يستخدم API SQLite محلياً إذا لم تضبط `DATABASE_URL`.
+## مبادئ المحاكاة
+
+- الـ AI لا يقرر العالم؛ المحرك الخوارزمي يقرر.
+- نفس seed ونفس events يعيدان نفس الحالة.
+- كل حدث له `causeEventIds`.
+- frontend يعرض ويطلب فقط؛ منطق المحاكاة في services/packages.

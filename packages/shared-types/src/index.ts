@@ -56,6 +56,7 @@ export const PlanetRegionSchema = z.object({
   elevation: z.number().min(0).max(1),
   moisture: z.number().min(0).max(1),
   temperature: z.number().min(0).max(1),
+  pollution: z.number().min(0).max(1).default(0),
   biome: BiomeSchema,
   resources: z.array(ResourceSchema).default([]),
   riverStrength: z.number().min(0).max(1).default(0),

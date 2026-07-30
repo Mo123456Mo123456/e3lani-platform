@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { sqlite, migrate } from "./index";
+import { ensureDemoWorld, persistState, DEFAULT_DEMO_SEED } from "../world-store";
 
 migrate();
 const email = process.env.SANDBOX_ADMIN_EMAIL ?? "admin@kawkab.local";
@@ -20,3 +21,9 @@ if (!existing) {
 } else {
   console.log(`Sandbox admin already exists ${email}`);
 }
+
+const world = ensureDemoWorld(DEFAULT_DEMO_SEED);
+persistState(world);
+console.log(
+  `Seeded demo world ${world.planet.id}: ${Object.keys(world.civilizations).length} civilizations, ${Object.keys(world.cities).length} cities, ${Object.keys(world.resources).length} resources, ${Object.keys(world.species).length} species, ${Object.keys(world.plants).length} plants, ${Object.keys(world.technologies).length} technologies, ${world.events.length} events.`
+);
