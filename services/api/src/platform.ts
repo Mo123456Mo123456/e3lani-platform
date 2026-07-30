@@ -21,8 +21,17 @@ import {
   reportSchema
 } from "@e3lani/types";
 import { CurrentUser, type AuthUser, parse, Public } from "./common";
+import { z } from "zod";
 
 const env = parseServerEnv();
+const businessProfileSchema = z.object({
+  bio: z.string().trim().max(500).nullable().optional(),
+  websiteUrl: z.string().url().startsWith("https://").nullable().optional(),
+  storeUrl: z.string().url().startsWith("https://").nullable().optional(),
+  whatsapp: z.string().regex(/^\+9665\d{8}$/).nullable().optional(),
+  socialLinks: z.record(z.string(), z.string().url().startsWith("https://")).optional()
+});
+const appealSchema = z.object({ message: z.string().trim().min(20).max(1000) });
 const adInclude = {
   city: { select: { id: true, nameAr: true, nameEn: true } },
   category: { select: { id: true, nameAr: true, nameEn: true, slug: true } },
@@ -239,6 +248,45 @@ export class PlatformService {
     });
   }
 
+  async updateBusinessProfile(userId: string, body: unknown) {
+    const data = parse(businessProfileSchema, body);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { accountType: true }
+    });
+    if (!user || user.accountType === "INDIVIDUAL") {
+      throw new BadRequestException("BUSINESS_ACCOUNT_REQUIRED");
+    }
+    return prisma.businessProfile.upsert({
+      where: { userId },
+      update: data,
+      create: { userId, ...data }
+    });
+  }
+
+  async setBusinessAsset(userId: string, field: "logoUrl" | "coverUrl", assetId: string | null) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { accountType: true }
+    });
+    if (!user || user.accountType === "INDIVIDUAL") {
+      throw new BadRequestException("BUSINESS_ACCOUNT_REQUIRED");
+    }
+    let url: string | null = null;
+    if (assetId) {
+      const asset = await prisma.mediaAsset.findFirst({
+        where: { id: assetId, ownerId: userId, kind: "IMAGE", status: "READY" }
+      });
+      if (!asset?.optimizedKey) throw new BadRequestException("BUSINESS_ASSET_NOT_READY");
+      url = mediaUrl(asset.optimizedKey);
+    }
+    return prisma.businessProfile.upsert({
+      where: { userId },
+      update: { [field]: url },
+      create: { userId, [field]: url }
+    });
+  }
+
   async createAd(userId: string, body: unknown) {
     const input = parse(createAdSchema, body);
     const assets = await prisma.mediaAsset.findMany({
@@ -317,6 +365,30 @@ export class PlatformService {
     });
   }
 
+  async updatePost(userId: string, postId: string, body: unknown) {
+    const input = parse(createPostSchema, body);
+    const post = await prisma.profilePost.findFirst({ where: { id: postId, ownerId: userId } });
+    if (!post) throw new NotFoundException("POST_NOT_FOUND");
+    const count = await prisma.mediaAsset.count({
+      where: { id: { in: input.media.map((item) => item.assetId) }, ownerId: userId, status: "READY" }
+    });
+    if (count !== input.media.length) throw new BadRequestException("MEDIA_NOT_READY");
+    return prisma.$transaction(async (tx) => {
+      await tx.postMedia.deleteMany({ where: { postId } });
+      return tx.profilePost.update({
+        where: { id: postId },
+        data: {
+          title: input.title,
+          body: input.body,
+          media: {
+            create: input.media.map((item) => ({ mediaId: item.assetId, sortOrder: item.order }))
+          }
+        },
+        include: { media: { include: { media: true }, orderBy: { sortOrder: "asc" } } }
+      });
+    });
+  }
+
   async deletePost(userId: string, postId: string) {
     const result = await prisma.profilePost.updateMany({
       where: { id: postId, ownerId: userId },
@@ -324,6 +396,67 @@ export class PlatformService {
     });
     if (!result.count) throw new NotFoundException("POST_NOT_FOUND");
     return { success: true };
+  }
+
+  async togglePostFavorite(userId: string, postId: string, save: boolean) {
+    if (save) {
+      await prisma.postFavorite.upsert({
+        where: { userId_postId: { userId, postId } },
+        update: {},
+        create: { userId, postId }
+      });
+    } else {
+      await prisma.postFavorite.deleteMany({ where: { userId, postId } });
+    }
+    return { saved: save };
+  }
+
+  myAds(userId: string) {
+    return prisma.ad.findMany({
+      where: { ownerId: userId },
+      include: adInclude,
+      orderBy: { createdAt: "desc" }
+    }).then((ads) => ads.map(presentAd));
+  }
+
+  async changeAdStatus(userId: string, adId: string, action: "PAUSE" | "RESUME" | "REMOVE") {
+    const ad = await prisma.ad.findFirst({ where: { id: adId, ownerId: userId } });
+    if (!ad) throw new NotFoundException("AD_NOT_FOUND");
+    const valid =
+      (action === "PAUSE" && ad.status === "ACTIVE") ||
+      (action === "RESUME" && ad.status === "PAUSED" && Boolean(ad.expiresAt && ad.expiresAt > new Date())) ||
+      (action === "REMOVE" && ["ACTIVE", "PAUSED", "DRAFT"].includes(ad.status));
+    if (!valid) throw new BadRequestException("AD_ACTION_NOT_ALLOWED");
+    return prisma.ad.update({
+      where: { id: ad.id },
+      data: {
+        status: action === "PAUSE" ? "PAUSED" : action === "RESUME" ? "ACTIVE" : "REMOVED",
+        removedAt: action === "REMOVE" ? new Date() : undefined
+      }
+    });
+  }
+
+  async createBannerRequest(userId: string, assetId: string) {
+    const asset = await prisma.mediaAsset.findFirst({
+      where: { id: assetId, ownerId: userId, kind: "IMAGE", status: "READY" }
+    });
+    if (!asset) throw new BadRequestException("BANNER_LOGO_NOT_READY");
+    return prisma.bannerRequest.create({
+      data: { ownerId: userId, mediaId: assetId, status: "DRAFT" }
+    });
+  }
+
+  async appealReport(userId: string, reportId: string, body: unknown) {
+    const { message } = parse(appealSchema, body);
+    const report = await prisma.report.findFirst({
+      where: { id: reportId, ad: { ownerId: userId }, status: "ACTIONED" }
+    });
+    if (!report) throw new NotFoundException("REPORT_NOT_APPEALABLE");
+    return prisma.$transaction(async (tx) => {
+      const appeal = await tx.appeal.create({ data: { reportId, ownerId: userId, message } });
+      await tx.report.update({ where: { id: reportId }, data: { status: "APPEALED" } });
+      return appeal;
+    });
   }
 
   async toggleFavorite(userId: string, adId: string, save: boolean) {
@@ -414,6 +547,21 @@ export class PlatformController {
     return this.platform.setAvatar(user.id, assetId);
   }
 
+  @Patch("me/business")
+  updateBusiness(@CurrentUser() user: AuthUser, @Body() body: unknown) {
+    return this.platform.updateBusinessProfile(user.id, body);
+  }
+
+  @Patch("me/business/:field")
+  businessAsset(
+    @CurrentUser() user: AuthUser,
+    @Param("field") field: string,
+    @Body("assetId") assetId: string | null
+  ) {
+    if (!["logo", "cover"].includes(field)) throw new BadRequestException("ASSET_FIELD_INVALID");
+    return this.platform.setBusinessAsset(user.id, field === "logo" ? "logoUrl" : "coverUrl", assetId);
+  }
+
   @Post("ads")
   createAd(@CurrentUser() user: AuthUser, @Body() body: unknown) {
     return this.platform.createAd(user.id, body);
@@ -424,9 +572,51 @@ export class PlatformController {
     return this.platform.createPost(user.id, body);
   }
 
+  @Patch("posts/:id")
+  updatePost(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: unknown) {
+    return this.platform.updatePost(user.id, id, body);
+  }
+
   @Delete("posts/:id")
   deletePost(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.platform.deletePost(user.id, id);
+  }
+
+  @Post("posts/:id/save")
+  savePost(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.platform.togglePostFavorite(user.id, id, true);
+  }
+
+  @Delete("posts/:id/save")
+  unsavePost(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.platform.togglePostFavorite(user.id, id, false);
+  }
+
+  @Get("me/ads")
+  myAds(@CurrentUser() user: AuthUser) {
+    return this.platform.myAds(user.id);
+  }
+
+  @Post("ads/:id/status")
+  adStatus(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body("action") action: "PAUSE" | "RESUME" | "REMOVE"
+  ) {
+    if (!["PAUSE", "RESUME", "REMOVE"].includes(action)) {
+      throw new BadRequestException("AD_ACTION_INVALID");
+    }
+    return this.platform.changeAdStatus(user.id, id, action);
+  }
+
+  @Post("banner-requests")
+  bannerRequest(@CurrentUser() user: AuthUser, @Body("assetId") assetId: string) {
+    return this.platform.createBannerRequest(user.id, assetId);
+  }
+
+  @Post("reports/:id/appeals")
+  appeal(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: unknown) {
+    return this.platform.appealReport(user.id, id, body);
   }
 
   @Post("ads/:id/save")

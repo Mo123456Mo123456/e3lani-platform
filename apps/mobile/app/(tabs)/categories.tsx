@@ -8,7 +8,7 @@ type Category = {
   id: string;
   nameAr: string;
   icon?: string;
-  children: Array<{ id: string; nameAr: string }>;
+  children: { id: string; nameAr: string }[];
 };
 
 export default function CategoriesScreen() {

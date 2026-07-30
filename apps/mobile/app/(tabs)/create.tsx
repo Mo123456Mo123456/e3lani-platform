@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { apiFetch, colors } from "@/lib/api";
 
-type Category = { id: string; nameAr: string; children: Array<{ id: string; nameAr: string }> };
+type Category = { id: string; nameAr: string; children: { id: string; nameAr: string }[] };
 type City = { id: string; nameAr: string };
 type Picked = ImagePicker.ImagePickerAsset;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,7 +30,7 @@ export default function CreateAdScreen() {
   );
 
   useEffect(() => {
-    void apiFetch<{ categories: Category[]; regions: Array<{ cities: City[] }> }>("/catalog")
+    void apiFetch<{ categories: Category[]; regions: { cities: City[] }[] }>("/catalog")
       .then((result) => {
         setCategories(result.categories);
         setCities(result.regions.flatMap((region) => region.cities));

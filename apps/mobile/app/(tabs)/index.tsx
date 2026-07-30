@@ -27,14 +27,14 @@ type Ad = {
   owner: { name?: string; avatarUrl?: string; businessProfile?: { logoUrl?: string; verifiedAt?: string } };
   category: { nameAr: string };
   city: { nameAr: string };
-  media: Array<{ id: string; kind: "IMAGE" | "VIDEO"; url: string; thumbnailUrl?: string }>;
+  media: { id: string; kind: "IMAGE" | "VIDEO"; url: string; thumbnailUrl?: string }[];
 };
 
 function LogoStrip() {
   const position = useRef(new Animated.Value(0)).current;
-  const [logos, setLogos] = useState<Array<{ id: string; logoUrl: string }>>([]);
+  const [logos, setLogos] = useState<{ id: string; logoUrl: string }[]>([]);
   useEffect(() => {
-    void apiFetch<Array<{ id: string; logoUrl: string }>>("/banners").then(setLogos).catch(() => setLogos([]));
+    void apiFetch<{ id: string; logoUrl: string }[]>("/banners").then(setLogos).catch(() => setLogos([]));
   }, []);
   useEffect(() => {
     if (!logos.length) return;

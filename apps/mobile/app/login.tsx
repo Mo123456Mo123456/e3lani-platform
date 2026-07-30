@@ -29,7 +29,7 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    void apiFetch<{ regions: Array<{ cities: City[] }> }>("/catalog")
+    void apiFetch<{ regions: { cities: City[] }[] }>("/catalog")
       .then((result) => setCities(result.regions.flatMap((region) => region.cities)))
       .catch(() => setError("تعذر تحميل المدن."));
   }, []);

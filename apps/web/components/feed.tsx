@@ -34,12 +34,12 @@ interface FeedAd {
     avatarUrl?: string;
     businessProfile?: { logoUrl?: string; verifiedAt?: string };
   };
-  media: Array<{
+  media: {
     id: string;
     kind: "IMAGE" | "VIDEO";
     url?: string;
     thumbnailUrl?: string;
-  }>;
+  }[];
 }
 
 function contactHref(ad: FeedAd) {
@@ -187,7 +187,7 @@ function AdSlide({ ad }: { ad: FeedAd }) {
 }
 
 function LogoStrip() {
-  const [logos, setLogos] = useState<Array<{ id: string; logoUrl: string }>>([]);
+  const [logos, setLogos] = useState<{ id: string; logoUrl: string }[]>([]);
   useEffect(() => {
     fetch(`${api}/banners`)
       .then((response) => (response.ok ? response.json() : []))

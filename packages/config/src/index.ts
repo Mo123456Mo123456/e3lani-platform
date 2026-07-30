@@ -42,5 +42,8 @@ export function parseServerEnv(source: NodeJS.ProcessEnv = process.env): ServerE
   if (parsed.data.PAYMENTS_ENABLED && parsed.data.PAYMENT_PROVIDER === "disabled") {
     throw new Error("PAYMENT_PROVIDER must be configured when PAYMENTS_ENABLED=true");
   }
+  if (parsed.data.NODE_ENV === "production" && parsed.data.OTP_PROVIDER === "console") {
+    throw new Error("OTP_PROVIDER=console is forbidden in production");
+  }
   return parsed.data;
 }

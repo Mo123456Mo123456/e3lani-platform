@@ -70,7 +70,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
       <section className="mt-10 px-5">
         <h2 className="text-xl font-black">الإعلانات</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-          {profile.ads.map((ad: { id: string; title: string; media: Array<{ thumbnailUrl?: string; url?: string }> }) => (
+          {profile.ads.map((ad: { id: string; title: string; media: { thumbnailUrl?: string; url?: string }[] }) => (
             <Link key={ad.id} href={`/ads/${ad.id}`}>
               <Card className="overflow-hidden">
                 <img src={ad.media[0]?.thumbnailUrl ?? ad.media[0]?.url} alt={ad.title} className="aspect-[4/5] w-full bg-black object-contain" />
@@ -84,7 +84,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
       <section className="mt-10 px-5">
         <h2 className="text-xl font-black">المنشورات</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-          {profile.posts.map((post: { id: string; title: string; media: Array<{ thumbnailUrl?: string; url?: string }> }) => (
+          {profile.posts.map((post: { id: string; title: string; media: { thumbnailUrl?: string; url?: string }[] }) => (
             <Card key={post.id} className="overflow-hidden">
               <img src={post.media[0]?.thumbnailUrl ?? post.media[0]?.url} alt={post.title} className="aspect-square w-full bg-black object-contain" />
               <h3 className="p-3 font-bold">{post.title}</h3>

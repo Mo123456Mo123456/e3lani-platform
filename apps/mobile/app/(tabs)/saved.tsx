@@ -8,7 +8,7 @@ type SavedAd = {
   id: string;
   title: string;
   city: { nameAr: string };
-  media: Array<{ thumbnailUrl?: string; url?: string }>;
+  media: { thumbnailUrl?: string; url?: string }[];
 };
 
 export default function SavedScreen() {

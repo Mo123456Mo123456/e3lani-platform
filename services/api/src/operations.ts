@@ -22,6 +22,7 @@ const allStaff: StaffRole[] = [
   "FINANCE_MANAGER",
   "CONTENT_MANAGER"
 ];
+const jsonSafe = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
 @Injectable()
 export class OperationsService {
@@ -109,6 +110,38 @@ export class OperationsService {
     });
   }
 
+  async updateUser(
+    actor: AuthUser,
+    userId: string,
+    body: { status?: "ACTIVE" | "SUSPENDED"; staffRole?: StaffRole | null; reason?: string }
+  ) {
+    if (!body.reason || (!body.status && body.staffRole === undefined)) {
+      throw new BadRequestException("USER_CHANGE_REASON_REQUIRED");
+    }
+    const previous = await prisma.user.findUnique({ where: { id: userId } });
+    if (!previous) throw new NotFoundException("USER_NOT_FOUND");
+    if (actor.id === userId && body.staffRole !== undefined) {
+      throw new BadRequestException("SELF_ROLE_CHANGE_FORBIDDEN");
+    }
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { status: body.status, staffRole: body.staffRole }
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: "USER_ACCESS_UPDATED",
+          entityType: "User",
+          entityId: userId,
+          before: { status: previous.status, staffRole: previous.staffRole },
+          after: { status: updated.status, staffRole: updated.staffRole, reason: body.reason }
+        }
+      });
+      return updated;
+    });
+  }
+
   ads(status?: Prisma.EnumAdStatusFilter["equals"]) {
     return prisma.ad.findMany({
       where: status ? { status } : undefined,
@@ -128,6 +161,191 @@ export class OperationsService {
       orderBy: { createdAt: "desc" },
       take: 100
     });
+  }
+
+  appeals() {
+    return prisma.appeal.findMany({
+      include: {
+        owner: { select: { id: true, name: true, phone: true } },
+        report: { include: { ad: { select: { id: true, title: true, status: true } } } }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100
+    });
+  }
+
+  async resolveAppeal(actor: AuthUser, id: string, accepted: boolean, resolution: string) {
+    if (resolution.trim().length < 10) throw new BadRequestException("RESOLUTION_REQUIRED");
+    const appeal = await prisma.appeal.findUnique({
+      where: { id },
+      include: { report: { include: { ad: true } } }
+    });
+    if (!appeal || appeal.status !== "OPEN") throw new NotFoundException("APPEAL_NOT_FOUND");
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.appeal.update({
+        where: { id },
+        data: {
+          status: accepted ? "ACCEPTED" : "REJECTED",
+          resolution,
+          resolvedById: actor.id,
+          resolvedAt: new Date()
+        }
+      });
+      if (accepted) {
+        await tx.ad.update({
+          where: { id: appeal.report.adId },
+          data: {
+            status: appeal.report.ad.expiresAt && appeal.report.ad.expiresAt > new Date() ? "ACTIVE" : "EXPIRED"
+          }
+        });
+      }
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: accepted ? "APPEAL_ACCEPTED" : "APPEAL_REJECTED",
+          entityType: "Appeal",
+          entityId: id,
+          after: { resolution }
+        }
+      });
+      return updated;
+    });
+  }
+
+  posts() {
+    return prisma.profilePost.findMany({
+      include: { owner: { select: { id: true, name: true, phone: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 100
+    });
+  }
+
+  payments() {
+    return prisma.paymentOrder.findMany({
+      include: {
+        user: { select: { id: true, name: true, phone: true } },
+        items: true,
+        attempts: true
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100
+    });
+  }
+
+  catalog() {
+    return Promise.all([
+      prisma.region.findMany({ include: { cities: true }, orderBy: { nameAr: "asc" } }),
+      prisma.category.findMany({ include: { children: true }, orderBy: { sortOrder: "asc" } })
+    ]).then(([regions, categories]) => ({ regions, categories }));
+  }
+
+  async createCategory(
+    actor: AuthUser,
+    body: { slug?: string; nameAr?: string; nameEn?: string; parentId?: string; sortOrder?: number }
+  ) {
+    if (!body.slug || !body.nameAr || !body.nameEn || !/^[a-z0-9-]+$/.test(body.slug)) {
+      throw new BadRequestException("CATEGORY_FIELDS_INVALID");
+    }
+    const category = await prisma.category.create({
+      data: {
+        slug: body.slug,
+        nameAr: body.nameAr,
+        nameEn: body.nameEn,
+        parentId: body.parentId,
+        sortOrder: body.sortOrder ?? 0
+      }
+    });
+    await prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "CATEGORY_CREATED",
+        entityType: "Category",
+        entityId: category.id,
+        after: jsonSafe(category)
+      }
+    });
+    return category;
+  }
+
+  async updateCategory(
+    actor: AuthUser,
+    id: string,
+    body: { nameAr?: string; nameEn?: string; sortOrder?: number; active?: boolean }
+  ) {
+    const previous = await prisma.category.findUnique({ where: { id } });
+    if (!previous) throw new NotFoundException("CATEGORY_NOT_FOUND");
+    const updated = await prisma.category.update({ where: { id }, data: body });
+    await prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "CATEGORY_UPDATED",
+        entityType: "Category",
+        entityId: id,
+        before: jsonSafe(previous),
+        after: jsonSafe(updated)
+      }
+    });
+    return updated;
+  }
+
+  async updateCity(
+    actor: AuthUser,
+    id: string,
+    body: { nameAr?: string; nameEn?: string; active?: boolean }
+  ) {
+    const previous = await prisma.city.findUnique({ where: { id } });
+    if (!previous) throw new NotFoundException("CITY_NOT_FOUND");
+    const updated = await prisma.city.update({ where: { id }, data: body });
+    await prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "CITY_UPDATED",
+        entityType: "City",
+        entityId: id,
+        before: jsonSafe(previous),
+        after: jsonSafe(updated)
+      }
+    });
+    return updated;
+  }
+
+  analytics() {
+    return Promise.all([
+      prisma.analyticsEvent.groupBy({ by: ["type"], _count: { id: true } }),
+      prisma.analyticsEvent.groupBy({ by: ["source"], _count: { id: true } }),
+      prisma.analyticsEvent.count()
+    ]).then(([byType, bySource, total]) => ({ total, byType, bySource }));
+  }
+
+  async sendNotification(
+    actor: AuthUser,
+    body: { userId?: string; titleAr?: string; titleEn?: string; bodyAr?: string; bodyEn?: string }
+  ) {
+    if (!body.titleAr || !body.titleEn || !body.bodyAr || !body.bodyEn) {
+      throw new BadRequestException("NOTIFICATION_FIELDS_REQUIRED");
+    }
+    const recipients = body.userId
+      ? [{ id: body.userId }]
+      : await prisma.user.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
+    await prisma.notification.createMany({
+      data: recipients.map((recipient) => ({
+        userId: recipient.id,
+        type: "ADMIN_MESSAGE",
+        titleAr: body.titleAr as string,
+        titleEn: body.titleEn as string,
+        bodyAr: body.bodyAr as string,
+        bodyEn: body.bodyEn as string
+      }))
+    });
+    await prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "NOTIFICATION_SENT",
+        entityType: "Notification",
+        after: { recipientCount: recipients.length, targeted: Boolean(body.userId) }
+      }
+    });
+    return { sent: recipients.length };
   }
 
   async actOnReport(
@@ -294,6 +512,16 @@ export class AdminController {
     return this.operations.users(q);
   }
 
+  @Roles("SUPER_ADMIN")
+  @Patch("users/:id")
+  updateUser(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() body: { status?: "ACTIVE" | "SUSPENDED"; staffRole?: StaffRole | null; reason?: string }
+  ) {
+    return this.operations.updateUser(user, id, body);
+  }
+
   @Roles("SUPER_ADMIN", "ADS_MODERATOR", "CONTENT_MANAGER")
   @Get("ads")
   ads(@Query("status") status?: Prisma.EnumAdStatusFilter["equals"]) {
@@ -304,6 +532,28 @@ export class AdminController {
   @Get("reports")
   reports() {
     return this.operations.reports();
+  }
+
+  @Roles("SUPER_ADMIN", "ADS_MODERATOR", "SUPPORT")
+  @Get("appeals")
+  appeals() {
+    return this.operations.appeals();
+  }
+
+  @Roles("SUPER_ADMIN", "ADS_MODERATOR")
+  @Post("appeals/:id/resolve")
+  resolveAppeal(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() body: { accepted?: boolean; resolution?: string }
+  ) {
+    return this.operations.resolveAppeal(user, id, body.accepted === true, body.resolution ?? "");
+  }
+
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER")
+  @Get("posts")
+  posts() {
+    return this.operations.posts();
   }
 
   @Roles("SUPER_ADMIN", "ADS_MODERATOR")
@@ -320,6 +570,64 @@ export class AdminController {
   @Get("prices")
   prices() {
     return this.operations.prices();
+  }
+
+  @Roles("SUPER_ADMIN", "FINANCE_MANAGER")
+  @Get("payments")
+  payments() {
+    return this.operations.payments();
+  }
+
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER")
+  @Get("catalog")
+  catalog() {
+    return this.operations.catalog();
+  }
+
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER")
+  @Post("categories")
+  createCategory(
+    @CurrentUser() user: AuthUser,
+    @Body()
+    body: { slug?: string; nameAr?: string; nameEn?: string; parentId?: string; sortOrder?: number }
+  ) {
+    return this.operations.createCategory(user, body);
+  }
+
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER")
+  @Patch("categories/:id")
+  updateCategory(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() body: { nameAr?: string; nameEn?: string; sortOrder?: number; active?: boolean }
+  ) {
+    return this.operations.updateCategory(user, id, body);
+  }
+
+  @Roles("SUPER_ADMIN", "CONTENT_MANAGER")
+  @Patch("cities/:id")
+  updateCity(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() body: { nameAr?: string; nameEn?: string; active?: boolean }
+  ) {
+    return this.operations.updateCity(user, id, body);
+  }
+
+  @Roles("SUPER_ADMIN", "CAMPAIGN_MANAGER", "FINANCE_MANAGER")
+  @Get("analytics")
+  analytics() {
+    return this.operations.analytics();
+  }
+
+  @Roles("SUPER_ADMIN", "SUPPORT", "CONTENT_MANAGER")
+  @Post("notifications")
+  sendNotification(
+    @CurrentUser() user: AuthUser,
+    @Body()
+    body: { userId?: string; titleAr?: string; titleEn?: string; bodyAr?: string; bodyEn?: string }
+  ) {
+    return this.operations.sendNotification(user, body);
   }
 
   @Roles("SUPER_ADMIN", "FINANCE_MANAGER")

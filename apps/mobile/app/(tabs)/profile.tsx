@@ -3,7 +3,7 @@ import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { API_URL, apiFetch, clearSession, colors } from "@/lib/api";
+import { apiFetch, clearSession, colors } from "@/lib/api";
 
 type Me = {
   id: string;

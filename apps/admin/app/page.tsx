@@ -14,15 +14,32 @@ import {
 import { Button, Card, Logo } from "@e3lani/ui";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
-type Section = "dashboard" | "users" | "ads" | "reports" | "prices" | "banners" | "audit";
+type Section =
+  | "dashboard"
+  | "users"
+  | "ads"
+  | "posts"
+  | "reports"
+  | "appeals"
+  | "banners"
+  | "catalog"
+  | "prices"
+  | "payments"
+  | "analytics"
+  | "audit";
 
-const sections: Array<{ id: Section; label: string; icon: typeof Users }> = [
+const sections: { id: Section; label: string; icon: typeof Users }[] = [
   { id: "dashboard", label: "نظرة عامة", icon: LayoutDashboard },
   { id: "users", label: "المستخدمون", icon: Users },
   { id: "ads", label: "الإعلانات", icon: ListChecks },
+  { id: "posts", label: "المنشورات", icon: ListChecks },
   { id: "reports", label: "البلاغات والاعتراضات", icon: FileWarning },
+  { id: "appeals", label: "الاعتراضات", icon: FileWarning },
   { id: "banners", label: "شعارات الشريط", icon: Image },
-  { id: "prices", label: "الأسعار والمدفوعات", icon: BadgeDollarSign },
+  { id: "catalog", label: "الأقسام والمدن", icon: ListChecks },
+  { id: "prices", label: "الأسعار", icon: BadgeDollarSign },
+  { id: "payments", label: "المدفوعات", icon: BadgeDollarSign },
+  { id: "analytics", label: "التحليلات", icon: ChartNoAxesCombined },
   { id: "audit", label: "سجل الإجراءات", icon: ScrollText }
 ];
 
@@ -138,6 +155,29 @@ export default function AdminPage() {
     await load();
   }
 
+  async function updateUser(id: string, currentStatus: string) {
+    const reason = window.prompt("سبب التغيير:");
+    if (!reason) return;
+    const status = currentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    await fetch(`${api}/admin/users/${id}`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ status, reason })
+    });
+    await load();
+  }
+
+  async function resolveAppeal(id: string, accepted: boolean) {
+    const resolution = window.prompt("اكتب حيثيات القرار (10 أحرف على الأقل):");
+    if (!resolution) return;
+    await fetch(`${api}/admin/appeals/${id}/resolve`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ accepted, resolution })
+    });
+    await load();
+  }
+
   if (!token) return <AdminLogin onLogin={setToken} />;
 
   const rows = Array.isArray(data) ? data : [];
@@ -168,9 +208,16 @@ export default function AdminPage() {
             {Object.entries(data).map(([key, value]) => <Card key={key} className="p-4"><p className="text-xs text-black/50">{key}</p><strong className="mt-2 block text-2xl">{String(value)}</strong></Card>)}
           </div>
         )}
+        {section !== "dashboard" && data && !Array.isArray(data) && (
+          <Card className="mt-6 overflow-auto p-5">
+            <pre dir="ltr" className="text-left text-xs leading-6">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </Card>
+        )}
         {section !== "dashboard" && (
           <div className="mt-6 grid gap-3">
-            {!rows.length && <Card className="p-8 text-center text-black/50">لا توجد سجلات في هذا القسم.</Card>}
+            {Array.isArray(data) && !rows.length && <Card className="p-8 text-center text-black/50">لا توجد سجلات في هذا القسم.</Card>}
             {rows.map((row: any) => (
               <Card key={row.id ?? row.code} className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -184,6 +231,17 @@ export default function AdminPage() {
                       <Button variant="outline" onClick={() => void reportAction(row.id, "DISMISS")}>رفض البلاغ</Button>
                       <Button variant="danger" onClick={() => void reportAction(row.id, "PAUSE")}>إيقاف الإعلان</Button>
                     </div>
+                  )}
+                  {section === "appeals" && row.status === "OPEN" && (
+                    <div className="flex gap-2">
+                      <Button onClick={() => void resolveAppeal(row.id, true)}>قبول الاعتراض</Button>
+                      <Button variant="danger" onClick={() => void resolveAppeal(row.id, false)}>رفض الاعتراض</Button>
+                    </div>
+                  )}
+                  {section === "users" && (
+                    <Button variant="outline" onClick={() => void updateUser(row.id, row.status)}>
+                      {row.status === "ACTIVE" ? "تعليق الحساب" : "إعادة التفعيل"}
+                    </Button>
                   )}
                   {section === "prices" && (
                     <Button variant="outline" onClick={() => void updatePrice(row.code, row.amountHalalas, row.active)}>

@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [accountType, setAccountType] = useState("INDIVIDUAL");
   const [cityId, setCityId] = useState("");
-  const [cities, setCities] = useState<Array<{ id: string; nameAr: string }>>([]);
+  const [cities, setCities] = useState<{ id: string; nameAr: string }[]>([]);
   const [code, setCode] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
