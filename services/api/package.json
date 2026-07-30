@@ -1,0 +1,41 @@
+{
+  "name": "@living-planet/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "db:migrate": "tsx src/migrate.ts",
+    "db:seed": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "latest",
+    "@fastify/cors": "latest",
+    "@fastify/helmet": "latest",
+    "@fastify/rate-limit": "latest",
+    "@fastify/swagger": "latest",
+    "@fastify/swagger-ui": "latest",
+    "@fastify/websocket": "latest",
+    "@living-planet/shared-types": "workspace:*",
+    "@living-planet/simulation-engine": "workspace:*",
+    "@living-planet/validation": "workspace:*",
+    "@living-planet/world-generator": "workspace:*",
+    "bcryptjs": "latest",
+    "dotenv": "latest",
+    "fastify": "latest",
+    "jose": "latest",
+    "nats": "latest",
+    "postgres": "latest",
+    "prom-client": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

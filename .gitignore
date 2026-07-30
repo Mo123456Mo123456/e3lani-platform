@@ -3,24 +3,11 @@
 # dependencies
 node_modules/
 
-# Expo
-.expo/
+# builds
 dist/
-web-build/
-.expo-export/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
+.next/
+coverage/
+out/
 
 # debug
 npm-debug.*
@@ -39,10 +26,6 @@ yarn-error.*
 
 app-example
 
-# generated native folders
-/ios
-/android
-
 # IDE
 .vscode/
 .idea/
@@ -53,7 +36,6 @@ app-example
 # Logs
 logs
 *.log
-.manus-logs/
 
 # OS
 Thumbs.db
@@ -63,6 +45,12 @@ Thumbs.db
 *.tar.gz
 .cache/
 
-# Webdev artifacts (checkpoint zips, migrations, etc.)
-.webdev/
-.project-config.json
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
+
+# Runtime data
+.data/
+uploads/

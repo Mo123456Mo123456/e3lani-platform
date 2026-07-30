@@ -1,0 +1,26 @@
+{
+  "name": "@living-planet/simulation-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@living-planet/shared-types": "workspace:*",
+    "@living-planet/simulation-models": "workspace:*",
+    "@living-planet/world-generator": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

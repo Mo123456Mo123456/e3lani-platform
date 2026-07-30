@@ -1,0 +1,49 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: #030a10; color: #e9f6fa; font-family: Arial, sans-serif; }
+button, input { font: inherit; }
+.admin-login { min-height: 100dvh; display: grid; place-items: center; background: radial-gradient(circle at center, #0a2936, #030a10 58%); }
+.admin-login form { width: min(92vw, 390px); padding: 32px; border: 1px solid #174456; border-radius: 16px; background: rgba(5,21,30,.94); display: grid; gap: 13px; box-shadow: 0 30px 80px #0009; }
+.lock { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #25738c; color: #42d6f4; margin: auto; }
+.admin-login p { color: #42d6f4; font-size: 10px; margin: 4px 0 -8px; text-align: center; }
+.admin-login h1 { margin: 0; text-align: center; }
+.admin-login > form > span { color: #75919c; font-size: 11px; line-height: 1.6; text-align: center; }
+.admin-login label { display: grid; gap: 5px; color: #829ba5; font-size: 11px; }
+.admin-login input, .control-card input { height: 42px; border: 1px solid #153d4d; background: #031018; border-radius: 8px; color: white; padding: 0 10px; outline: none; }
+.admin-login button, .control-card button { min-height: 41px; border: 1px solid #37cde9; background: #1599b8; color: #031017; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.admin-login em { color: #ff7d72; font-size: 10px; font-style: normal; }
+.admin-shell { min-height: 100dvh; display: grid; grid-template-columns: 225px 1fr; }
+.admin-shell > aside { background: #05131b; border-left: 1px solid #12313e; padding: 22px 14px; }
+.admin-shell > aside h2 { font-size: 16px; margin: 0; }
+.admin-shell > aside small { color: #42d6f4; font-size: 8px; }
+.admin-shell nav { display: grid; gap: 4px; margin-top: 28px; }
+.admin-shell nav a { min-height: 42px; padding: 0 10px; border-radius: 7px; display: flex; align-items: center; gap: 8px; color: #708b96; font-size: 11px; }
+.admin-shell nav a svg { width: 16px; }
+.admin-shell nav a.active { color: #69e3f9; background: #0b2c39; }
+.admin-shell nav a i { margin-inline-start: auto; color: #8f7138; font-style: normal; font-size: 7px; }
+.admin-shell > section { padding: 26px; }
+.admin-shell > section > header { display: flex; justify-content: space-between; align-items: center; }
+.admin-shell header p { margin: 0; color: #44cde9; font-size: 9px; }
+.admin-shell header h1 { margin: 3px 0 0; font-size: 23px; }
+.admin-shell header > span { color: #56c98b; border: 1px solid #174531; background: #092117; border-radius: 16px; padding: 5px 10px; font-size: 9px; }
+.admin-shell header > span i { display: inline-block; width: 6px; height: 6px; background: #56c98b; border-radius: 50%; margin-left: 4px; }
+.metric-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; margin-top: 24px; }
+.metric-grid article, .control-card, .disabled-modules { border: 1px solid #123442; border-radius: 10px; background: #061720; padding: 14px; }
+.metric-grid article { display: grid; gap: 7px; }
+.metric-grid svg { width: 18px; color: #43d1ed; }
+.metric-grid span { color: #708b96; font-size: 9px; }
+.metric-grid b { font-size: 20px; }
+.admin-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 13px; }
+.control-card h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 7px; font-size: 14px; }
+.control-card h3 svg { color: #43d1ed; width: 18px; }
+.control-card p, .disabled-modules p { color: #708993; font-size: 10px; line-height: 1.7; }
+.control-card button { padding: 0 13px; }
+.control-card.danger { border-color: #4d2724; }
+.control-card.danger h3 svg { color: #ff6f63; }
+.control-card.danger > div { display: flex; gap: 7px; }
+.control-card.danger input { width: 110px; }
+.control-card.danger button { background: #b83f35; border-color: #e45b50; color: white; }
+.admin-message { margin-top: 12px; border: 1px solid #245943; background: #09281c; color: #68d89d; border-radius: 8px; padding: 10px; font-size: 10px; }
+.disabled-modules { margin-top: 13px; border-style: dashed; }
+.disabled-modules h3 { color: #a98d54; font-size: 12px; margin: 0; }
+@media (max-width: 980px) { .metric-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 680px) { .admin-shell { grid-template-columns: 1fr; } .admin-shell > aside { display: none; } .admin-shell > section { padding: 16px; } .metric-grid { grid-template-columns: 1fr 1fr; } .admin-columns { grid-template-columns: 1fr; } }

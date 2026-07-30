@@ -1,0 +1,30 @@
+{
+  "name": "@living-planet/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@living-planet/shared-types": "workspace:*",
+    "@react-three/drei": "latest",
+    "@react-three/fiber": "latest",
+    "@tanstack/react-query": "latest",
+    "lucide-react": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "three": "latest",
+    "zustand": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@types/three": "latest",
+    "typescript": "latest"
+  }
+}

@@ -1,86 +1,147 @@
-# إعلاني | E3lani
+# كوكب يولد أمامك | A Planet Born Before You
 
-**إعلاني** منصة إعلانات مرئية للجوال، عربية افتراضيًا مع دعم الإنجليزية، تجمع استكشاف الإعلانات وإنشاءها وإدارتها ومراجعتها في تطبيق واحد. صُممت الواجهة لوضع الجوال العمودي والاستخدام بيد واحدة، مع تنقل سفلي خماسي وتجارب منفصلة للزائر والمعلن وفريق الإدارة.[1]
+> عالمك، قرارك، أثر لا ينتهي.  
+> Your world. Your choice. Endless impact.
 
-> النسخة الحالية **نسخة تشغيلية محلية موثقة**: تحفظ حالة المنتج في `AsyncStorage`، وتستخدم رمز دخول ودفعًا تجريبيين معلنين داخل الواجهة. مخطط قاعدة البيانات وطبقة الخادم موجودان للتوسعة، لكن ربط مزودي المصادقة والدفع والتخزين والإشعارات الحقيقيين مطلوب قبل الإطلاق التجاري.[3]
+منصة Monorepo لمحاكاة كوكب حي حتمي. تولّد الخوارزميات العالم وتدفع تغيراته، وتحفظ النتائج كأحداث سببية في PostgreSQL. الذكاء الاصطناعي يفهم مساهمة المستخدم ويوازنها ويشرح أحداثًا موجودة، لكنه لا يختلق نتيجة المحاكاة.
 
-## حالة المشروع
+This repository is a deployable vertical foundation for a deterministic living-world platform. Algorithms own world state; AI is constrained to structured interpretation and grounded narration.
 
-| البند | الحالة الحالية |
-|---|---|
-| المنصات | iOS وAndroid وWeb عبر Expo SDK 54 |
-| اللغة | العربية RTL افتراضيًا والإنجليزية LTR |
-| التخزين التشغيلي | محلي عبر `AsyncStorage` مع بوابة تحميل وخطأ وإعادة محاولة |
-| المصادقة | OTP تجريبي موثق؛ الرمز `123456` |
-| الدفع | مزود `sandbox` موثق؛ لا توجد حركة مالية حقيقية |
-| قاعدة البيانات | مخطط MySQL/Drizzle جاهز، وغير مستخدم لتدفقات الواجهة المحلية حاليًا |
-| الجودة | TypeScript وESLint وVitest وبناء الخادم وتصدير Expo ناجحة[2] |
+## ما يعمل فعليًا | What is operational
 
-## القدرات الرئيسية
+- مولد كوكب إجرائي حتمي من Seed: ضوضاء كسرية ثلاثية الأبعاد، حرارة خط عرض، رطوبة، ظل مطر، صفائح، خصوبة، موارد، و12 إقليمًا حيويًا.
+- محرك Tick حتمي مستقل مع Event Sourcing، causal links، snapshots كل 10 ticks، replay وrollback.
+- نماذج مناخية شبكية، نمو لوجستي، predator/prey primitives، وDijkstra لمسارات آمنة.
+- Monte Carlo لـ 64 مسارًا: الأجل القصير، ألف سنة، أفضل وأسوأ مسار، وعدم اليقين.
+- PostgreSQL + PostGIS + pgvector، migrations، وبيانات seed حقيقية بالأعداد المطلوبة.
+- تسجيل، دخول، access JWT، refresh-token rotation، كشف إعادة استخدام العائلة، RBAC، rate limits، CSP وvalidation.
+- تدفق مساهمة كامل: تحليل منظم ← موازنة ← منطقة ← معاينة ← تأكيد ← حدث وتغير منطقة وإشعار في قاعدة البيانات.
+- Provider adapters لـ OpenAI وAnthropic وGemini، مع Sandbox حتمي معلن عند غياب المفاتيح.
+- كوكب React Three Fiber/WebGL2 يتغذى shader الخاص به من بيانات الارتفاع والرطوبة والحرارة والتلوث، مع سحب مرتبطة بالرطوبة، غلاف جوي، مدن وأحداث فعلية.
+- WebSocket delta gateway فوق NATS، وعامل إشعارات للأحداث اللاحقة.
+- واجهة عربية RTL وإنجليزية LTR، جودة رسومات تكيفية، ولوحة إدارة منفصلة محمية على مستوى API.
+- OpenAPI عند `/docs`، health checks عند `/health`، وPrometheus metrics عند `/metrics`.
 
-| المجال | ما يتضمنه التطبيق |
-|---|---|
-| الاستكشاف | خلاصة مرئية، أقسام، بحث نصي، فلاتر مدينة وقسم، تفاصيل إعلان، وبراندات |
-| الثقة | حفظ ومشاركة وبلاغ وحظر معلن، مع حالات واضحة للفراغ والخطأ والنجاح |
-| المعلن | معالج إنشاء من خمس خطوات، وسائط، بيانات، تواصل، ترويج، معاينة، دفع، فواتير، وإحصاءات |
-| دورة حياة الإعلان | دفع، مراجعة، قبول أو طلب تعديل أو رفض، تفعيل، إيقاف، استئناف، تمديد، انتهاء، وإعادة نشر |
-| الإدارة | مركز عمل، مراجعة، بلاغات، مدفوعات، مستخدمون وأدوار، براندات، كتالوج، إعدادات، وسجل تدقيق |
-| الوصول | أسماء وأدوار وحالات اختيار وتعطيل، وأهداف لمس مناسبة في المكونات والمسارات الأساسية |
+## حدود الإصدار الحالي | Explicitly unavailable
 
-## التشغيل المحلي
+لا تدّعي الواجهة اكتمال ما لم يُربط. العناصر التالية موسومة «غير مفعّلة» أو غير معروضة:
 
-يتطلب المشروع Node.js و`pnpm`. من جذر المشروع شغّل:
+- التسجيل الصوتي، OAuth لـ Google/Apple، وOTP.
+- تشغيل التاريخ كفيديو ومقارنة بصرية كاملة بين حقبتين؛ API يقارن snapshots الموجودة فقط.
+- خامات KTX2 وتفاصيل سطحية قريبة جدًا، حدود الحضارات المتحركة، ومسارات التجارة المرئية.
+- واجهات الإدارة التفصيلية للمستخدمين والمراجعة وNATS traces وS3؛ مؤشرات الإدارة والتحكم في Tick والـrollback تعمل.
+- Redis cache، رفع الملفات إلى MinIO، تصدير OpenTelemetry OTLP، وجدولة ticks موزعة. الخدمات موجودة في Compose لتوسعة المرحلة التالية لكنها لا تظهر كميزات مكتملة.
+
+## التشغيل السريع | Quick start
+
+المتطلبات: Docker 24+ وDocker Compose v2.
 
 ```bash
+cp .env.example .env
+docker compose up --build
+```
+
+ثم افتح:
+
+- المنصة: http://localhost:3000
+- الإدارة: http://localhost:3001
+- OpenAPI: http://localhost:4000/docs
+- NATS monitoring: http://localhost:8222
+- MinIO console: http://localhost:9001
+
+تطبق خدمة API migrations وseed مرة واحدة تحت advisory lock.
+
+### حساب Sandbox
+
+يعمل فقط مع `SANDBOX_MODE=true` والبيانات المحلية:
+
+```text
+Email:    admin@planet.local
+Password: Planet-Sandbox-2026!
+Role:     super_admin
+```
+
+غيّر الأسرار وكلمة المرور، وعطّل Sandbox قبل أي نشر عام.
+
+## التطوير المحلي | Local development
+
+```bash
+corepack enable
 pnpm install
+docker compose up -d postgres redis nats minio ai-orchestrator
+pnpm db:migrate
 pnpm dev
 ```
 
-يشغّل الأمر خادم API وMetro معًا. ويمكن تشغيل كل جزء منفصلًا عبر `pnpm dev:server` و`pnpm dev:metro`. لا يحتاج وضع العرض المحلي إلى قاعدة بيانات أو مفاتيح مزودين خارجيين.
+خدمات JavaScript تبدأ عبر `pnpm dev`. لتشغيل FastAPI خارج Docker:
 
-### تجربة التدفقات التجريبية
+```bash
+cd services/ai-orchestrator
+python -m venv .venv
+. .venv/bin/activate
+pip install -e '.[test]'
+uvicorn app.main:app --reload --port 8000
+```
 
-استخدم أي رقم جوال صالح بطول لا يقل عن ثمانية محارف، ثم أدخل رمز الاختبار `123456`. عند إنشاء إعلان، يعرض التطبيق السعر والضريبة والإضافات قبل الانتقال إلى الدفع. زر **تأكيد دفع تجريبي** ينقل الطلب إلى المراجعة فقط، ولا ينفذ عملية مالية.
+الفحص:
 
-## أوامر الجودة
+```bash
+pnpm check
+pnpm test
+pnpm build
+pytest services/ai-orchestrator/tests
+```
 
-| الأمر | الغرض |
-|---|---|
-| `pnpm check` | فحص TypeScript دون توليد ملفات |
-| `pnpm lint` | تشغيل قواعد Expo ESLint |
-| `pnpm test` | تشغيل اختبارات Vitest للمجال ودورة حياة الإعلان |
-| `pnpm build` | بناء خادم Node عبر esbuild |
-| `npx expo export --platform web --output-dir .expo-export` | التحقق من التصدير الثابت للويب |
-| `pnpm format` | تنسيق ملفات المشروع عبر Prettier |
+## بنية Monorepo
 
-## بنية المشروع
+```text
+apps/
+  web/                    Next.js + React Three Fiber
+  admin/                  protected operations console
+services/
+  api/                    Fastify API, auth, PostgreSQL, OpenAPI
+  simulation-engine/      deterministic tick/event engine
+  ai-orchestrator/        FastAPI provider adapters and balancing
+  realtime-gateway/       NATS → WebSocket deltas
+  world-generator/        seeded procedural planet generation
+  notification-worker/    contribution-effect notifications
+packages/
+  ui/                     design tokens
+  shared-types/           cross-service contracts
+  simulation-models/      climate/ecology/path primitives
+  validation/             Zod boundaries and injection rules
+  config/                 environment contracts
+  analytics/              privacy-conscious event contracts
+```
 
-| المسار | المسؤولية |
-|---|---|
-| `app/` | مسارات Expo Router للشاشات العامة والحساب والإدارة |
-| `components/e3lani/` | مكونات المنتج المشتركة وبطاقات الإعلان وبوابة الاستعادة |
-| `lib/e3lani-data.ts` | الأنواع والثوابت وقواعد التسعير ودورة الحياة القابلة للاختبار |
-| `lib/e3lani-store.tsx` | الحالة المحلية المتزامنة وإجراءات المنتج |
-| `lib/i18n.tsx` | قاموس العربية والإنجليزية واتجاه الواجهة |
-| `server/` | خادم Express/tRPC والقدرات الأساسية |
-| `drizzle/` | مخطط قاعدة البيانات والمهاجرات |
-| `tests/` | اختبارات المنطق الأساسي والتكامل |
-| `docs/` | دليل التشغيل والمزودين وسجل التحقق |
+## البيانات التجريبية
 
-## الانتقال إلى الإنتاج
+`002_seed.sql` ينشئ:
 
-لا ينبغي تحويل أعلام الواجهة أو اسم المزود فقط. يتطلب الإطلاق الحقيقي نقل القرارات الحساسة إلى الخادم، والتحقق من إيصالات الدفع عبر webhook موثوق، ورفع الوسائط إلى تخزين خاص، وتطبيق مصادقة فعلية وصلاحيات خادمية، وحفظ سجل التدقيق في قاعدة البيانات. يوضح [دليل التشغيل والمزودين][3] ترتيب الربط ومتغيرات البيئة وضوابط الإطلاق.
+- كوكب أوريانا و288 منطقة مترابطة جغرافيًا.
+- 12 حضارة، 40 مدينة، 120 موردًا.
+- 300 نوع مخلوقات، 800 نبات، 50 تقنية.
+- 12 ثقافة و12 لغة.
+- 24 حدثًا تاريخيًا و23 رابطًا سببيًا.
 
-عند اعتماد النسخة، استخدم زر **Publish** في واجهة إدارة المشروع بعد وجود نقطة استعادة. تتولى عملية النشر بناء الحزمة المناسبة، بما فيها APK عند اختياره، بدل تنفيذ بناء Android يدويًا داخل بيئة التطوير.
+لا تُستخدم هذه البيانات تلقائيًا في الإنتاج؛ شغّل migration seed فقط للـSandbox أو بيئة العرض.
 
-## الوثائق المرجعية
+## مبادئ المحاكاة
 
-| المرجع | المحتوى |
-|---|---|
-| [1] | تصميم الواجهة والشاشات والتدفقات |
-| [2] | سجل الاختبارات والتحقق الوظيفي |
-| [3] | التشغيل والمزودون والجاهزية الإنتاجية |
+1. الحالة الأولية مشتقة من Seed.
+2. كل Tick يستخدم RNG مشتقًا من `planetSeed:tick`.
+3. كل تغير قابل للحفظ يمثّل `WorldEvent` بسبب واضح و`directEffects`.
+4. reducer هو الذي يطبق الآثار ويمنع القيم غير المحدودة وتجاوز carrying capacity.
+5. snapshots تُحفظ كل 10 ticks؛ replay يعيد checksum نفسه.
+6. AI لا يستدعي `runTick` ولا يكتب حالة العالم.
 
-[1]: ./design.md "تصميم تطبيق إعلاني"
-[2]: ./docs/testing-notes.md "ملاحظات التحقق"
-[3]: ./docs/operations-and-providers.md "دليل التشغيل والمزودين"
+تفاصيل الخوارزميات: [docs/simulation.md](docs/simulation.md)  
+المعمارية والبيانات: [docs/architecture.md](docs/architecture.md)  
+API وWebSocket: [docs/api.md](docs/api.md)  
+النشر والأمن: [docs/deployment.md](docs/deployment.md)
+
+## English summary
+
+The same seed and ordered event stream reproduce the same state checksum. PostgreSQL is the source of truth; the browser never owns simulation logic. Contribution analysis is schema-validated and balanced before the simulation engine computes scenarios. If an AI provider is unavailable, the API returns a failure—unless the environment explicitly selects the labeled deterministic sandbox provider. It never reports a fabricated external-AI success.
+
+This release establishes the final service boundaries and a real end-to-end contribution flow. The unavailable list above is intentional product truth, not placeholder success UI.

@@ -1,0 +1,141 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile.db
+    environment:
+      POSTGRES_DB: living_planet
+      POSTGRES_USER: planet
+      POSTGRES_PASSWORD: planet
+    ports:
+      - "5432:5432"
+    volumes:
+      - planet-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planet -d living_planet"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - planet-redis:/data
+
+  nats:
+    image: nats:2-alpine
+    command: ["-js", "-m", "8222", "--store_dir", "/data"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - planet-nats:/data
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: planet
+      MINIO_ROOT_PASSWORD: planet-local-storage
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - planet-minio:/data
+
+  ai-orchestrator:
+    build:
+      context: .
+      dockerfile: services/ai-orchestrator/Dockerfile
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "8000:8000"
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      NODE_ENV: development
+      AUTO_MIGRATE: "true"
+      DATABASE_URL: postgresql://planet:planet@postgres:5432/living_planet
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8000
+      WEB_ORIGIN: http://localhost:3000
+      ADMIN_ORIGIN: http://localhost:3001
+      JWT_ACCESS_SECRET: local-access-secret-replace-before-production-2026
+      JWT_REFRESH_SECRET: local-refresh-secret-replace-before-production-2026
+      SANDBOX_MODE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      ai-orchestrator:
+        condition: service_started
+    ports:
+      - "4000:4000"
+
+  realtime-gateway:
+    build:
+      context: .
+      dockerfile: services/realtime-gateway/Dockerfile
+    environment:
+      NATS_URL: nats://nats:4222
+      WEB_ORIGIN: http://localhost:3000
+      REALTIME_PORT: 4100
+    depends_on:
+      - nats
+    ports:
+      - "4100:4100"
+
+  notification-worker:
+    build:
+      context: .
+      dockerfile: services/notification-worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://planet:planet@postgres:5432/living_planet
+      NATS_URL: nats://nats:4222
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_WS_URL: ws://localhost:4100/ws
+    depends_on:
+      - api
+      - realtime-gateway
+    ports:
+      - "3000:3000"
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    depends_on:
+      - api
+    ports:
+      - "3001:3001"
+
+volumes:
+  planet-postgres:
+  planet-redis:
+  planet-nats:
+  planet-minio:
