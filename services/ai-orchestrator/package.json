@@ -1,0 +1,28 @@
+{
+  "name": "@planet-born/ai-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@planet-born/config": "workspace:*",
+    "@planet-born/shared-types": "workspace:*",
+    "@planet-born/simulation-models": "workspace:*",
+    "@planet-born/validation": "workspace:*",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.11.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsx": "^4.23.1",
+    "typescript": "~5.9.3",
+    "vitest": "^2.1.9"
+  }
+}
