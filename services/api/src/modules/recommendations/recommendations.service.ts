@@ -6,7 +6,6 @@ import {
   createRecommendationAdapter,
   normalizeWeights,
   type AdCandidate,
-  type ImpressionSource as Source,
   type RankedAd,
   type RecommendationAdapter,
   type RecommendationWeights,
@@ -534,5 +533,3 @@ export class RecommendationsService implements OnModuleDestroy {
     }
   }
 }
-
-export type { Source };
