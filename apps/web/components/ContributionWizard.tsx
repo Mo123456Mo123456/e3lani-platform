@@ -90,7 +90,10 @@ export function ContributionWizard({ overview }: { overview: WorldOverview }) {
           region.id === globallySelectedRegionId &&
           result.possibleBiomes.includes(region.biome),
       );
-      const nextRegionId = preferred?.id ?? compatibleRegions[0]?.id ?? overview.regions[0]!.id;
+      const firstCompatible = overview.regions.find((region) =>
+        result.possibleBiomes.includes(region.biome),
+      );
+      const nextRegionId = preferred?.id ?? firstCompatible?.id ?? overview.regions[0]!.id;
       setRegionId(nextRegionId);
       selectRegion(nextRegionId);
       setStep(2);

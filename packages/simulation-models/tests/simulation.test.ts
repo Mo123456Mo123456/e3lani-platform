@@ -38,7 +38,7 @@ describe("deterministic world simulation", () => {
 
   it("keeps regional population within carrying capacity", () => {
     let state = generateWorld("bounded-population", { regionCount: 64 });
-    let history = [];
+    let history: ReturnType<typeof simulateTick>["events"] = [];
     for (let index = 0; index < 25; index += 1) {
       const result = simulateTick(state, history);
       state = result.state;

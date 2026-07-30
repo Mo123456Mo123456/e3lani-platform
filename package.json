@@ -18,11 +18,19 @@
     "@types/node": "latest",
     "prettier": "latest",
     "turbo": "latest",
-    "typescript": "latest",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.0",
     "vitest": "latest"
   },
   "packageManager": "pnpm@10.13.1",
   "engines": {
     "node": ">=22"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.25",
+      "qs": "6.15.3",
+      "sharp": "0.35.3"
+    }
   }
 }

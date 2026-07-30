@@ -1,9 +1,12 @@
-import { connect, JSONCodec, type NatsConnection } from "nats";
+import {
+  connect,
+  type NatsConnection,
+} from "@nats-io/transport-node";
 import type { DeltaResult } from "./world-repository.js";
 
 export class WorldEventBus {
   private connection?: NatsConnection;
-  private readonly codec = JSONCodec();
+  private readonly encoder = new TextEncoder();
 
   async connect(): Promise<void> {
     const servers = process.env.NATS_URL;
@@ -25,16 +28,19 @@ export class WorldEventBus {
     if (!this.connection) return;
     this.connection.publish(
       "world.delta",
-      this.codec.encode({
+      this.encoder.encode(JSON.stringify({
         planetId: result.state.planetId,
         version: result.state.version,
         tick: result.state.tick,
         events: result.events,
         changedRegionIds: result.changedRegionIds,
-      }),
+      })),
     );
     for (const event of result.events) {
-      this.connection.publish(`world.event.${event.type.toLowerCase()}`, this.codec.encode(event));
+      this.connection.publish(
+        `world.event.${event.type.toLowerCase()}`,
+        this.encoder.encode(JSON.stringify(event)),
+      );
     }
     await this.connection.flush();
   }

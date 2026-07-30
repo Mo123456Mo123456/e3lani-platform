@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start --port 3001",
     "check": "tsc --noEmit",
-    "lint": "next lint",
+    "lint": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
@@ -21,7 +21,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "typescript": "latest",
+    "typescript": "^6.0.3",
     "vitest": "latest"
   }
 }

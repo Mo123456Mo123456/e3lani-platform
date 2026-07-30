@@ -2,10 +2,16 @@
 
 # dependencies
 node_modules/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
 
 # Expo
 .expo/
 dist/
+.next/
+.turbo/
 web-build/
 .expo-export/
 expo-env.d.ts

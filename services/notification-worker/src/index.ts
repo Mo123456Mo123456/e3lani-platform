@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { connect, JSONCodec } from "nats";
+import { connect } from "@nats-io/transport-node";
 import postgres from "postgres";
 import type { WorldEvent } from "@living-planet/shared-types";
 
@@ -21,12 +21,13 @@ if (!natsUrl || !databaseUrl) {
 } else {
   const sql = postgres(databaseUrl, { max: 4 });
   const nats = await connect({ servers: natsUrl, name: "notification-worker" });
-  const codec = JSONCodec<{
+  type WorldDelta = {
     planetId: string;
     version: number;
     tick: number;
     events: WorldEvent[];
-  }>();
+  };
+  const decoder = new TextDecoder();
   const subscription = nats.subscribe("world.delta", { queue: "notifications" });
 
   console.info(
@@ -34,7 +35,7 @@ if (!natsUrl || !databaseUrl) {
   );
 
   for await (const message of subscription) {
-    const delta = codec.decode(message.data);
+    const delta = JSON.parse(decoder.decode(message.data)) as WorldDelta;
     for (const event of delta.events) {
       if (!event.ownerUserId || !event.contributionId) continue;
       const title =

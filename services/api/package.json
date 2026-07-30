@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format esm --platform node --no-splitting --clean --no-external @living-planet/shared-types --no-external @living-planet/simulation-models",
+    "build": "tsup",
     "start": "node dist/index.js",
     "check": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
@@ -16,13 +16,13 @@
   "dependencies": {
     "@living-planet/shared-types": "workspace:*",
     "@living-planet/simulation-models": "workspace:*",
+    "@nats-io/transport-node": "^3.4.0",
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
     "express-rate-limit": "latest",
     "helmet": "latest",
     "jose": "latest",
-    "nats": "latest",
     "postgres": "latest",
     "swagger-ui-express": "latest",
     "ws": "latest",
@@ -33,9 +33,9 @@
     "@types/express": "latest",
     "@types/swagger-ui-express": "latest",
     "@types/ws": "latest",
-    "tsx": "latest",
     "tsup": "latest",
-    "typescript": "latest",
+    "tsx": "latest",
+    "typescript": "^6.0.3",
     "vitest": "latest"
   }
 }

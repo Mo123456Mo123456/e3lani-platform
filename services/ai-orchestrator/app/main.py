@@ -11,8 +11,7 @@ from typing import Annotated, Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
-
+from pydantic import BaseModel, ConfigDict, Field
 
 Category = Literal[
     "creature",
@@ -96,12 +95,12 @@ class NarrativeResponse(StrictModel):
 
 
 INJECTION_PATTERNS = [
-    re.compile(r"ignore\s+(all\s+)?previous", re.I),
-    re.compile(r"system\s+prompt", re.I),
-    re.compile(r"developer\s+message", re.I),
-    re.compile(r"تجاهل\s+(كل\s+)?التعليمات", re.I),
-    re.compile(r"(drop|delete|truncate)\s+table", re.I),
-    re.compile(r"<script[\s>]", re.I),
+    re.compile(r"ignore\s+(all\s+)?previous", re.IGNORECASE),
+    re.compile(r"system\s+prompt", re.IGNORECASE),
+    re.compile(r"developer\s+message", re.IGNORECASE),
+    re.compile(r"تجاهل\s+(كل\s+)?التعليمات", re.IGNORECASE),
+    re.compile(r"(drop|delete|truncate)\s+table", re.IGNORECASE),
+    re.compile(r"<script[\s>]", re.IGNORECASE),
 ]
 
 

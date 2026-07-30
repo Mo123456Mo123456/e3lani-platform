@@ -153,6 +153,8 @@ services:
       dockerfile: docker/node.Dockerfile
       args:
         PACKAGE: "@living-planet/web"
+        NEXT_PUBLIC_API_URL: http://localhost:4000
+        NEXT_PUBLIC_SANDBOX_MODE: "true"
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: http://localhost:4000
@@ -170,6 +172,7 @@ services:
       dockerfile: docker/node.Dockerfile
       args:
         PACKAGE: "@living-planet/admin"
+        NEXT_PUBLIC_API_URL: http://localhost:4000
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: http://localhost:4000

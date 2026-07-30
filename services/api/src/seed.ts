@@ -2,7 +2,11 @@ import "dotenv/config";
 import { randomBytes, scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
 import postgres from "postgres";
-import { biomeTypes } from "@living-planet/shared-types";
+import {
+  biomeTypes,
+  type CausalLink,
+  type WorldEvent,
+} from "@living-planet/shared-types";
 import {
   deterministicId,
   generateWorld,
@@ -16,15 +20,20 @@ const sql = postgres(databaseUrl, { max: 4 });
 const scrypt = promisify(scryptCallback);
 const seed = process.env.WORLD_SEED ?? "azura-prime-7";
 
+function toJson(value: unknown): never {
+  return JSON.parse(JSON.stringify(value)) as never;
+}
+
 async function passwordHash(password: string): Promise<string> {
   const salt = randomBytes(16);
   const key = (await scrypt(password, salt, 64)) as Buffer;
   return `${salt.toString("hex")}:${key.toString("hex")}`;
 }
 
-let state = generateWorld(seed);
-const events = [];
-const causalLinks = [];
+const initialState = generateWorld(seed);
+let state = initialState;
+const events: WorldEvent[] = [];
+const causalLinks: CausalLink[] = [];
 for (let index = 0; index < 5; index += 1) {
   const result = simulateTick(state, events);
   state = result.state;
@@ -49,7 +58,7 @@ await sql.begin(async (transaction) => {
   ]) {
     await transaction`
       insert into roles (name, permissions)
-      values (${role}, ${transaction.json(role === "super_admin" ? ["*"] : ["world:read"])})
+      values (${role}, ${transaction.json(toJson(role === "super_admin" ? ["*"] : ["world:read"]))})
       on conflict (name) do nothing
     `;
   }
@@ -66,7 +75,7 @@ await sql.begin(async (transaction) => {
 
   await transaction`
     insert into planets (id, name_ar, name_en, seed, version, state)
-    values (${state.planetId}, 'أزورا', 'Azura', ${seed}, ${state.version}, ${transaction.json(state)})
+    values (${state.planetId}, 'أزورا', 'Azura', ${seed}, ${state.version}, ${transaction.json(toJson(state))})
     on conflict (id) do update
       set version = excluded.version, state = excluded.state, updated_at = now()
   `;
@@ -77,7 +86,7 @@ await sql.begin(async (transaction) => {
     biomeIds.set(biome, id);
     await transaction`
       insert into biomes (id, code, name_ar, name_en, rules)
-      values (${id}, ${biome}, ${biome}, ${biome.replaceAll("_", " ")}, ${transaction.json({ generated: true })})
+      values (${id}, ${biome}, ${biome}, ${biome.replaceAll("_", " ")}, ${transaction.json(toJson({ generated: true }))})
       on conflict (code) do update set rules = excluded.rules
     `;
   }
@@ -92,7 +101,7 @@ await sql.begin(async (transaction) => {
          ${region.nameAr}, ${region.nameEn},
          ST_SetSRID(ST_MakePoint(${region.longitude}, ${region.latitude}), 4326)::geography,
          ${region.elevation}, ${region.temperature}, ${region.moisture}, ${region.fertility},
-         ${region.population}, ${region.carryingCapacity}, ${transaction.json(region)})
+         ${region.population}, ${region.carryingCapacity}, ${transaction.json(toJson(region))})
       on conflict (id) do update set
         temperature = excluded.temperature,
         moisture = excluded.moisture,
@@ -110,7 +119,7 @@ await sql.begin(async (transaction) => {
         (${civilization.id}, ${state.planetId}, ${civilization.nameAr}, ${civilization.nameEn},
          ${civilization.population}, ${civilization.technology}, ${civilization.economy},
          ${civilization.military}, ${civilization.stability}, ${civilization.health},
-         ${civilization.education}, ${civilization.pollution}, ${transaction.json(civilization)}, 0)
+         ${civilization.education}, ${civilization.pollution}, ${transaction.json(toJson(civilization))}, 0)
       on conflict (id) do update set population = excluded.population, state = excluded.state
     `;
   }
@@ -130,7 +139,7 @@ await sql.begin(async (transaction) => {
          ${`Azura City ${index + 1}`},
          ST_SetSRID(ST_MakePoint(${region.longitude}, ${region.latitude}), 4326)::geography,
          ${Math.max(12_000, Math.round(civilization.population / 8))}, ${civilization.economy},
-         ${civilization.military}, 0, ${transaction.json({ generated: true })})
+         ${civilization.military}, 0, ${transaction.json(toJson({ generated: true }))})
       on conflict (id) do nothing
     `;
   }
@@ -146,8 +155,8 @@ await sql.begin(async (transaction) => {
          ${`مورد أزوري ${index + 1}`}, ${`Azuran Resource ${index + 1}`},
          ${Math.round(10_000 + region.resourceRichness * 900_000)},
          ${index % 4 === 0 ? 0.018 : 0}, ${0.2 + region.resourceRichness * 0.8},
-         ${transaction.json(["industry", "energy"])}, ${0.08 + (index % 7) * 0.04},
-         ${transaction.json({ generated: true })})
+         ${transaction.json(toJson(["industry", "energy"]))}, ${0.08 + (index % 7) * 0.04},
+         ${transaction.json(toJson({ generated: true }))})
       on conflict (id) do nothing
     `;
   }
@@ -159,7 +168,7 @@ await sql.begin(async (transaction) => {
          traits, status, created_tick)
       values
         (${species.id}, ${state.planetId}, ${species.kind}, ${species.nameAr}, ${species.nameEn},
-         ${species.population}, ${species.carryingCapacity}, ${transaction.json(species.traits)},
+         ${species.population}, ${species.carryingCapacity}, ${transaction.json(toJson(species.traits))},
          'active', 0)
       on conflict (id) do nothing
     `;
@@ -183,7 +192,7 @@ await sql.begin(async (transaction) => {
       values
         (${deterministicId(seed, "technology", index)}, ${state.planetId}, ${civilization.id},
          ${`تقنية أزورية ${index + 1}`}, ${`Azuran Technology ${index + 1}`},
-         ${0.15 + (index % 10) * 0.08}, ${transaction.json({ economy: 0.01, emissions: -0.002 })},
+         ${0.15 + (index % 10) * 0.08}, ${transaction.json(toJson({ economy: 0.01, emissions: -0.002 }))},
          ${Math.max(0, state.tick - (index % 5))})
       on conflict (id) do nothing
     `;
@@ -195,7 +204,7 @@ await sql.begin(async (transaction) => {
         (id, planet_id, sequence, event_type, simulation_year, tick, region_id, contribution_id, payload)
       values
         (${event.id}, ${state.planetId}, ${event.sequence}, ${event.type}, ${event.simulationYear},
-         ${event.tick}, ${event.regionId ?? null}, ${event.contributionId ?? null}, ${transaction.json(event)})
+         ${event.tick}, ${event.regionId ?? null}, ${event.contributionId ?? null}, ${transaction.json(toJson(event))})
       on conflict (id) do nothing
     `;
   }
@@ -203,28 +212,33 @@ await sql.begin(async (transaction) => {
     await transaction`
       insert into causal_links (id, planet_id, from_event_id, to_event_id, relation, strength, payload)
       values (${link.id}, ${state.planetId}, ${link.fromEventId}, ${link.toEventId},
-              ${link.relation}, ${link.strength}, ${transaction.json(link)})
+              ${link.relation}, ${link.strength}, ${transaction.json(toJson(link))})
       on conflict (id) do nothing
     `;
   }
-  await transaction`
-    insert into timeline_snapshots
-      (id, planet_id, tick, simulation_year, event_sequence, checksum, payload)
-    values
-      (${deterministicId(seed, "snapshot", state.tick)}, ${state.planetId}, ${state.tick},
-       ${state.year}, ${state.lastEventSequence}, ${stateChecksum(state)},
-       ${transaction.json({
-         id: deterministicId(seed, "snapshot", state.tick),
-         planetId: state.planetId,
-         tick: state.tick,
-         year: state.year,
-         eventSequence: state.lastEventSequence,
-         state,
-         checksum: stateChecksum(state),
-         createdAt: new Date().toISOString(),
-       })})
-    on conflict (planet_id, tick) do update set payload = excluded.payload
-  `;
+  for (const snapshotState of [initialState, state]) {
+    const snapshotId = deterministicId(seed, "snapshot", snapshotState.tick);
+    const checksum = stateChecksum(snapshotState);
+    await transaction`
+      insert into timeline_snapshots
+        (id, planet_id, tick, simulation_year, event_sequence, checksum, payload)
+      values
+        (${snapshotId}, ${snapshotState.planetId}, ${snapshotState.tick},
+         ${snapshotState.year}, ${snapshotState.lastEventSequence}, ${checksum},
+         ${transaction.json(toJson({
+           id: snapshotId,
+           planetId: snapshotState.planetId,
+           tick: snapshotState.tick,
+           year: snapshotState.year,
+           eventSequence: snapshotState.lastEventSequence,
+           state: snapshotState,
+           checksum,
+           createdAt: new Date().toISOString(),
+         }))})
+      on conflict (planet_id, tick) do update
+        set payload = excluded.payload, checksum = excluded.checksum
+    `;
+  }
 });
 
 console.info(

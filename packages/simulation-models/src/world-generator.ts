@@ -5,7 +5,7 @@ import type {
   SpeciesState,
   WorldState,
 } from "@living-planet/shared-types";
-import { createSeededRandom, deterministicId, fractalNoise } from "./random";
+import { createSeededRandom, deterministicId, fractalNoise } from "./random.js";
 
 const REGION_NAMES_AR = [
   "سهول النور",

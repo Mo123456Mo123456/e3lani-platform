@@ -6,7 +6,7 @@ import type {
   WorldEvent,
   WorldState,
 } from "@living-planet/shared-types";
-import { createSeededRandom, deterministicId } from "./random";
+import { createSeededRandom, deterministicId } from "./random.js";
 
 function clamp(value: number, min = 0, max = 1): number {
   return Math.min(max, Math.max(min, value));

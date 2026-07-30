@@ -17,6 +17,10 @@ import {
 } from "@living-planet/simulation-models";
 import postgres, { type Sql } from "postgres";
 
+function toJson(value: unknown): never {
+  return JSON.parse(JSON.stringify(value)) as never;
+}
+
 export interface DeltaResult {
   state: WorldState;
   events: WorldEvent[];
@@ -59,7 +63,7 @@ function createSnapshot(state: WorldState): TimelineSnapshot {
 }
 
 export class InMemoryWorldRepository implements WorldRepository {
-  readonly sandbox = true;
+  readonly sandbox: boolean = true;
   protected state!: WorldState;
   protected events: WorldEvent[] = [];
   protected causalLinks: CausalLink[] = [];
@@ -204,13 +208,13 @@ export class PostgresWorldRepository extends InMemoryWorldRepository {
       if (initial) {
         await transaction`
           insert into planets (id, name_ar, name_en, seed, version, state)
-          values (${this.state.planetId}, 'أزورا', 'Azura', ${this.seed}, ${this.state.version}, ${transaction.json(this.state)})
+          values (${this.state.planetId}, 'أزورا', 'Azura', ${this.seed}, ${this.state.version}, ${transaction.json(toJson(this.state))})
           on conflict (id) do nothing
         `;
       } else {
         const updated = await transaction`
           update planets
-          set version = ${this.state.version}, state = ${transaction.json(this.state)}, updated_at = now()
+          set version = ${this.state.version}, state = ${transaction.json(toJson(this.state))}, updated_at = now()
           where id = ${this.state.planetId}
         `;
         if (updated.count !== 1) throw new Error("WORLD_PERSISTENCE_CONFLICT");
@@ -222,7 +226,7 @@ export class PostgresWorldRepository extends InMemoryWorldRepository {
               (id, planet_id, sequence, event_type, simulation_year, tick, region_id, contribution_id, payload)
             values
               (${event.id}, ${this.state.planetId}, ${event.sequence}, ${event.type}, ${event.simulationYear},
-               ${event.tick}, ${event.regionId ?? null}, ${event.contributionId ?? null}, ${transaction.json(event)})
+               ${event.tick}, ${event.regionId ?? null}, ${event.contributionId ?? null}, ${transaction.json(toJson(event))})
             on conflict (id) do nothing
           `;
         }
@@ -232,7 +236,7 @@ export class PostgresWorldRepository extends InMemoryWorldRepository {
           await transaction`
             insert into causal_links (id, planet_id, from_event_id, to_event_id, relation, strength, payload)
             values (${link.id}, ${this.state.planetId}, ${link.fromEventId}, ${link.toEventId},
-                    ${link.relation}, ${link.strength}, ${transaction.json(link)})
+                    ${link.relation}, ${link.strength}, ${transaction.json(toJson(link))})
             on conflict (id) do nothing
           `;
         }
@@ -246,7 +250,7 @@ export class PostgresWorldRepository extends InMemoryWorldRepository {
         await transaction`
           insert into timeline_snapshots (id, planet_id, tick, simulation_year, event_sequence, checksum, payload)
           values (${snapshot.id}, ${this.state.planetId}, ${snapshot.tick}, ${snapshot.year},
-                  ${snapshot.eventSequence}, ${snapshot.checksum}, ${transaction.json(snapshot)})
+                  ${snapshot.eventSequence}, ${snapshot.checksum}, ${transaction.json(toJson(snapshot))})
           on conflict (planet_id, tick) do update set payload = excluded.payload, checksum = excluded.checksum
         `;
       }
@@ -284,7 +288,50 @@ export class PostgresWorldRepository extends InMemoryWorldRepository {
   }
 
   override async rollback(tick: number): Promise<WorldState> {
+    const snapshot = this.snapshots.get(tick);
+    if (!snapshot) throw new Error("SNAPSHOT_NOT_FOUND");
     const state = await super.rollback(tick);
+    await this.sql.begin(async (transaction) => {
+      await transaction`
+        delete from notifications
+        where event_id in (
+          select id from world_events
+          where planet_id = ${this.state.planetId}
+            and sequence > ${snapshot.eventSequence}
+        )
+      `;
+      await transaction`
+        delete from causal_links
+        where planet_id = ${this.state.planetId}
+          and (
+            from_event_id in (
+              select id from world_events
+              where planet_id = ${this.state.planetId}
+                and sequence > ${snapshot.eventSequence}
+            )
+            or to_event_id in (
+              select id from world_events
+              where planet_id = ${this.state.planetId}
+                and sequence > ${snapshot.eventSequence}
+            )
+          )
+      `;
+      await transaction`
+        delete from world_events
+        where planet_id = ${this.state.planetId}
+          and sequence > ${snapshot.eventSequence}
+      `;
+      await transaction`
+        delete from timeline_snapshots
+        where planet_id = ${this.state.planetId}
+          and tick > ${snapshot.tick}
+      `;
+      await transaction`
+        delete from user_contributions
+        where planet_id = ${this.state.planetId}
+          and world_version > ${snapshot.state.version}
+      `;
+    });
     await this.persist();
     return state;
   }
