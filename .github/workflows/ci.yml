@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit & package tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build all packages & services
+        run: pnpm -r --if-present build
+      - name: Typecheck apps
+        run: |
+          pnpm --filter @kawkab/web typecheck
+          pnpm --filter @kawkab/admin typecheck
+      - name: Run all tests
+        run: pnpm -r --if-present test
+
+  build-apps:
+    name: Production builds (web & admin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --filter "./packages/**" build
+      - run: pnpm --filter @kawkab/web build
+      - run: pnpm --filter @kawkab/admin build
+
+  integration:
+    name: API integration (Postgres + migrations + seed + smoke)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_USER: kawkab
+          POSTGRES_PASSWORD: kawkab
+          POSTGRES_DB: kawkab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kawkab -d kawkab"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://kawkab:kawkab@localhost:5432/kawkab
+      SEED_TICKS: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --filter "./packages/**" build
+      - run: pnpm --filter @kawkab/api build
+      - name: Apply migrations
+        run: pnpm --filter @kawkab/api exec prisma migrate deploy
+      - name: Seed demo planet
+        run: pnpm --filter @kawkab/api seed
+      - name: Start API
+        run: |
+          nohup node services/api/dist/main.js > api.log 2>&1 &
+          echo $! > api.pid
+          for i in $(seq 1 40); do
+            curl -sf http://localhost:4000/health && break || sleep 2
+          done
+      - name: Smoke: health, worlds, region, contribution flow
+        run: |
+          set -e
+          curl -sf http://localhost:4000/health | grep -q ok
+          PLANET=$(curl -sf http://localhost:4000/api/worlds | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d)[0].id))")
+          curl -sf "http://localhost:4000/api/worlds/$PLANET" | grep -q seed
+          curl -sf "http://localhost:4000/api/worlds/$PLANET/regions/100" | grep -q biome
+          curl -sf "http://localhost:4000/api/worlds/$PLANET/layers/temperature" | grep -q cells
+          # register → preview a contribution → confirm → world reacts
+          TOK=$(curl -sf -X POST http://localhost:4000/api/auth/register -H 'content-type: application/json' -d '{"email":"ci@kawkab.dev","password":"ci-password-1","displayName":"CI"}' | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).accessToken))")
+          PREVIEW=$(curl -sf -X POST "http://localhost:4000/api/contributions?locale=ar" -H "authorization: Bearer $TOK" -H 'content-type: application/json' -d "{\"planetId\":\"$PLANET\",\"category\":\"plant\",\"text\":\"شجرة عملاقة تمتص التلوث وتضيء في الليل\"}")
+          echo "$PREVIEW" | grep -q pollutionAbsorption
+          CID=$(echo "$PREVIEW" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).contributionId))")
+          ORIGIN=$(echo "$PREVIEW" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).suggestedOrigin[0].index))")
+          curl -sf -X POST "http://localhost:4000/api/contributions/confirm?locale=ar" -H "authorization: Bearer $TOK" -H 'content-type: application/json' -d "{\"contributionId\":\"$CID\",\"originIndex\":$ORIGIN}" | grep -q narration
+          echo "SMOKE OK"
+      - name: Stop API
+        if: always()
+        run: kill $(cat api.pid) || true

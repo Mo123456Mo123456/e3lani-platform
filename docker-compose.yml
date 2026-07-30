@@ -1,0 +1,133 @@
+name: kawkab-planetborn
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      POSTGRES_USER: kawkab
+      POSTGRES_PASSWORD: kawkab
+      POSTGRES_DB: kawkab
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kawkab -d kawkab"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kawkab:kawkab@postgres:5432/kawkab
+    command: ["node_modules/.bin/prisma", "migrate", "deploy"]
+    restart: "no"
+
+  seed:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://kawkab:kawkab@postgres:5432/kawkab
+      DEMO_PLANET_SEED: ${DEMO_PLANET_SEED:-kawkab-aether-144}
+      SEED_TICKS: ${SEED_TICKS:-80}
+    command: ["node_modules/.bin/tsx", "prisma/seed.ts"]
+    restart: "no"
+
+  ai-orchestrator:
+    build:
+      context: .
+      dockerfile: services/ai-orchestrator/Dockerfile
+    environment:
+      PORT: 4100
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "4100:4100"
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+      ai-orchestrator:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://kawkab:kawkab@postgres:5432/kawkab
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-only-access-secret-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-only-refresh-secret-change-me}
+      COOKIE_SECURE: "false"
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3100
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:4100
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "4000:4000"
+
+  simulation-engine:
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: services/simulation-engine/Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://kawkab:kawkab@postgres:5432/kawkab
+      WORKER_PLANET_IDS: ${WORKER_PLANET_IDS:-}
+      TICKS_PER_SECOND: ${TICKS_PER_SECOND:-1}
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    depends_on:
+      - api
+    ports:
+      - "3100:3100"
+
+volumes:
+  pgdata:
