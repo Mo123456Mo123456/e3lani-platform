@@ -200,8 +200,8 @@ function Surface({
   }, [highlightedRegionId, regions, selectedRegionId]);
 
   useFrame((state) => {
-    if (material.current)
-      material.current.uniforms.uTime.value = state.clock.elapsedTime;
+    const timeUniform = material.current?.uniforms.uTime;
+    if (timeUniform) timeUniform.value = state.clock.elapsedTime;
   });
 
   const handleSelect = (event: ThreeEvent<PointerEvent>) => {
@@ -238,8 +238,8 @@ function Clouds({ quality }: { quality: Quality }) {
   const uniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
 
   useFrame((state, delta) => {
-    if (material.current)
-      material.current.uniforms.uTime.value = state.clock.elapsedTime;
+    const timeUniform = material.current?.uniforms.uTime;
+    if (timeUniform) timeUniform.value = state.clock.elapsedTime;
     if (mesh.current && profile.animateClouds)
       mesh.current.rotation.y += delta * 0.012;
   });

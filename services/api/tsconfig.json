@@ -6,8 +6,7 @@
     "noEmit": false,
     "declaration": true,
     "sourceMap": true,
-    "types": ["node"],
-    "baseUrl": "."
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules", "test"]

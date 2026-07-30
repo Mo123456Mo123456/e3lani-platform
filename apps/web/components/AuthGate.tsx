@@ -10,8 +10,8 @@ import { Icon } from "./Icon";
 
 interface AuthGateProps {
   language: Language;
-  checking?: boolean;
-  initialError?: string;
+  checking?: boolean | undefined;
+  initialError?: string | undefined;
   onAuthenticated: (user: AuthUser) => void;
   onLanguageChange: (language: Language) => void;
 }
