@@ -47,6 +47,12 @@ export class ElementDto {
   @Length(1, 120)
   nameAr?: string;
 
+  @ApiPropertyOptional({ example: "Luminous Moss" })
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  nameEn?: string;
+
   @ApiProperty({ example: "A moss that glows at night and enriches soil." })
   @IsString()
   @Length(3, 2000)
@@ -82,6 +88,12 @@ export class ElementDto {
   @ApiPropertyOptional({ example: false })
   @IsOptional()
   wasBalanced?: boolean;
+
+  @ApiPropertyOptional({ isArray: true, type: String })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  balanceNotes?: string[];
 }
 
 export class PreviewContributionDto {

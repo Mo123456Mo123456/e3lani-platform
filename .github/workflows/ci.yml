@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main, cursor/**]
+  pull_request:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: planet
+          POSTGRES_PASSWORD: planet_dev
+          POSTGRES_DB: planet_born
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U planet -d planet_born"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql://planet:planet_dev@localhost:5432/planet_born?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-access-secret-planet-born-32chars!!
+      JWT_REFRESH_SECRET: ci-refresh-secret-planet-born-32chars!
+      DEFAULT_PLANET_SEED: planet-born-alpha-2026
+      AI_PROVIDER: sandbox
+      AI_SANDBOX_MODE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm --filter @planet/db generate
+      - run: pnpm --filter @planet/db exec prisma migrate deploy || pnpm --filter @planet/db exec prisma db push
+      - run: pnpm --filter @planet/shared-types build
+      - run: pnpm --filter @planet/validation test
+      - run: pnpm --filter @planet/simulation-models test
+      - run: pnpm --filter @planet/api test
+      - run: pnpm --filter @planet/realtime-gateway test
+      - run: pnpm --filter @planet/web typecheck
+      - run: pnpm --filter @planet/admin typecheck
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Simulation engine tests
+        run: |
+          cd services/simulation-engine
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+          .venv/bin/pytest -q
+      - name: AI orchestrator tests
+        run: |
+          cd services/ai-orchestrator
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+          .venv/bin/pytest -q

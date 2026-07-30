@@ -33,7 +33,31 @@ export class AiOrchestratorService {
   }
 
   async moderate(input: { text: string; locale?: string }): Promise<ModerationResponse> {
-    return this.http.post(this.baseUrl, "/moderate", input, "AI orchestrator");
+    const raw = await this.http.post<Record<string, unknown>>(
+      this.baseUrl,
+      "/moderate",
+      input,
+      "AI orchestrator",
+    );
+    const nested = raw.moderation;
+    if (nested && typeof nested === "object") {
+      const mod = nested as Record<string, unknown>;
+      return {
+        allowed: Boolean(mod.allowed),
+        labels: Array.isArray(mod.flags)
+          ? (mod.flags as string[])
+          : Array.isArray(mod.labels)
+            ? (mod.labels as string[])
+            : [],
+        reason: Array.isArray(mod.reasons)
+          ? (mod.reasons as string[]).join("; ")
+          : typeof mod.reason === "string"
+            ? mod.reason
+            : undefined,
+        ...mod,
+      };
+    }
+    return raw as ModerationResponse;
   }
 
   async analyzeContribution(input: {
@@ -41,13 +65,39 @@ export class AiOrchestratorService {
     categoryHint?: string;
     locale?: string;
   }): Promise<AnalyzeContributionResponse> {
-    return this.http.post(
+    const raw = await this.http.post<Record<string, unknown>>(
       this.baseUrl,
       "/analyze-contribution",
-      input,
+      {
+        text: input.text,
+        locale: input.locale,
+        category_hint: input.categoryHint,
+      },
       "AI orchestrator",
       { timeoutMs: 15000 },
     );
+
+    // Normalize AI response for web/API consumers
+    const balanced = (raw.balanced ?? raw.element) as Record<string, unknown> | undefined;
+    const moderationRaw = raw.moderation as Record<string, unknown> | undefined;
+    return {
+      ...raw,
+      element: balanced,
+      suggestions: Array.isArray(raw.balance_notes)
+        ? (raw.balance_notes as string[])
+        : undefined,
+      moderation: moderationRaw
+        ? {
+            allowed: Boolean(moderationRaw.allowed),
+            labels: (moderationRaw.flags as string[]) ?? [],
+            reason: Array.isArray(moderationRaw.reasons)
+              ? (moderationRaw.reasons as string[]).join("; ")
+              : undefined,
+          }
+        : undefined,
+      sandbox: Boolean(raw.sandbox),
+      provider: typeof raw.provider === "string" ? raw.provider : "sandbox",
+    };
   }
 
   async parse(input: Record<string, unknown>): Promise<Record<string, unknown>> {

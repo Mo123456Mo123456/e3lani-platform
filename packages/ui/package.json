@@ -1,0 +1,22 @@
+{
+  "name": "@planet/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "echo ok"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.17",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

@@ -10,8 +10,13 @@ describe("ContributionsService", () => {
     notifications: [],
   };
 
-  const planet = { id: "planet_1", currentTick: 7, currentYear: 120 };
-  const region = { id: "region_1", lat: 24.2, lon: 46.7 };
+  const planet = {
+    id: "planet_1",
+    seed: "planet-born-alpha-2026",
+    currentTick: 7,
+    currentYear: 120,
+  };
+  const region = { id: "region_1", lat: 24.2, lon: 46.7, gridX: 10, gridY: 12 };
 
   const tx: any = {
     userContribution: {
@@ -86,10 +91,12 @@ describe("ContributionsService", () => {
   };
 
   const simulation: any = {
+    ensureWorld: vi.fn(async () => ({ planet_id: "planet_1", seed: planet.seed })),
     applyContribution: vi.fn(async () => ({
       narrativeAr: "بدأ الطحلب يغير البيئة.",
       forecast: { horizonYears: 10 },
       causalGraph: { edges: [{ from: "contribution", to: "fertility", weight: 0.8 }] },
+      causal_edges: [{ source: "contribution", target: "fertility", weight: 0.8, relation: "boosts" }],
       events: [
         {
           type: "PLANT_SPREAD",
@@ -152,8 +159,16 @@ describe("ContributionsService", () => {
     expect(rows.events).toHaveLength(1);
     expect(rows.links).toHaveLength(1);
     expect(rows.notifications).toHaveLength(1);
+    expect(simulation.ensureWorld).toHaveBeenCalledWith(
+      expect.objectContaining({ seed: "planet-born-alpha-2026", planetId: "planet_1" }),
+    );
     expect(simulation.applyContribution).toHaveBeenCalledWith(
-      expect.objectContaining({ contributionId: "contribution_1" }),
+      expect.objectContaining({
+        planetId: "planet_1",
+        seed: "planet-born-alpha-2026",
+        userId: "user_1",
+        regionId: "region_1",
+      }),
     );
     expect(redis.publishDelta).toHaveBeenCalledWith(
       expect.objectContaining({ type: "contribution", planetId: "planet_1" }),

@@ -20,11 +20,23 @@ class SimulationEngine:
     def __init__(self, snapshot_dir: Path = SNAPSHOT_DIR) -> None:
         self.snapshot_dir = snapshot_dir
         self.planets: dict[str, PlanetState] = {}
+        self.aliases: dict[str, str] = {}
+        self.seed_index: dict[str, str] = {}
 
-    def generate_world(self, seed: str, resolution: tuple[int, int] | None = None) -> PlanetState:
+    def generate_world(
+        self,
+        seed: str,
+        resolution: tuple[int, int] | None = None,
+        external_planet_id: str | None = None,
+    ) -> PlanetState:
         resolution = resolution or DEFAULT_RESOLUTION
         rows, cols = validate_resolution(resolution)
         planet_id = planet_id_for(seed, (rows, cols))
+        if seed in self.seed_index and self.seed_index[seed] in self.planets:
+            state = self.planets[self.seed_index[seed]]
+            if external_planet_id:
+                self.aliases[external_planet_id] = state.planet_id
+            return state
         regions = world_generator.generate_regions(seed, (rows, cols))
         state = PlanetState(
             planet_id=planet_id,
@@ -43,22 +55,102 @@ class SimulationEngine:
         state.events.extend(trade_events)
         self.update_metrics(state)
         self.planets[planet_id] = state
+        self.seed_index[seed] = planet_id
+        if external_planet_id:
+            self.aliases[external_planet_id] = planet_id
         self.create_snapshot(planet_id, "generated")
         return state
 
-    def get_state(self, planet_id: str) -> PlanetState:
-        if planet_id not in self.planets:
-            loaded = self.load_latest_snapshot(planet_id)
+    def ensure_world(
+        self,
+        seed: str,
+        planet_id: str | None = None,
+        resolution: tuple[int, int] | None = None,
+    ) -> PlanetState:
+        if planet_id and planet_id in self.aliases:
+            return self.get_state(self.aliases[planet_id])
+        if planet_id and planet_id in self.planets:
+            return self.get_state(planet_id)
+        if seed in self.seed_index:
+            state = self.get_state(self.seed_index[seed])
+            if planet_id:
+                self.aliases[planet_id] = state.planet_id
+            return state
+        return self.generate_world(seed, resolution, external_planet_id=planet_id)
+
+    def resolve_planet_id(self, planet_id: str, seed: str | None = None) -> str:
+        if planet_id in self.planets:
+            return planet_id
+        if planet_id in self.aliases:
+            return self.aliases[planet_id]
+        if seed and seed in self.seed_index:
+            resolved = self.seed_index[seed]
+            self.aliases[planet_id] = resolved
+            return resolved
+        if seed:
+            state = self.ensure_world(seed, planet_id=planet_id)
+            return state.planet_id
+        loaded = self.load_latest_snapshot(planet_id)
+        if loaded is not None:
+            self.planets[planet_id] = loaded
+            return planet_id
+        raise KeyError(f"unknown planet_id: {planet_id}")
+
+    def get_state(self, planet_id: str, seed: str | None = None) -> PlanetState:
+        resolved = self.resolve_planet_id(planet_id, seed=seed)
+        if resolved not in self.planets:
+            loaded = self.load_latest_snapshot(resolved)
             if loaded is None:
                 raise KeyError(f"unknown planet_id: {planet_id}")
-            self.planets[planet_id] = loaded
-        return self.planets[planet_id]
+            self.planets[resolved] = loaded
+        return self.planets[resolved]
 
-    def simulate_ticks(self, planet_id: str, ticks: int = 1, unit: str = "year") -> PlanetState:
-        state = self.get_state(planet_id)
+    def resolve_region_id(
+        self,
+        state: PlanetState,
+        region_id: str | None,
+        *,
+        lat: float | None = None,
+        lon: float | None = None,
+        grid_x: int | None = None,
+        grid_y: int | None = None,
+    ) -> str:
+        if region_id and region_id in state.regions:
+            return region_id
+        if grid_x is not None and grid_y is not None:
+            for region in state.regions.values():
+                if region.x == grid_x and region.y == grid_y:
+                    return region.id
+        if lat is not None and lon is not None:
+            # Map lat/lon to approximate grid cell
+            rows, cols = state.resolution
+            y = int(round(((lat + 90.0) / 180.0) * (rows - 1)))
+            x = int(round(((lon + 180.0) / 360.0) * (cols - 1)))
+            y = max(0, min(rows - 1, y))
+            x = max(0, min(cols - 1, x))
+            for region in state.regions.values():
+                if region.x == x and region.y == y:
+                    return region.id
+            # nearest land-ish cell
+            best = min(
+                state.regions.values(),
+                key=lambda r: (r.x - x) ** 2 + (r.y - y) ** 2,
+            )
+            return best.id
+        # Prefer a fertile non-ocean region
+        land = [r for r in state.regions.values() if r.biome != "ocean"]
+        pool = land or list(state.regions.values())
+        if not pool:
+            raise KeyError("planet has no regions")
+        return max(pool, key=lambda r: r.fertility).id
+
+    def simulate_ticks(
+        self, planet_id: str, ticks: int = 1, unit: str = "year", seed: str | None = None
+    ) -> PlanetState:
+        state = self.get_state(planet_id, seed=seed)
         for _ in range(ticks):
             self.advance_one_tick(state, unit)
-        self.create_snapshot(planet_id, f"tick-{state.tick}")
+        self.create_snapshot(state.planet_id, f"tick-{state.tick}")
         return state
 
     def advance_one_tick(self, state: PlanetState, unit: str = "year") -> list[SimulationEvent]:
@@ -92,29 +184,54 @@ class SimulationEngine:
         return emitted
 
     def apply_contribution(
-        self, planet_id: str, element: StructuredElement, region_id: str, user_id: str
+        self,
+        planet_id: str,
+        element: StructuredElement,
+        region_id: str | None,
+        user_id: str,
+        *,
+        seed: str | None = None,
+        lat: float | None = None,
+        lon: float | None = None,
+        grid_x: int | None = None,
+        grid_y: int | None = None,
     ) -> tuple[ContributionRecord, PlanetState]:
-        state = self.get_state(planet_id)
-        record, events = causal.apply_contribution(state, element, region_id, user_id, len(state.events))
+        state = self.get_state(planet_id, seed=seed)
+        resolved_region = self.resolve_region_id(
+            state,
+            region_id,
+            lat=lat,
+            lon=lon,
+            grid_x=grid_x,
+            grid_y=grid_y,
+        )
+        record, events = causal.apply_contribution(
+            state, element, resolved_region, user_id, len(state.events)
+        )
         state.events.extend(events)
         self.update_metrics(state)
-        self.create_snapshot(planet_id, f"contribution-{record.id}")
+        self.create_snapshot(state.planet_id, f"contribution-{record.id}")
         return record, state
 
     def forecast(
-        self, planet_id: str, contribution_id: str | None = None, horizons: list[int] | None = None
+        self,
+        planet_id: str,
+        contribution_id: str | None = None,
+        horizons: list[int] | None = None,
+        seed: str | None = None,
     ) -> dict[str, Any]:
-        state = self.get_state(planet_id)
+        state = self.get_state(planet_id, seed=seed)
         return monte_carlo.forecast(state, contribution_id, horizons)
 
-    def rollback(self, planet_id: str, snapshot_id: str) -> PlanetState:
-        snapshot_path = self.snapshot_dir / planet_id / f"{snapshot_id}.json"
+    def rollback(self, planet_id: str, snapshot_id: str, seed: str | None = None) -> PlanetState:
+        resolved = self.resolve_planet_id(planet_id, seed=seed)
+        snapshot_path = self.snapshot_dir / resolved / f"{snapshot_id}.json"
         if not snapshot_path.exists():
             raise KeyError(f"unknown snapshot_id: {snapshot_id}")
         data = snapshot_path.read_text(encoding="utf-8")
         state = PlanetState.model_validate_json(data)
-        self.planets[planet_id] = state
-        self.create_snapshot(planet_id, f"rollback-{snapshot_id}")
+        self.planets[resolved] = state
+        self.create_snapshot(resolved, f"rollback-{snapshot_id}")
         return state
 
     def create_snapshot(self, planet_id: str, reason: str) -> SnapshotRecord:

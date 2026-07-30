@@ -19,10 +19,10 @@ export class SimulationService {
       throw new NotFoundException("Planet not found");
     }
 
+    await this.simulation.ensureWorld({ seed: planet.seed, planetId: planet.id });
     const result = await this.simulation.tick({
       planetId,
-      currentTick: planet.currentTick,
-      currentYear: planet.currentYear,
+      seed: planet.seed,
       unit: planet.tickUnit,
       steps: dto.steps ?? 1,
     });

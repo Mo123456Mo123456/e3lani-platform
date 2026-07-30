@@ -1,0 +1,34 @@
+{
+  "name": "@planet/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate deploy && prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "seed": "tsx src/seed.ts",
+    "studio": "prisma studio",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "echo ok"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.5.0",
+    "bcryptjs": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.19.3",
+    "prisma": "^6.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "prisma": {
+    "seed": "tsx src/seed.ts"
+  }
+}

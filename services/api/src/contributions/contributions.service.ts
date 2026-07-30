@@ -40,9 +40,11 @@ export class ContributionsService {
   }
 
   async preview(dto: PreviewContributionDto) {
-    await this.ensurePlanetAndRegion(dto.planetId, dto.regionId);
+    const { planet } = await this.ensurePlanetAndRegion(dto.planetId, dto.regionId);
+    await this.simulation.ensureWorld({ seed: planet.seed, planetId: planet.id });
     return this.simulation.forecast({
       planetId: dto.planetId,
+      seed: planet.seed,
       regionId: dto.regionId,
       element: dto.element,
       mode: "lightweight",
@@ -97,14 +99,22 @@ export class ContributionsService {
 
     let applyResult: Record<string, unknown>;
     try {
+      await this.simulation.ensureWorld({ seed: planet.seed, planetId: planet.id });
       applyResult = await this.simulation.applyContribution({
         planetId: planet.id,
+        seed: planet.seed,
         regionId: region?.id,
-        contributionId: contribution.id,
+        lat: region?.lat,
+        lon: region?.lon,
+        gridX: (region as { gridX?: number } | null | undefined)?.gridX,
+        gridY: (region as { gridY?: number } | null | undefined)?.gridY,
         userId: user.id,
-        currentTick: planet.currentTick,
-        currentYear: planet.currentYear,
-        element: dto.element,
+        element: {
+          ...dto.element,
+          type: dto.element.category,
+          properties: dto.element.traits ?? {},
+          traits: dto.element.traits ?? {},
+        },
       });
     } catch (error) {
       if (error instanceof ServiceUnavailableException) {
@@ -249,7 +259,7 @@ export class ContributionsService {
   private async ensurePlanetAndRegion(planetId: string, regionId?: string) {
     const planet = await this.prisma.planet.findUnique({
       where: { id: planetId },
-      select: { id: true, currentTick: true, currentYear: true },
+      select: { id: true, seed: true, currentTick: true, currentYear: true },
     });
 
     if (!planet) {
@@ -262,7 +272,7 @@ export class ContributionsService {
 
     const region = await this.prisma.planetRegion.findFirst({
       where: { id: regionId, planetId },
-      select: { id: true, lat: true, lon: true },
+      select: { id: true, lat: true, lon: true, gridX: true, gridY: true },
     });
 
     if (!region) {
@@ -338,33 +348,49 @@ function normalizeEvents(
 
   return rawEvents.map((raw) => {
     const event = raw as Record<string, unknown>;
+    const labels =
+      event.labels && typeof event.labels === "object"
+        ? (event.labels as Record<string, unknown>)
+        : {};
+    const labelEn = stringFrom(labels.en);
+    const labelAr = stringFrom(labels.ar);
     return {
       planet: { connect: { id: defaults.planetId } },
       contribution: { connect: { id: defaults.contributionId } },
       type: stringFrom(event.type) ?? "CONTRIBUTION_APPLIED",
-      title: stringFrom(event.title) ?? `${defaults.element.name} introduced`,
+      title:
+        stringFrom(event.title) ??
+        labelEn ??
+        `${defaults.element.name} introduced`,
       titleAr:
         stringFrom(event.titleAr) ??
         stringFrom(event.title_ar) ??
+        labelAr ??
         `تمت إضافة ${defaults.element.nameAr ?? defaults.element.name}`,
-      description: stringFrom(event.description) ?? defaults.element.description,
+      description:
+        stringFrom(event.description) ??
+        labelEn ??
+        defaults.element.description,
       descriptionAr:
         stringFrom(event.descriptionAr) ??
         stringFrom(event.description_ar) ??
+        labelAr ??
         stringFrom(event.description) ??
         defaults.element.description,
       tick: numberFrom(event.tick) ?? defaults.tick,
       year: numberFrom(event.year) ?? defaults.year,
-      importance: numberFrom(event.importance) ?? defaults.element.balanceScore,
+      importance: numberFrom(event.importance) ?? numberFrom(event.confidence) ?? defaults.element.balanceScore,
       regionId: stringFrom(event.regionId) ?? stringFrom(event.region_id) ?? defaults.regionId,
       lat: numberFrom(event.lat) ?? defaults.lat,
       lon: numberFrom(event.lon) ?? defaults.lon,
       causeIds: stringArrayFrom(event.causeIds) ?? stringArrayFrom(event.cause_ids) ?? [
         defaults.contributionId,
-      ],
+        stringFrom(event.cause) ?? "",
+      ].filter(Boolean),
       userId: defaults.userId,
       confidence: numberFrom(event.confidence) ?? 1,
-      directImpact: jsonFrom(event.directImpact ?? event.direct_impact) ?? {},
+      directImpact:
+        jsonFrom(event.directImpact ?? event.direct_impact ?? event.direct_impacts) ?? {},
       thumbnailUrl: stringFrom(event.thumbnailUrl) ?? stringFrom(event.thumbnail_url),
     };
   });
@@ -374,8 +400,12 @@ function normalizeCausalLinks(
   payload: Record<string, unknown>,
   defaults: { planetId: string; tick: number },
 ): Prisma.CausalLinkCreateManyInput[] {
-  const directLinks = arrayFrom(payload.causalLinks) ?? arrayFrom(payload.causal_links);
-  const graph = payload.causalGraph;
+  const directLinks =
+    arrayFrom(payload.causalLinks) ??
+    arrayFrom(payload.causal_links) ??
+    arrayFrom(payload.causal_edges) ??
+    arrayFrom(payload.causalEdges);
+  const graph = payload.causalGraph ?? payload.causal_graph;
   const graphEdges =
     graph && typeof graph === "object" ? arrayFrom((graph as Record<string, unknown>).edges) : undefined;
   const rawLinks = directLinks ?? graphEdges ?? [];
@@ -383,8 +413,14 @@ function normalizeCausalLinks(
 
   for (const raw of rawLinks) {
     const link = raw as Record<string, unknown>;
-    const fromNode = stringFrom(link.fromNode) ?? stringFrom(link.from);
-    const toNode = stringFrom(link.toNode) ?? stringFrom(link.to);
+    const fromNode =
+      stringFrom(link.fromNode) ??
+      stringFrom(link.from) ??
+      stringFrom(link.source);
+    const toNode =
+      stringFrom(link.toNode) ??
+      stringFrom(link.to) ??
+      stringFrom(link.target);
     if (!fromNode || !toNode) {
       continue;
     }

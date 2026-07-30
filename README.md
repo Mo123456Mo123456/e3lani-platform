@@ -1,86 +1,181 @@
-# إعلاني | E3lani
+# كوكب يولد أمامك · Planet Born Before You
 
-**إعلاني** منصة إعلانات مرئية للجوال، عربية افتراضيًا مع دعم الإنجليزية، تجمع استكشاف الإعلانات وإنشاءها وإدارتها ومراجعتها في تطبيق واحد. صُممت الواجهة لوضع الجوال العمودي والاستخدام بيد واحدة، مع تنقل سفلي خماسي وتجارب منفصلة للزائر والمعلن وفريق الإدارة.[1]
+**عالمك، قرارك، أثر لا ينتهي.**  
+**Your world. Your decision. An endless impact.**
 
-> النسخة الحالية **نسخة تشغيلية محلية موثقة**: تحفظ حالة المنتج في `AsyncStorage`، وتستخدم رمز دخول ودفعًا تجريبيين معلنين داخل الواجهة. مخطط قاعدة البيانات وطبقة الخادم موجودان للتوسعة، لكن ربط مزودي المصادقة والدفع والتخزين والإشعارات الحقيقيين مطلوب قبل الإطلاق التجاري.[3]
+منصة ويب حيّة تعرض كوكبًا ثلاثي الأبعاد يتطور باستمرار. يضيف كل مستخدم عنصرًا واحدًا، فتحسب خوارزميات المحاكاة السببية الأثر المباشر وغير المباشر، ثم يصوغ الذكاء الاصطناعي الشرح دون اختلاق نتائج.
 
-## حالة المشروع
+> هذا المستودع يستبدل منصة إعلانات سابقة (`e3lani`) بمنتج محاكاة الكوكب. البنية Monorepo نهائية منذ البداية.
 
-| البند | الحالة الحالية |
+---
+
+## English summary
+
+A full-stack living-planet platform:
+
+| Layer | Tech |
 |---|---|
-| المنصات | iOS وAndroid وWeb عبر Expo SDK 54 |
-| اللغة | العربية RTL افتراضيًا والإنجليزية LTR |
-| التخزين التشغيلي | محلي عبر `AsyncStorage` مع بوابة تحميل وخطأ وإعادة محاولة |
-| المصادقة | OTP تجريبي موثق؛ الرمز `123456` |
-| الدفع | مزود `sandbox` موثق؛ لا توجد حركة مالية حقيقية |
-| قاعدة البيانات | مخطط MySQL/Drizzle جاهز، وغير مستخدم لتدفقات الواجهة المحلية حاليًا |
-| الجودة | TypeScript وESLint وVitest وبناء الخادم وتصدير Expo ناجحة[2] |
+| Web | Next.js, React Three Fiber, Zustand, TanStack Query, AR/EN RTL↔LTR |
+| Admin | Next.js (separate app, not linked from public UI) |
+| API | NestJS, Prisma, PostgreSQL, Redis, OpenAPI |
+| Simulation | Python FastAPI — deterministic ticks, biomes, ecosystem, civs, wars, causal graph |
+| AI | Provider adapters (OpenAI / Anthropic / Gemini / **Sandbox**) — parse, balance, narrate only |
+| Realtime | WebSocket gateway + Redis deltas |
 
-## القدرات الرئيسية
+Simulation decides outcomes. AI explains them. No fake success when services fail.
 
-| المجال | ما يتضمنه التطبيق |
-|---|---|
-| الاستكشاف | خلاصة مرئية، أقسام، بحث نصي، فلاتر مدينة وقسم، تفاصيل إعلان، وبراندات |
-| الثقة | حفظ ومشاركة وبلاغ وحظر معلن، مع حالات واضحة للفراغ والخطأ والنجاح |
-| المعلن | معالج إنشاء من خمس خطوات، وسائط، بيانات، تواصل، ترويج، معاينة، دفع، فواتير، وإحصاءات |
-| دورة حياة الإعلان | دفع، مراجعة، قبول أو طلب تعديل أو رفض، تفعيل، إيقاف، استئناف، تمديد، انتهاء، وإعادة نشر |
-| الإدارة | مركز عمل، مراجعة، بلاغات، مدفوعات، مستخدمون وأدوار، براندات، كتالوج، إعدادات، وسجل تدقيق |
-| الوصول | أسماء وأدوار وحالات اختيار وتعطيل، وأهداف لمس مناسبة في المكونات والمسارات الأساسية |
+---
 
-## التشغيل المحلي
+## البنية / Architecture
 
-يتطلب المشروع Node.js و`pnpm`. من جذر المشروع شغّل:
-
-```bash
-pnpm install
-pnpm dev
+```
+apps/
+  web/                 # لوحة الكوكب ثلاثية الأبعاد + تدفق الإضافة
+  admin/               # إدارة محمية
+services/
+  api/                 # NestJS REST + Swagger
+  simulation-engine/   # محرك Ticks الحتمي
+  ai-orchestrator/     # تحليل / توازن / سرد
+  realtime-gateway/    # WebSocket deltas
+  world-generator/     # توليد إجرائي
+  notification-worker/ # عامل إشعارات
+packages/
+  db/                  # Prisma schema + seed
+  shared-types/
+  simulation-models/
+  validation/
+  config/
+  ui/
+  analytics/
+infra/docker/          # Compose + Dockerfiles
+docs/                  # المعمارية والخوارزميات
 ```
 
-يشغّل الأمر خادم API وMetro معًا. ويمكن تشغيل كل جزء منفصلًا عبر `pnpm dev:server` و`pnpm dev:metro`. لا يحتاج وضع العرض المحلي إلى قاعدة بيانات أو مفاتيح مزودين خارجيين.
+مخططات مفصّلة: [`docs/architecture/overview.md`](docs/architecture/overview.md) · [`docs/algorithms/simulation.md`](docs/algorithms/simulation.md) · [`docs/ai/orchestration.md`](docs/ai/orchestration.md)
 
-### تجربة التدفقات التجريبية
+---
 
-استخدم أي رقم جوال صالح بطول لا يقل عن ثمانية محارف، ثم أدخل رمز الاختبار `123456`. عند إنشاء إعلان، يعرض التطبيق السعر والضريبة والإضافات قبل الانتقال إلى الدفع. زر **تأكيد دفع تجريبي** ينقل الطلب إلى المراجعة فقط، ولا ينفذ عملية مالية.
+## التشغيل المحلي / Quick start
 
-## أوامر الجودة
+### المتطلبات
+- Node.js 20+
+- pnpm 9.12
+- Python 3.12
+- PostgreSQL 16 (+ PostGIS إن توفّر)
+- Redis 7
 
-| الأمر | الغرض |
+### 1) البيئة
+
+```bash
+cp .env.example .env
+pnpm install
+bash scripts/setup-python.sh
+```
+
+### 2) قاعدة البيانات
+
+```bash
+pnpm --filter @planet/db exec prisma db push
+pnpm db:seed
+```
+
+أو عبر Docker:
+
+```bash
+pnpm docker:up
+# ثم migrate + seed
+```
+
+### 3) الخدمات
+
+```bash
+# طرفية 1 — محاكاة
+pnpm dev:sim
+
+# طرفية 2 — ذكاء اصطناعي (Sandbox افتراضيًا)
+pnpm dev:ai
+
+# طرفية 3 — API + Realtime + Web
+pnpm --filter @planet/api dev
+pnpm --filter @planet/realtime-gateway dev
+pnpm --filter @planet/web dev
+```
+
+- الويب: http://localhost:3000  
+- الإدارة: http://localhost:3001  
+- API docs: http://localhost:4000/api/docs  
+- المحاكاة: http://localhost:8001/docs  
+- AI: http://localhost:8002/docs  
+
+---
+
+## حسابات Sandbox
+
+| الدور | البريد | كلمة المرور |
+|---|---|---|
+| Super Admin | `admin@planet-born.local` | `PlanetAdmin!2026` |
+| Explorer | `explorer@planet-born.local` | `Explorer!2026` |
+
+مذكورة هنا للاختبار فقط — غيّرها قبل أي نشر.
+
+---
+
+## تدفق المستخدم المكتمل
+
+1. تسجيل / دخول  
+2. فتح الكوكب ثلاثي الأبعاد وتدويره  
+3. اختيار فئة عنصر وكتابة فكرة  
+4. تحليل Sandbox/AI → خصائص ومخاطر  
+5. اختيار منطقة وتأكيد الإضافة  
+6. محاكاة سببية تُحفظ في PostgreSQL  
+7. ظهور الحدث في السجل والخط الزمني  
+8. إشعار بتطور الأثر  
+
+عند غياب مفاتيح AI يعمل **Sandbox Provider** ويُعلَّم بوضوح أنه ليس نموذجًا سحابيًا حقيقيًا.
+
+---
+
+## الاختبارات
+
+```bash
+pnpm --filter @planet/validation test
+pnpm --filter @planet/simulation-models test
+pnpm --filter @planet/api test
+pnpm --filter @planet/realtime-gateway test
+pnpm test:sim
+pnpm test:ai
+```
+
+اختبارات المحاكاة تثبت: نفس الـ Seed → نفس التاريخ، والمساهمات تُنتج أحداثًا سببية.
+
+---
+
+## الذكاء الاصطناعي
+
+| المزود | المتغير |
 |---|---|
-| `pnpm check` | فحص TypeScript دون توليد ملفات |
-| `pnpm lint` | تشغيل قواعد Expo ESLint |
-| `pnpm test` | تشغيل اختبارات Vitest للمجال ودورة حياة الإعلان |
-| `pnpm build` | بناء خادم Node عبر esbuild |
-| `npx expo export --platform web --output-dir .expo-export` | التحقق من التصدير الثابت للويب |
-| `pnpm format` | تنسيق ملفات المشروع عبر Prettier |
+| Sandbox (افتراضي) | `AI_PROVIDER=sandbox` |
+| OpenAI | `OPENAI_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| Gemini | `GEMINI_API_KEY` |
 
-## بنية المشروع
+الطبقات: Moderate → Parse (structured) → Balance → (Simulation) → Narrate (حقائق فقط).
 
-| المسار | المسؤولية |
-|---|---|
-| `app/` | مسارات Expo Router للشاشات العامة والحساب والإدارة |
-| `components/e3lani/` | مكونات المنتج المشتركة وبطاقات الإعلان وبوابة الاستعادة |
-| `lib/e3lani-data.ts` | الأنواع والثوابت وقواعد التسعير ودورة الحياة القابلة للاختبار |
-| `lib/e3lani-store.tsx` | الحالة المحلية المتزامنة وإجراءات المنتج |
-| `lib/i18n.tsx` | قاموس العربية والإنجليزية واتجاه الواجهة |
-| `server/` | خادم Express/tRPC والقدرات الأساسية |
-| `drizzle/` | مخطط قاعدة البيانات والمهاجرات |
-| `tests/` | اختبارات المنطق الأساسي والتكامل |
-| `docs/` | دليل التشغيل والمزودين وسجل التحقق |
+---
 
-## الانتقال إلى الإنتاج
+## الإدارة
 
-لا ينبغي تحويل أعلام الواجهة أو اسم المزود فقط. يتطلب الإطلاق الحقيقي نقل القرارات الحساسة إلى الخادم، والتحقق من إيصالات الدفع عبر webhook موثوق، ورفع الوسائط إلى تخزين خاص، وتطبيق مصادقة فعلية وصلاحيات خادمية، وحفظ سجل التدقيق في قاعدة البيانات. يوضح [دليل التشغيل والمزودين][3] ترتيب الربط ومتغيرات البيئة وضوابط الإطلاق.
+التطبيق `apps/admin` منفصل وغير مربوط من واجهة المستخدم العامة. يتطلب دور `system_admin` أو `super_admin`.
 
-عند اعتماد النسخة، استخدم زر **Publish** في واجهة إدارة المشروع بعد وجود نقطة استعادة. تتولى عملية النشر بناء الحزمة المناسبة، بما فيها APK عند اختياره، بدل تنفيذ بناء Android يدويًا داخل بيئة التطوير.
+---
 
-## الوثائق المرجعية
+## النشر
 
-| المرجع | المحتوى |
-|---|---|
-| [1] | تصميم الواجهة والشاشات والتدفقات |
-| [2] | سجل الاختبارات والتحقق الوظيفي |
-| [3] | التشغيل والمزودون والجاهزية الإنتاجية |
+راجع [`docs/architecture/deployment.md`](docs/architecture/deployment.md).  
+`infra/docker/docker-compose.yml` يشغّل Postgres (pgvector) وRedis وNATS وMinIO وجميع الخدمات.
 
-[1]: ./design.md "تصميم تطبيق إعلاني"
-[2]: ./docs/testing-notes.md "ملاحظات التحقق"
-[3]: ./docs/operations-and-providers.md "دليل التشغيل والمزودين"
+---
+
+## الترخيص والحالة
+
+نسخة تطويرية مفتوحة للتجربة المحلية. بعض طبقات المراقبة المتقدمة (OpenTelemetry كامل، Visual Regression) مذكورة كمسارات توسعة وموثّقة كـ inactive عند عدم الربط.

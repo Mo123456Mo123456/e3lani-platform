@@ -20,9 +20,9 @@ def contribution_id(seed: str, user_id: str, region_id: str, tick: int, element:
 
 
 def effect_profile(element: StructuredElement) -> dict[str, float]:
-    etype = element.type.lower()
+    etype = element.normalized_type()
     category = (element.category or "").lower()
-    props = element.properties
+    props = element.merged_properties()
     scale = float(props.get("scale", props.get("size", 1.0)))
     scale = max(0.1, min(10.0, scale))
     effects: dict[str, float] = {}
@@ -30,12 +30,17 @@ def effect_profile(element: StructuredElement) -> dict[str, float]:
     def add(key: str, value: float) -> None:
         effects[key] = effects.get(key, 0.0) + value * scale
 
-    if any(token in etype for token in ("forest", "tree", "plant", "garden")) or category == "ecology":
+    if (
+        any(token in etype for token in ("forest", "tree", "plant", "garden"))
+        or category in {"ecology", "plant"}
+    ):
         add("fertility", 0.055)
         add("moisture", 0.025)
         add("pollution", -0.035)
         add("food", 7.0)
         add("wood", 5.0)
+        water_need = float(props.get("waterNeed", props.get("water_need", 0.5)))
+        add("moisture", -0.01 * water_need)
     elif any(token in etype for token in ("factory", "mine", "industrial")) or category == "industry":
         add("pollution", 0.085)
         add("ore", 10.0)
@@ -46,18 +51,31 @@ def effect_profile(element: StructuredElement) -> dict[str, float]:
         add("freshwater", 14.0)
         add("pollution", -0.045 if "cleanup" in etype else -0.012)
         add("fertility", 0.025)
-    elif any(token in etype for token in ("city", "settlement", "house")):
+    elif any(token in etype for token in ("city", "settlement", "house")) or category in {
+        "city",
+        "civilization",
+    }:
         add("population", 650.0)
         add("economy", 0.018)
         add("pollution", 0.028)
         add("fertility", -0.012)
-    elif any(token in etype for token in ("school", "lab", "technology", "library")):
+    elif any(token in etype for token in ("school", "lab", "technology", "library", "invention")) or category in {
+        "technology",
+        "invention",
+    }:
         add("technology", 0.045)
         add("economy", 0.012)
-    elif any(token in etype for token in ("sanctuary", "reserve", "animal")):
+    elif any(token in etype for token in ("sanctuary", "reserve", "animal", "creature")) or category == "creature":
         add("fertility", 0.035)
         add("pollution", -0.022)
         add("biodiversity", 0.05)
+    elif category == "disease":
+        add("population", -120.0)
+        add("pollution", 0.01)
+    elif category in {"disaster", "climate_phenomenon"}:
+        add("pollution", 0.02)
+        add("temperature", 0.01)
+        add("fertility", -0.02)
     else:
         add("fertility", float(props.get("fertility_delta", 0.008)))
         add("economy", float(props.get("economy_delta", 0.004)))
@@ -131,7 +149,7 @@ def apply_contribution(
             indirect,
             event_index + len(events),
             {"en": f"Contribution applied: {element.name}", "ar": f"تطبيق مساهمة: {element.name}"},
-            {"contribution_id": cid, "element_type": element.type},
+            {"contribution_id": cid, "element_type": element.normalized_type()},
         )
     )
 
@@ -151,7 +169,8 @@ def apply_contribution(
                 {"contribution_id": cid},
             )
         )
-    if direct.get("fertility", 0.0) > 0 and "plant" in element.type.lower() or "forest" in element.type.lower():
+    etype = element.normalized_type()
+    if direct.get("fertility", 0.0) > 0 and ("plant" in etype or "forest" in etype):
         events.append(
             make_event(
                 state.planet_id,
@@ -199,7 +218,7 @@ def apply_contribution(
                 {"contribution_id": cid},
             )
         )
-    if "city" in element.type.lower() or "settlement" in element.type.lower():
+    if "city" in etype or "settlement" in etype or element.category == "civilization":
         city = create_contribution_city(state, cid, region_id, effects)
         events.append(
             make_event(
