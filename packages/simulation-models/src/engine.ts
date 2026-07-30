@@ -64,6 +64,21 @@ export function advanceWorld(
       world = appendAndApply(world, climateEvent);
       emitted.push(climateEvent);
     }
+
+    const tickEvent = createEvent(world, {
+      type: "SIMULATION_TICK_COMPLETED",
+      regionId: null,
+      cause: "scheduled_tick_advance",
+      actorIds: [],
+      payload: {
+        duration: world.tickDuration,
+        randomState: random.snapshot(),
+      },
+      directImpact: {},
+      confidence: 1,
+    });
+    world = appendAndApply(world, tickEvent);
+    emitted.push(tickEvent);
   }
 
   return { world, events: emitted };
@@ -103,9 +118,10 @@ export function addContribution(
     active: true,
   };
   const pollutionDelta =
-    -request.analysis.traits.pollutionAbsorption *
-    Math.max(region.pollution, 0.05) *
-    0.08;
+    -Math.min(
+      region.pollution,
+      request.analysis.traits.pollutionAbsorption * region.pollution * 0.08,
+    );
   const fertilityDelta =
     request.analysis.category === "plant"
       ? request.analysis.traits.growthRate * compatibility * 0.025
@@ -233,7 +249,7 @@ function simulateContribution(
 
   if (
     contribution.analysis.category === "plant" &&
-    random.chance(traits.growthRate * compatibility * 0.22)
+    random.chance(traits.growthRate * compatibility * 0.55)
   ) {
     const target = nearestCompatibleRegion(
       world.regions,

@@ -130,7 +130,9 @@ export default function HomePage() {
         void queryClient.invalidateQueries({ queryKey: ["world"] });
       }
     });
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+    };
   }, [queryClient, worldId]);
 
   if (worldQuery.isPending || regionsQuery.isPending || eventsQuery.isPending) {

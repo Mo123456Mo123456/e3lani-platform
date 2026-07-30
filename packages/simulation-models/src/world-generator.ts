@@ -180,6 +180,15 @@ function generateRegions(
       biome === "ocean" || biome === "ice"
         ? 0
         : Math.round(fertility * moisture * 18_000);
+    const pollution =
+      population === 0
+        ? 0
+        : clamp(
+            (population / 18_000) * 0.035 +
+              resourceRichness * population / 1_800_000,
+            0,
+            0.08,
+          );
     const nameIndex = Math.abs(
       Math.floor(longitude / 24 + latitude / 18 + index),
     );
@@ -195,7 +204,7 @@ function generateRegions(
       temperature: round(temperature, 2),
       moisture: round(moisture, 5),
       fertility: round(fertility, 5),
-      pollution: 0,
+      pollution: round(pollution, 5),
       population,
       biome,
       resourceRichness: round(resourceRichness, 5),

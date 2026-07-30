@@ -82,7 +82,11 @@ export function ContributionFlow({
     onSuccess: (result) => {
       setAnalysis(result);
       const preferred =
-        compatibleRegions.find(({ id }) => id === selectedOnGlobe?.id) ??
+        regions.find(
+          ({ id, biome }) =>
+            id === selectedOnGlobe?.id &&
+            result.possibleBiomes.includes(biome),
+        ) ??
         regions.find(({ biome }) => result.possibleBiomes.includes(biome));
       setRegionId(preferred?.id ?? "");
       setStep(2);

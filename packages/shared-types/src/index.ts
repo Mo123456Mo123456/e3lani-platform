@@ -38,6 +38,7 @@ export type ContributionCategory = z.infer<
 
 export const worldEventTypes = [
   "WORLD_CREATED",
+  "SIMULATION_TICK_COMPLETED",
   "RESOURCE_DISCOVERED",
   "SPECIES_CREATED",
   "SPECIES_MUTATED",

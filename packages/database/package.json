@@ -28,9 +28,9 @@
   },
   "devDependencies": {
     "drizzle-kit": "latest",
-    "tsx": "latest",
     "tsup": "latest",
-    "typescript": "latest",
+    "tsx": "latest",
+    "typescript": "^5.9.3",
     "vitest": "latest"
   }
 }

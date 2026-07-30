@@ -7,7 +7,6 @@ import {
   Res,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
-import { parse } from "cookie";
 import type { Request, Response } from "express";
 
 import { AuthService } from "./auth.service";
@@ -43,7 +42,7 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const refreshToken = parse(request.headers.cookie ?? "").planet_refresh;
+    const refreshToken = parseCookies(request.headers.cookie ?? "").planet_refresh;
     return this.withRefreshCookie(
       await this.auth.rotate(refreshToken ?? ""),
       response,
@@ -63,4 +62,19 @@ export class AuthController {
     const { refreshToken: _, ...publicSession } = session;
     return publicSession;
   }
+}
+
+function parseCookies(header: string): Record<string, string> {
+  return Object.fromEntries(
+    header
+      .split(";")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => {
+        const separator = item.indexOf("=");
+        const key = separator >= 0 ? item.slice(0, separator) : item;
+        const value = separator >= 0 ? item.slice(separator + 1) : "";
+        return [decodeURIComponent(key), decodeURIComponent(value)];
+      }),
+  );
 }

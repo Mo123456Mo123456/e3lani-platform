@@ -21,9 +21,8 @@
     "@planet/database": "workspace:*",
     "@planet/shared-types": "workspace:*",
     "@planet/simulation-models": "workspace:*",
-    "cookie": "latest",
-    "jose": "latest",
     "helmet": "latest",
+    "jose": "latest",
     "reflect-metadata": "latest",
     "rxjs": "latest",
     "socket.io": "latest",
@@ -33,7 +32,7 @@
     "@nestjs/cli": "latest",
     "@types/express": "latest",
     "@types/node": "latest",
-    "typescript": "latest",
+    "typescript": "^5.9.3",
     "vitest": "latest"
   }
 }

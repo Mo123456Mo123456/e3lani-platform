@@ -79,7 +79,7 @@ export class WorldRepository implements OnModuleDestroy {
             ${event.tick}, ${event.year}, ${event.regionId},
             ${event.contributionId}, ${event.cause},
             ${sql.json(event.causeEventIds)}, ${sql.json(event.actorIds)},
-            ${sql.json(event.payload)}, ${event.confidence},
+            ${sql.json(event.payload as never)}, ${event.confidence},
             ${sql.json(event.directImpact)}, ${event.createdAt}
           )
           ON CONFLICT (id) DO NOTHING

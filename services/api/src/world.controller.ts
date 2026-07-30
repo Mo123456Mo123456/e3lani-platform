@@ -52,9 +52,10 @@ export class WorldController {
     @Query("limit", new ParseIntPipe({ optional: true })) limit = 80,
     @Query("before", new ParseIntPipe({ optional: true })) before?: number,
   ) {
+    const events = this.worlds.getEvents(worldId, limit, before);
     return {
-      data: this.worlds.getEvents(worldId, limit, before),
-      nextBefore: this.worlds.getEvents(worldId, limit, before).at(-1)?.sequence,
+      data: events,
+      nextBefore: events.at(-1)?.sequence,
     };
   }
 

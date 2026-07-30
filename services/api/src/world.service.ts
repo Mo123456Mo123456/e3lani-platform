@@ -59,7 +59,11 @@ export class WorldService implements OnModuleInit {
     this.assertWorld(worldId);
     const boundedLimit = Math.min(200, Math.max(1, limit));
     return this.world.events
-      .filter((event) => before === undefined || event.sequence < before)
+      .filter(
+        (event) =>
+          event.type !== "SIMULATION_TICK_COMPLETED" &&
+          (before === undefined || event.sequence < before),
+      )
       .slice(-boundedLimit)
       .reverse();
   }
@@ -86,7 +90,9 @@ export class WorldService implements OnModuleInit {
       const result = advanceWorld(this.world, count);
       await this.repository.persist(result.world, result.events);
       this.world = result.world;
-      for (const event of result.events) {
+      for (const event of result.events.filter(
+        ({ type }) => type !== "SIMULATION_TICK_COMPLETED",
+      )) {
         this.realtime$.next({ kind: "world.event", data: event });
       }
       const summary = summarizeWorld(this.world);
