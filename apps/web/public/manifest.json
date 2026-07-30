@@ -1,0 +1,19 @@
+{
+  "name": "كوكب يولد أمامك",
+  "short_name": "Planet Born",
+  "description": "Your world. Your decision. An endless impact.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050a14",
+  "theme_color": "#00d9ff",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="planet" cx="34%" cy="29%" r="72%">
+      <stop offset="0%" stop-color="#7efcff"/>
+      <stop offset="38%" stop-color="#1aa7c9"/>
+      <stop offset="68%" stop-color="#0d6646"/>
+      <stop offset="100%" stop-color="#061327"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" x2="1" y1="0" y2="1">
+      <stop stop-color="#00d9ff"/>
+      <stop offset="0.55" stop-color="#c7a34b"/>
+      <stop offset="1" stop-color="#33f5a1"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#050a14"/>
+  <path d="M63 295c65-95 288-146 386-89 17 10 20 26 4 39-58 48-284 101-385 66-15-5-19-8-5-16Z" fill="none" stroke="url(#ring)" stroke-width="25" opacity=".86"/>
+  <circle cx="255" cy="256" r="142" fill="url(#planet)"/>
+  <path d="M171 187c44 12 78 1 114 18 36 18 59 63 94 74-9 49-47 91-97 111-20-44-61-36-93-65-35-33-19-75-55-95 8-17 20-32 37-43Z" fill="#33f5a1" opacity=".58"/>
+  <circle cx="330" cy="188" r="6" fill="#ffd66b"/>
+  <circle cx="357" cy="250" r="4" fill="#ffd66b"/>
+  <circle cx="289" cy="307" r="5" fill="#ffd66b"/>
+</svg>
