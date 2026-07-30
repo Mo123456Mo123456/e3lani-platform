@@ -174,4 +174,44 @@ describe("API routes", () => {
     expect(paused.statusCode).toBe(200);
     expect(paused.json().data.isPaused).toBe(true);
   });
+
+  it("streams authenticated world deltas over WebSocket", async () => {
+    const app = await appForTest();
+    const cookie = await createUser(app);
+    const summary = (
+      await app.inject({
+        method: "GET",
+        url: "/world/summary",
+        headers: { cookie },
+      })
+    ).json().data;
+    const socket = await app.injectWS(`/ws?planetId=${summary.id}`, {
+      headers: { cookie },
+    });
+    const messageOfType = (type: string) =>
+      new Promise<Record<string, unknown>>((resolve) => {
+        const onMessage = (value: { toString(): string }) => {
+          const parsed = JSON.parse(value.toString()) as Record<string, unknown>;
+          if (parsed.type !== type) return;
+          socket.off("message", onMessage);
+          resolve(parsed);
+        };
+        socket.on("message", onMessage);
+      });
+
+    const delta = messageOfType("simulation.paused");
+    await app.eventBus.publish("world.delta", {
+      type: "simulation.paused",
+      planetId: summary.id,
+      tick: summary.currentTick,
+      payload: { reason: "test" },
+      occurredAt: new Date(0).toISOString(),
+    });
+    expect(await delta).toMatchObject({
+      type: "simulation.paused",
+      planetId: summary.id,
+      payload: { reason: "test" },
+    });
+    socket.close();
+  });
 });
