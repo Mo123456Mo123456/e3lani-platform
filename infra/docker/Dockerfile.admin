@@ -1,0 +1,4 @@
+FROM node:20-bookworm-slim
+WORKDIR /app
+EXPOSE 3000
+CMD ["node", "-e", "require('http').createServer((q,s)=>s.end('admin placeholder')).listen(3000)"]

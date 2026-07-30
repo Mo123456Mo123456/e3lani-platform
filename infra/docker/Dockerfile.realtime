@@ -1,0 +1,11 @@
+FROM node:20-bookworm-slim
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+COPY package.json pnpm-workspace.yaml .npmrc ./
+COPY services/realtime-gateway/package.json services/realtime-gateway/
+RUN pnpm install --filter @planet/realtime... --no-frozen-lockfile
+COPY services/realtime-gateway services/realtime-gateway
+RUN pnpm --filter @planet/realtime build
+ENV REALTIME_PORT=4001
+EXPOSE 4001
+CMD ["node", "services/realtime-gateway/dist/index.js"]

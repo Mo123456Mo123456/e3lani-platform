@@ -1,0 +1,8 @@
+FROM node:20-bookworm-slim
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+COPY package.json pnpm-workspace.yaml .npmrc ./
+# Placeholder web image — replace when apps/web exists
+RUN mkdir -p apps/web && printf 'exports.default=async(req,res)=>{res.end("web placeholder")}' > apps/web/server.js
+EXPOSE 3000
+CMD ["node", "-e", "require('http').createServer((q,s)=>s.end('web placeholder')).listen(3000)"]

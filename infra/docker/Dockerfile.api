@@ -1,0 +1,27 @@
+FROM node:20-bookworm-slim AS deps
+WORKDIR /app
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+COPY package.json pnpm-workspace.yaml .npmrc ./
+COPY services/api/package.json services/api/
+COPY services/realtime-gateway/package.json services/realtime-gateway/
+COPY services/notification-worker/package.json services/notification-worker/
+COPY services/world-generator/package.json services/world-generator/
+RUN pnpm install --filter @planet/api... --no-frozen-lockfile
+
+FROM deps AS build
+COPY services/api services/api
+RUN pnpm --filter @planet/api build
+
+FROM node:20-bookworm-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+COPY --from=deps /app/node_modules /app/node_modules
+COPY --from=deps /app/services/api/node_modules /app/services/api/node_modules
+COPY --from=build /app/services/api /app/services/api
+COPY package.json pnpm-workspace.yaml .npmrc ./
+ENV SQLITE_PATH=/data/planet.db
+ENV API_PORT=4000
+EXPOSE 4000
+CMD ["node", "services/api/dist/index.js"]
