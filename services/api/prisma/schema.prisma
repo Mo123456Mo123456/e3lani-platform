@@ -114,6 +114,27 @@ enum TickerLogoStatus {
   STOPPED
 }
 
+enum InteractionType {
+  IMPRESSION
+  VIEW
+  WATCH_DURATION
+  SAVE
+  UNSAVE
+  CLICK_WHATSAPP
+  CLICK_STORE
+  CLICK_CALL
+  CLICK_EXTERNAL
+  SHARE
+  SKIP
+  DISMISS
+}
+
+enum ImpressionSource {
+  ORGANIC
+  PAID
+  SMART_RECOMMENDATION
+}
+
 model User {
   id             String               @id @default(uuid()) @db.Uuid
   phone          String               @unique
@@ -142,6 +163,7 @@ model User {
   savedAds       SavedAd[]
   savedPosts     SavedPost[]
   tickerLogos    TickerLogo[]
+  interactions   UserInteraction[]
   reports        Report[]
   appeals        Appeal[]
   notifications  Notification[]
@@ -353,10 +375,13 @@ model Ad {
   reports            Report[]
   appeals            Appeal[]
   campaignAds        CampaignAd[]
+  interactions       UserInteraction[]
+  engagementStats    AdEngagementStats?
 
   @@index([ownerId, status])
   @@index([status, publishedAt])
   @@index([status, expiresAt])
+  @@index([status, isSponsored, isFeatured, publishedAt])
 }
 
 model AdRevision {
@@ -691,6 +716,54 @@ model AnalyticsEvent {
 
   @@index([name, createdAt])
   @@index([adId, name])
+}
+
+/// Granular user interactions for the hybrid recommendation engine.
+model UserInteraction {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String?          @db.Uuid
+  sessionId String?
+  adId      String           @db.Uuid
+  type      InteractionType
+  /// Optional numeric value (e.g. watch duration seconds, completion ratio 0–1).
+  value     Float?
+  source    ImpressionSource?
+  feedTab   String?
+  platform  String?
+  createdAt DateTime         @default(now())
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ad        Ad               @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([adId, type, createdAt])
+  @@index([userId, adId, type])
+  @@index([sessionId, createdAt])
+  @@index([feedTab, createdAt])
+  @@index([source, createdAt])
+}
+
+/// Denormalized engagement counters for fast scoring (updated on interaction).
+model AdEngagementStats {
+  adId              String   @id @db.Uuid
+  impressions       Int      @default(0)
+  uniqueReachApprox Int      @default(0)
+  views             Int      @default(0)
+  saves             Int      @default(0)
+  whatsappClicks    Int      @default(0)
+  storeClicks       Int      @default(0)
+  callClicks        Int      @default(0)
+  externalClicks    Int      @default(0)
+  shares            Int      @default(0)
+  skips             Int      @default(0)
+  videoWatchSumSec  Float    @default(0)
+  videoWatchCount   Int      @default(0)
+  videoCompletions  Int      @default(0)
+  popularityScore   Float    @default(0)
+  updatedAt         DateTime @updatedAt
+  ad                Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([popularityScore])
+  @@index([updatedAt])
 }
 
 model SystemSetting {

@@ -23,6 +23,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { TickerModule } from './modules/ticker/ticker.module';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { TickerModule } from './modules/ticker/ticker.module';
     CategoriesModule,
     GeoModule,
     AdsModule,
+    RecommendationsModule,
     FeedModule,
     OrdersModule,
     MediaModule,

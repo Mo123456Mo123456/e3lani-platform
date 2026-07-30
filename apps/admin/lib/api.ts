@@ -119,4 +119,8 @@ export const api = {
   adminUpdateFlags: (body: unknown) => request<any>('PATCH', '/admin/flags', { body }),
   healthReady: () => request<any>('GET', '/health/ready', { auth: false }),
   adminAudit: () => request<any[]>('GET', '/admin/audit'),
+  recommendationWeights: () => request<Record<string, number>>('GET', '/recommendations/weights'),
+  updateRecommendationWeights: (body: Record<string, number>) =>
+    request('PATCH', '/recommendations/weights', { body }),
+  recommendationPerformance: () => request<any>('GET', '/recommendations/performance'),
 };

@@ -20,7 +20,22 @@ export default function BrowsePage() {
     api
       .feed(tab)
       .then((page) => {
-        if (alive) setItems(page.items);
+        if (!alive) return;
+        setItems(page.items);
+        // Record impressions for the recommendation engine (source from server when present).
+        const interactions = page.items.slice(0, 8).map((ad) => ({
+          adId: ad.id,
+          type: 'IMPRESSION' as const,
+          feedTab: tab,
+          platform: 'web',
+          source:
+            ((ad as { recommendation?: { source?: 'ORGANIC' | 'PAID' | 'SMART_RECOMMENDATION' } })
+              .recommendation?.source as 'ORGANIC' | 'PAID' | 'SMART_RECOMMENDATION' | undefined) ??
+            (tab === 'forYou' ? 'SMART_RECOMMENDATION' : 'ORGANIC'),
+        }));
+        if (interactions.length) {
+          void api.recordInteractions(interactions).catch(() => undefined);
+        }
       })
       .catch((e) => setError((e as Error).message));
     return () => {

@@ -21,6 +21,7 @@
     "@e3lani/auth": "workspace:*",
     "@e3lani/config": "workspace:*",
     "@e3lani/payments": "workspace:*",
+    "@e3lani/recommendations": "workspace:*",
     "@e3lani/storage": "workspace:*",
     "@e3lani/types": "workspace:*",
     "@e3lani/validation": "workspace:*",

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { DEFAULT_RECOMMENDATION_WEIGHTS } from '@e3lani/recommendations';
 import { DEFAULT_SA_PRICING } from '@e3lani/types';
 
 const prisma = new PrismaClient();
@@ -73,6 +74,12 @@ async function main() {
     where: { key: 'launch_mode' },
     create: { key: 'launch_mode', value: 'FREE_LAUNCH' },
     update: { value: 'FREE_LAUNCH' },
+  });
+
+  await prisma.systemSetting.upsert({
+    where: { key: 'recommendation_weights' },
+    create: { key: 'recommendation_weights', value: DEFAULT_RECOMMENDATION_WEIGHTS },
+    update: { value: DEFAULT_RECOMMENDATION_WEIGHTS },
   });
 
   await prisma.systemSetting.upsert({

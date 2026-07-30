@@ -41,6 +41,19 @@ export default function FeedScreen() {
     try {
       const page = await api.feed(tab);
       setItems(page.items);
+      const interactions = page.items.slice(0, 8).map((ad) => ({
+        adId: ad.id,
+        type: 'IMPRESSION' as const,
+        feedTab: tab,
+        platform: 'mobile',
+        source:
+          ((ad as { recommendation?: { source?: 'ORGANIC' | 'PAID' | 'SMART_RECOMMENDATION' } })
+            .recommendation?.source as 'ORGANIC' | 'PAID' | 'SMART_RECOMMENDATION' | undefined) ??
+          (tab === 'forYou' ? 'SMART_RECOMMENDATION' : 'ORGANIC'),
+      }));
+      if (interactions.length) {
+        void api.recordInteractions(interactions).catch(() => undefined);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {

@@ -183,12 +183,28 @@ export function createApiClient(options: ApiClientOptions) {
       request<City[]>('GET', countryCode === 'SA' ? '/cities' : `/countries/${countryCode}/cities`, {
         auth: false,
       }),
-    feed: (tab: 'forYou' | 'latest' | 'nearby' = 'forYou', cursor?: string) => {
+    feed: (tab: 'forYou' | 'latest' | 'nearby' = 'forYou', cursor?: string, cityId?: string) => {
       const path =
         tab === 'latest' ? '/feed/latest' : tab === 'nearby' ? '/feed/nearby' : '/feed';
-      const q = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-      return request<FeedPage>('GET', `${path}${q}`, { auth: false });
+      const params = new URLSearchParams();
+      if (cursor) params.set('cursor', cursor);
+      if (cityId) params.set('cityId', cityId);
+      const q = params.toString() ? `?${params}` : '';
+      // For You uses auth when available so personalization can run.
+      return request<FeedPage>('GET', `${path}${q}`, { auth: tab === 'forYou' });
     },
+    recordInteractions: (interactions: Array<{
+      adId: string;
+      type: string;
+      value?: number;
+      source?: 'ORGANIC' | 'PAID' | 'SMART_RECOMMENDATION';
+      feedTab?: string;
+      platform?: string;
+      sessionId?: string;
+    }>) =>
+      request<{ ok: true; count: number }>('POST', '/recommendations/interactions', {
+        body: { interactions },
+      }),
     searchFeed: (filters: FeedSearchFilters = {}) =>
       request<FeedPage>('GET', `/feed/search${queryString(filters)}`, { auth: false }),
     getAd: (id: string) => request<AdDetail>('GET', `/ads/${id}`, { auth: false }),
@@ -355,9 +371,24 @@ export type AdDetail = {
 };
 
 export type FeedPage = {
-  items: AdDetail[];
+  items: Array<
+    AdDetail & {
+      recommendation?: {
+        source?: 'ORGANIC' | 'PAID' | 'SMART_RECOMMENDATION';
+        score?: number | null;
+        breakdown?: Record<string, number> | null;
+        adapter?: string;
+        coldStart?: boolean;
+      };
+    }
+  >;
   nextCursor: string | null;
   hasMore: boolean;
+  meta?: {
+    adapter?: string;
+    coldStart?: boolean;
+    mode?: string;
+  };
 };
 
 export type FeedSearchFilters = {

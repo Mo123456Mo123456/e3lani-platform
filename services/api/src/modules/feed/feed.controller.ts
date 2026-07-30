@@ -1,16 +1,42 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Headers, Query } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { ApiTags } from '@nestjs/swagger';
 import { feedSearchSchema } from '@e3lani/validation';
+import { PrismaService } from '../../prisma/prisma.service';
+import { requireUserId } from '../../common/auth.util';
 import { FeedService } from './feed.service';
 
 @ApiTags('feed')
 @Controller('feed')
 export class FeedController {
-  constructor(private readonly feed: FeedService) {}
+  constructor(
+    private readonly feed: FeedService,
+    private readonly jwt: JwtService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get()
-  forYou(@Query('cursor') cursor?: string, @Query('take') take?: string) {
-    return this.feed.forYou(cursor, take ? Number(take) : 10);
+  async forYou(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('cursor') cursor?: string,
+    @Query('take') take?: string,
+    @Query('cityId') cityId?: string,
+  ) {
+    let userId: string | undefined;
+    if (authorization?.startsWith('Bearer ')) {
+      try {
+        const user = await requireUserId(this.jwt, authorization, this.prisma);
+        userId = user.sub;
+      } catch {
+        userId = undefined;
+      }
+    }
+    return this.feed.forYou({
+      cursor,
+      take: take ? Number(take) : 10,
+      userId,
+      cityId,
+    });
   }
 
   @Get('latest')
@@ -30,7 +56,6 @@ export class FeedController {
     @Query('take') take?: string,
     @Query('cityId') cityId?: string,
   ) {
-    // Nearby requires location permission + geohash; city filtering is the current coarse fallback.
     return this.feed.nearby(cursor, take ? Number(take) : 10, cityId);
   }
 }

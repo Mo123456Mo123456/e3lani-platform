@@ -52,6 +52,13 @@
 - أحداث Analytics + إشعارات للحالات المهمة
 - تقارير صاحب الإعلان عبر أحداث الظهور/النقر/الحفظ/المشاركة
 
+### التوصيات الذكية («لك»)
+- نظام هجين: Content-Based + Collaborative + Popularity + Location + Recency + Business Rules
+- Adapter Pattern (`@e3lani/recommendations`) لربط Embeddings لاحقًا
+- تسجيل تفاعلات + مصدر الظهور (Organic / Paid / Smart Recommendation)
+- أوزان قابلة للتعديل من `/admin/recommendations`
+- Redis cache + فهارس تفاعلات/إحصاءات
+
 ## ما يحتاج مفاتيح خارجية قبل الإنتاج
 
 انظر [`KEYS_AND_ACCOUNTS_AR.md`](./KEYS_AND_ACCOUNTS_AR.md).

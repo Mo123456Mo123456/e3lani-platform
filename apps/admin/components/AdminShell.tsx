@@ -19,6 +19,7 @@ const links = [
   { href: '/campaigns', label: 'الحملات' },
   { href: '/templates', label: 'قوالب الإشعارات' },
   { href: '/flags', label: 'Feature Flags' },
+  { href: '/recommendations', label: 'التوصيات الذكية' },
   { href: '/health', label: 'صحة النظام' },
   { href: '/audit', label: 'سجل التدقيق' },
 ];

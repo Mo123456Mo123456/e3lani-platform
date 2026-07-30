@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { DEFAULT_RECOMMENDATION_WEIGHTS } from '@e3lani/recommendations';
 import { DEFAULT_SA_PRICING } from '@e3lani/types';
 import type { PrismaClient } from '@prisma/client';
 
@@ -92,6 +93,12 @@ export async function ensureSeedData(prisma: PrismaClient): Promise<void> {
     where: { key: 'launch_mode' },
     create: { key: 'launch_mode', value: 'FREE_LAUNCH' },
     update: { value: 'FREE_LAUNCH' },
+  });
+
+  await prisma.systemSetting.upsert({
+    where: { key: 'recommendation_weights' },
+    create: { key: 'recommendation_weights', value: DEFAULT_RECOMMENDATION_WEIGHTS as object },
+    update: {},
   });
 
   await prisma.pricingVersion.updateMany({

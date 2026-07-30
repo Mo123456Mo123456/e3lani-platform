@@ -79,6 +79,25 @@ pnpm --filter @e3lani/mobile start
 
 النشر مجاني حاليًا. الأسعار محفوظة في `PricingVersion` وتُعدَّل من `/admin/pricing`.
 
+## التوصيات الذكية («لك»)
+
+نظام هجين في `@e3lani/recommendations` + `services/api` modules/recommendations:
+
+| الطبقة | الدور |
+|---|---|
+| Content-Based | قسم / مدينة / نوع وسائط حسب تفاعل المستخدم |
+| Collaborative | تشابه سلوك المستخدمين (عند كفاية البيانات) |
+| Popularity | مشاهدات، حفظ، نقرات، إكمال فيديو |
+| Location | وزن أعلى لمدينة المستخدم |
+| Recency | انحلال زمني بنصف عمر قابل للضبط |
+| Business Rules | رفع مميز/مموّل بسقف `maxPaidShare` |
+
+- Cold Start: شائع + متنوع + قريب
+- Adapter Pattern: `RECOMMENDATION_ADAPTER=heuristic` (افتراضي) أو embeddings لاحقًا
+- أوزان وأداء من لوحة الإدارة: `/recommendations`
+- مصدر الظهور في التحليلات: `ORGANIC` / `PAID` / `SMART_RECOMMENDATION`
+- Redis cache + فهارس `UserInteraction` / `AdEngagementStats`
+
 ## قواعد المنتج الملزمة
 
 - FREE_LAUNCH: مسودة → نشط (بدون مراجعة بشرية)
