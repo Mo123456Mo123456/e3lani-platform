@@ -10,7 +10,7 @@
  *   demo user:    explorer@planet.local / Planet#Explorer1
  */
 import { PrismaClient, Prisma } from "@prisma/client";
-import * as bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 import {
   createWorld,
   runTicks,
@@ -43,7 +43,8 @@ const BIOMES: { name: BiomeType; nameAr: string; habitability: number }[] = [
 
 const PLANET_ID = process.env["SEED_PLANET_ID"] ?? "demo-world";
 const PLANET_SEED = Number(process.env["SEED_PLANET_SEED"] ?? 20260730);
-const HISTORY_TICKS = Number(process.env["SEED_HISTORY_TICKS"] ?? 320);
+const HISTORY_TICKS = Number(process.env["SEED_HISTORY_TICKS"] ?? 1000);
+const YEARS_PER_TICK = Number(process.env["SEED_YEARS_PER_TICK"] ?? 5);
 
 async function seedRoles(): Promise<void> {
   for (const name of ROLES) {
@@ -99,7 +100,7 @@ async function seedPlanet(): Promise<void> {
     worldId: PLANET_ID,
     name: "أوريليا — Aurelia",
     seed: PLANET_SEED,
-    yearsPerTick: 1,
+    yearsPerTick: YEARS_PER_TICK,
     plantSpecies: 800,
     animalSpecies: 300,
     civilizations: 12,

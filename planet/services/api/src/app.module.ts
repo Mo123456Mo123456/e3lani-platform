@@ -9,6 +9,7 @@ import { NotificationsModule } from "./notifications/notifications.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { AdminModule } from "./admin/admin.module.js";
 import { AiModule } from "./ai/ai.module.js";
+import { InternalModule } from "./internal/internal.module.js";
 import { HealthController } from "./health/health.controller.js";
 import { EngineClient } from "./common/engine.client.js";
 import { OrchestratorClient } from "./common/orchestrator.client.js";
@@ -25,6 +26,7 @@ import { OrchestratorClient } from "./common/orchestrator.client.js";
     NotificationsModule,
     AdminModule,
     AiModule,
+    InternalModule,
   ],
   controllers: [HealthController],
   providers: [EngineClient, OrchestratorClient],

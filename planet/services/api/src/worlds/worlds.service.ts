@@ -37,15 +37,28 @@ export class WorldsService {
     return planet;
   }
 
-  /** Ensure the engine holds this world in memory before live operations. */
+  /**
+   * Ensure the engine holds this world in memory before live operations,
+   * deterministically fast-forwarding it to the DB cursor. Identical seed +
+   * identical history ⇒ identical state (proven by engine determinism tests),
+   * so the live continuation keeps the event seq/hash chain coherent.
+   */
   async ensureEngineWorld(planetId: string): Promise<void> {
     const planet = await this.getPlanet(planetId);
-    await this.engine.ensureWorld({
+    const { meta } = await this.engine.ensureWorld({
       worldId: planet.id,
       name: planet.name,
       seed: planet.seed,
       yearsPerTick: planet.yearsPerTick,
     });
+    const behind = planet.currentTick - (meta?.tick ?? 0);
+    if (behind > 0) {
+      // Catch up in bounded batches so the engine stays responsive.
+      const BATCH = 250;
+      for (let done = 0; done < behind; done += BATCH) {
+        await this.engine.runTicks(planetId, Math.min(BATCH, behind - done));
+      }
+    }
   }
 
   async grid(planetId: string) {

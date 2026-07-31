@@ -1,4 +1,8 @@
 import "reflect-metadata";
+// Prisma BigInt columns (e.g. WorldEvent.id) serialize as numbers in JSON.
+(BigInt.prototype as unknown as { toJSON: () => number }).toJSON = function (this: bigint) {
+  return Number(this);
+};
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import fastifyCookie from "@fastify/cookie";

@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "node --import tsx --watch src/main.ts",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "seed": "node --import tsx prisma/seed.ts",
