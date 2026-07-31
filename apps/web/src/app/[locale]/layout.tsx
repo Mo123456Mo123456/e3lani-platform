@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { dir, isLocale, type Locale } from "@/i18n";
+import { Providers } from "./providers";
 import "../globals.css";
 
 export const metadata: Metadata = {
@@ -20,7 +21,9 @@ export default function LocaleLayout({ children, params }: { children: ReactNode
   const locale: Locale = isLocale(params.locale) ? params.locale : "ar";
   return (
     <html lang={locale} dir={dir(locale)}>
-      <body>{children}</body>
+      <body>
+        <Providers locale={locale}>{children}</Providers>
+      </body>
     </html>
   );
 }

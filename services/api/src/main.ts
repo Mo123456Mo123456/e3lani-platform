@@ -1,5 +1,4 @@
 import "reflect-metadata";
-import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { WsAdapter } from "@nestjs/platform-ws";
@@ -31,7 +30,6 @@ async function bootstrap(): Promise<void> {
     credentials: true,
   });
   app.setGlobalPrefix("api", { exclude: ["health"] });
-  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: false }));
   app.useWebSocketAdapter(new WsAdapter(app));
 
   const swaggerConfig = new DocumentBuilder()

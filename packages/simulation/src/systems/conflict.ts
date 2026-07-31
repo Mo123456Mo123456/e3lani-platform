@@ -179,6 +179,7 @@ function transferCell(ctx: SystemContext, idx: number, from: CivStateInternal, t
         ctx.state.cities.delete(city.id);
         cell.cityId = null;
         from.cityIds = from.cityIds.filter((c) => c !== city.id);
+        if (from.capitalCityId === city.id) from.capitalCityId = from.cityIds[0] ?? null;
         ctx.emit("CITY_DESTROYED", {
           region: idx,
           actorIds: [city.id, to.id],
@@ -194,7 +195,7 @@ function transferCell(ctx: SystemContext, idx: number, from: CivStateInternal, t
         to.cityIds.push(city.id);
         const old = ctx.state.civs.get(oldCivId);
         if (old) old.cityIds = old.cityIds.filter((c) => c !== city.id);
-        if (from.capitalCityId === city.id) from.capitalCityId = to.cityIds.length > 0 ? city.id : null;
+        if (from.capitalCityId === city.id) from.capitalCityId = from.cityIds[0] ?? null;
       }
     }
   }

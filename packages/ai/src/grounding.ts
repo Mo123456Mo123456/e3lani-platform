@@ -47,6 +47,9 @@ export function templateNarration(facts: NarrationFact[], locale: "ar" | "en"): 
     if (get("civsAffected") !== undefined) parts.push(`تأثرت ${get("civsAffected")} حضارة.`);
     if (get("warsCaused") !== undefined && Number(get("warsCaused")) > 0) parts.push(`اندلعت ${get("warsCaused")} حرب مرتبطة به.`);
     if (get("extinctions") !== undefined && Number(get("extinctions")) > 0) parts.push(`انقرضت ${get("extinctions")} أنواع بسبب التحولات البيئية.`);
+    if (get("populationTotal") !== undefined) parts.push(`يبلغ سكان العالم ${get("populationTotal")}.`);
+    if (get("civilizationsAlive") !== undefined) parts.push(`تقوم ${get("civilizationsAlive")} حضارة.`);
+    if (get("speciesAlive") !== undefined) parts.push(`تعيش ${get("speciesAlive")} نوعًا.`);
     if (get("yearsElapsed") !== undefined) parts.push(`مرّت ${get("yearsElapsed")} سنة منذ الإضافة.`);
     if (parts.length === 0) parts.push("بدأ العنصر رحلته في العالم، وستظهر آثاره مع مرور الزمن.");
   } else {
@@ -55,6 +58,9 @@ export function templateNarration(facts: NarrationFact[], locale: "ar" | "en"): 
     if (get("civsAffected") !== undefined) parts.push(`${get("civsAffected")} civilizations were affected.`);
     if (get("warsCaused") !== undefined && Number(get("warsCaused")) > 0) parts.push(`${get("warsCaused")} linked wars broke out.`);
     if (get("extinctions") !== undefined && Number(get("extinctions")) > 0) parts.push(`${get("extinctions")} species went extinct in the shift.`);
+    if (get("populationTotal") !== undefined) parts.push(`World population reached ${get("populationTotal")}.`);
+    if (get("civilizationsAlive") !== undefined) parts.push(`${get("civilizationsAlive")} civilizations stand.`);
+    if (get("speciesAlive") !== undefined) parts.push(`${get("speciesAlive")} species are alive.`);
     if (get("yearsElapsed") !== undefined) parts.push(`${get("yearsElapsed")} years have passed since the addition.`);
     if (parts.length === 0) parts.push("The element has begun its journey; its effects will unfold over time.");
   }

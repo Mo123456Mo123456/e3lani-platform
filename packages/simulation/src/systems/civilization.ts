@@ -15,6 +15,11 @@ export function tickCivilizations(ctx: SystemContext): void {
 
   for (const civ of state.civs.values()) {
     if (civ.extinct) continue;
+    // self-healing invariant: wars can raze/transfer cities between ticks
+    civ.cityIds = civ.cityIds.filter((id) => state.cities.has(id));
+    if (civ.capitalCityId && !state.cities.has(civ.capitalCityId)) {
+      civ.capitalCityId = civ.cityIds[0] ?? null;
+    }
     const fx = techEffects(civ, state.techTree);
 
     // ---- needs ------------------------------------------------------------

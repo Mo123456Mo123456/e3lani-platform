@@ -187,11 +187,11 @@ export class ContributionsService {
       const best = r.runs[r.runs.length - 1]!;
       const worst = r.runs[0]!;
       const mkFacts = (run: typeof median): NarrationFact[] => [
-        { key: "population", value: run.endStats.totalPopulation },
-        { key: "civilizations", value: run.endStats.civilizations },
-        { key: "species", value: run.biodiversity },
-        { key: "wars", value: run.warsFought },
-        { key: "years", value: r.yearsAhead },
+        { key: "yearsElapsed", value: r.yearsAhead },
+        { key: "populationTotal", value: run.endStats.totalPopulation },
+        { key: "civilizationsAlive", value: run.endStats.civilizations },
+        { key: "speciesAlive", value: run.biodiversity },
+        { key: "warsCaused", value: run.warsFought },
       ];
       const [likely, bestText, worstText] = await Promise.all([
         this.ai.narrate({ events: [], facts: mkFacts(median), locale, userId }),
@@ -239,7 +239,9 @@ function buildFacts(
 ): NarrationFact[] {
   const facts: NarrationFact[] = [{ key: "yearsElapsed", value: after.simYear - before.simYear }];
   const pollutionDelta = (after.meanPollution - before.meanPollution) * 100;
-  facts.push({ key: "pollutionDeltaPct", value: Math.round(pollutionDelta * 10) / 10, unit: "%" });
+  if (Math.abs(pollutionDelta) >= 0.05) {
+    facts.push({ key: "pollutionDeltaPct", value: Math.round(pollutionDelta * 10) / 10, unit: "%" });
+  }
   const civActors = new Set<string>();
   for (const ev of events) {
     for (const a of ev.actorIds) if (a.startsWith("cv_")) civActors.add(a);

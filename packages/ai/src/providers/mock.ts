@@ -15,7 +15,7 @@ export class MockProvider implements AiProvider {
     const started = Date.now();
     let json: unknown;
     if (req.operation === "parse_contribution") {
-      json = parseContributionText(req.prompt, extractHintCategory(req.system));
+      json = parseContributionText(unwrapUserIdea(req.prompt), extractHintCategory(req.system));
     } else if (req.operation === "moderate") {
       json = { status: "approved", score: 0.05, reasons: [] };
     } else {
@@ -53,6 +53,12 @@ export class MockProvider implements AiProvider {
 function extractHintCategory(system: string): ContributionCategory | undefined {
   const m = system.match(/category=([a-z_]+)/);
   return m ? (m[1] as ContributionCategory) : undefined;
+}
+
+/** the prompt wraps user input in <user_idea>; parse only that block */
+function unwrapUserIdea(prompt: string): string {
+  const m = prompt.match(/<user_idea>\s*([\s\S]*?)\s*<\/user_idea>/);
+  return m?.[1] ?? prompt;
 }
 
 interface Signal {
