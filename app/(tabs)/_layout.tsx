@@ -38,7 +38,30 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen name="categories" options={{ title:t("categories"),tabBarIcon:({color})=><MaterialIcons size={25} name="grid-view" color={color}/> }}/>
-      <Tabs.Screen name="create" options={{ title:t("create"),tabBarIcon:()=><MaterialIcons size={38} name="add-circle" color={BRAND.yellowDark}/> }}/>
+      <Tabs.Screen
+        name="create"
+        options={{
+          title: t("create"),
+          tabBarIcon: () => (
+            <MaterialIcons
+              size={34}
+              name="add"
+              color={BRAND.black}
+              style={{
+                width: 41,
+                height: 41,
+                marginTop: -10,
+                borderRadius: 21,
+                backgroundColor: BRAND.yellow,
+                textAlign: "center",
+                lineHeight: 41,
+                overflow: "hidden",
+                elevation: 4,
+              }}
+            />
+          ),
+        }}
+      />
       <Tabs.Screen name="saved" options={{ title:t("saved"),tabBarIcon:({color})=><MaterialIcons size={25} name="bookmark" color={color}/> }}/>
       <Tabs.Screen name="profile" options={{ title:t("account"),tabBarIcon:({color})=><MaterialIcons size={25} name="person" color={color}/> }}/>
     </Tabs>

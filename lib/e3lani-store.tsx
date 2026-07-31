@@ -10,6 +10,8 @@ import {
 } from "react";
 
 import {
+  DEFAULT_LAUNCH_MODE,
+  applyLaunchPublish,
   extendAdPeriod,
   moderatePendingAd,
   republishExpiredAd,
@@ -22,9 +24,11 @@ import {
   type AuditLog,
   type BrandProfile,
   type Invoice,
+  type LaunchMode,
   type Metrics,
   type NotificationItem,
   type Order,
+  type ProfilePost,
   type PromotionCode,
   type ReportItem,
   type UserProfile,
@@ -38,6 +42,7 @@ type NewAd = {
   media: AdMedia[];
   contacts: AdContact[];
   promotions: PromotionCode[];
+  ownerName?: string;
 };
 
 type State = {
@@ -46,7 +51,10 @@ type State = {
   user: UserProfile | null;
   brand: BrandProfile | null;
   ads: Ad[];
+  posts: ProfilePost[];
   savedIds: string[];
+  marketCode: string;
+  launchMode: LaunchMode;
   metrics: Record<string, Metrics>;
   notifications: NotificationItem[];
   reports: ReportItem[];
@@ -58,11 +66,14 @@ type State = {
 
 type Value = State & {
   login: (profile?: Partial<UserProfile>) => void;
+  ensureLocalUser: (profile?: Partial<UserProfile>) => UserProfile;
   logout: () => void;
   updateProfile: (data: Partial<UserProfile>) => void;
   upsertBrand: (data: Partial<BrandProfile>) => void;
   requestVerification: () => void;
-  createAd: (data: NewAd) => Ad;
+  setMarket: (code: string) => void;
+  createAd: (data: NewAd, options?: { freeLaunch?: boolean }) => Ad;
+  createPost: (data: Omit<ProfilePost, "id" | "ownerId" | "createdAt">) => ProfilePost;
   toggleSave: (id: string) => void;
   recordMetric: (id: string, key: keyof Metrics) => void;
   submitReport: (id: string, reason: string, details?: string) => void;
@@ -89,17 +100,21 @@ const initial: State = {
   user: null,
   brand: seedBrand,
   ads: seedAds,
+  posts: [],
+  marketCode: "SA",
+  launchMode: DEFAULT_LAUNCH_MODE,
   savedIds: [],
   blockedOwners: [],
   metrics: {
     AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
-    AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
+    AD10002: { impressions: 36240, views: 36240, saves: 318, shares: 229, contacts: 156 },
+    AD10003: { impressions: 21874, views: 21874, saves: 210, shares: 188, contacts: 97 },
   },
   notifications: [
     {
       id: "N1",
       title: "مرحبًا بك في إعلاني",
-      body: "اكتشف الإعلانات المرئية أو ابدأ نشر إعلانك.",
+      body: "النشر مجاني حاليًا — أضف إعلانك وشاهده مباشرة في الموجز.",
       read: false,
       createdAt: new Date().toISOString(),
       kind: "system",
@@ -111,19 +126,38 @@ const initial: State = {
   audit: [],
 };
 
+function mergeSeedAds(storedAds: Ad[] | undefined): Ad[] {
+  const current = storedAds ?? [];
+  const byId = new Map(current.map((ad) => [ad.id, ad]));
+  for (const seed of seedAds) {
+    if (!byId.has(seed.id)) byId.set(seed.id, seed);
+  }
+  return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 const C = createContext<Value | null>(null);
-const KEY = "e3lani.store.v1";
+const KEY = "e3lani.store.v2";
 const uid = (prefix: string) =>
   `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
 export function E3laniProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(initial);
 
   const loadStoredState = useCallback(async () => {
     setState((current) => ({ ...current, ready: false, loadError: null }));
     try {
-      const raw = await AsyncStorage.getItem(KEY);
+      const raw = (await AsyncStorage.getItem(KEY)) ?? (await AsyncStorage.getItem("e3lani.store.v1"));
       const stored = raw ? (JSON.parse(raw) as Partial<State>) : {};
-      setState({ ...initial, ...stored, ready: true, loadError: null });
+      setState({
+        ...initial,
+        ...stored,
+        ads: mergeSeedAds(stored.ads),
+        posts: stored.posts ?? [],
+        marketCode: stored.marketCode ?? "SA",
+        launchMode: stored.launchMode ?? DEFAULT_LAUNCH_MODE,
+        ready: true,
+        loadError: null,
+      });
     } catch {
       setState((current) => ({ ...current, ready: true, loadError: "storage_load_failed" }));
     }
@@ -149,15 +183,36 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           ...current,
           user: {
             id: "U1",
-            name: "معلن إعلاني",
+            name: "حسابي",
             phone: "+966500000000",
             email: "owner@e3lani.sa",
             cityId: "riyadh",
-            accountType: "brand",
-            role: "owner",
+            accountType: "advertiser",
+            role: "user",
+            bio: "صفحتك العامة للإعلانات والمنشورات المجانية.",
             ...profile,
           },
         })),
+      ensureLocalUser: (profile) => {
+        let created: UserProfile = {
+          id: "U1",
+          name: "حسابي",
+          phone: "+966500000000",
+          cityId: "riyadh",
+          accountType: "advertiser",
+          role: "user",
+          bio: "صفحتك العامة للإعلانات والمنشورات المجانية.",
+          ...profile,
+        };
+        setState((current) => {
+          if (current.user) {
+            created = { ...current.user, ...profile };
+            return { ...current, user: created };
+          }
+          return { ...current, user: created };
+        });
+        return created;
+      },
       logout: () => setState((current) => ({ ...current, user: null })),
       updateProfile: (data) =>
         setState((current) => ({
@@ -187,25 +242,55 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             ...current.notifications,
           ],
         })),
-      createAd: (data) => {
-        const ad: Ad = {
+      setMarket: (code) => setState((current) => ({ ...current, marketCode: code })),
+      createAd: (data, options) => {
+        const now = new Date().toISOString();
+        const freeLaunch = options?.freeLaunch ?? state.launchMode === "FREE_LAUNCH";
+        const draft = {
           id: uid("AD"),
           ownerId: state.user?.id ?? "U1",
           brandId: state.brand?.id,
+          ownerName: data.ownerName ?? state.user?.name ?? state.brand?.name,
           ...data,
-          status: "awaiting_payment",
           revision: 1,
           verified: Boolean(state.brand?.verified),
           featured: data.promotions.length > 0,
           sponsored: data.promotions.length > 0,
-          createdAt: new Date().toISOString(),
+          createdAt: now,
         };
+        const ad = freeLaunch
+          ? applyLaunchPublish(draft, "FREE_LAUNCH", now)
+          : applyLaunchPublish({ ...draft, status: "awaiting_payment" }, "PAID_ONLY", now);
         setState((current) => ({
           ...current,
           ads: [ad, ...current.ads],
           metrics: { ...current.metrics, [ad.id]: { ...zero } },
+          notifications: [
+            {
+              id: uid("N"),
+              title: ad.status === "active" ? "تم نشر إعلانك" : "تم إنشاء إعلانك",
+              body:
+                ad.status === "active"
+                  ? `${ad.title} أصبح ظاهرًا في الموجز المحلي.`
+                  : `${ad.title} بانتظار إكمال الدفع.`,
+              read: false,
+              createdAt: now,
+              kind: "system",
+            },
+            ...current.notifications,
+          ],
         }));
         return ad;
+      },
+      createPost: (data) => {
+        const post: ProfilePost = {
+          id: uid("POST"),
+          ownerId: state.user?.id ?? "U1",
+          createdAt: new Date().toISOString(),
+          ...data,
+        };
+        setState((current) => ({ ...current, posts: [post, ...current.posts] }));
+        return post;
       },
       toggleSave: (id) =>
         setState((current) => {
@@ -243,6 +328,17 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
               createdAt: new Date().toISOString(),
             },
             ...current.reports,
+          ],
+          notifications: [
+            {
+              id: uid("N"),
+              title: "تم استلام البلاغ",
+              body: `سبب البلاغ: ${reason}`,
+              read: false,
+              createdAt: new Date().toISOString(),
+              kind: "system",
+            },
+            ...current.notifications,
           ],
         })),
       toggleBlock: (id) =>

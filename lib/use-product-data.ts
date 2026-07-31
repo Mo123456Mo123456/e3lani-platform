@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 
+import { LOCAL_CATEGORIES, LOCAL_CITIES } from "@/lib/e3lani-catalog";
 import { trpc } from "@/lib/trpc";
 import type { Category, City, PromotionCode } from "@/lib/e3lani-data";
 import { calculateProductQuote } from "@/lib/product-pricing";
@@ -33,27 +34,25 @@ export function useProductData() {
     gcTime: 24 * 60 * 60 * 1000,
   });
 
-  const categories = useMemo<Category[]>(
-    () =>
-      (catalogQuery.data?.categories ?? []).map((category) => ({
-        id: category.id,
-        ar: category.nameAr,
-        en: category.nameEn,
-        icon: category.icon || "category",
-      })),
-    [catalogQuery.data?.categories],
-  );
+  const categories = useMemo<Category[]>(() => {
+    const remote = (catalogQuery.data?.categories ?? []).map((category) => ({
+      id: category.id,
+      ar: category.nameAr,
+      en: category.nameEn,
+      icon: category.icon || "category",
+    }));
+    return remote.length > 0 ? remote : LOCAL_CATEGORIES;
+  }, [catalogQuery.data?.categories]);
 
-  const cities = useMemo<City[]>(
-    () =>
-      (catalogQuery.data?.cities ?? []).map((city) => ({
-        id: city.id,
-        ar: city.nameAr,
-        en: city.nameEn,
-        region: city.regionId,
-      })),
-    [catalogQuery.data?.cities],
-  );
+  const cities = useMemo<City[]>(() => {
+    const remote = (catalogQuery.data?.cities ?? []).map((city) => ({
+      id: city.id,
+      ar: city.nameAr,
+      en: city.nameEn,
+      region: city.regionId,
+    }));
+    return remote.length > 0 ? remote : LOCAL_CITIES;
+  }, [catalogQuery.data?.cities]);
 
   const promotions = useMemo<ProductPromotion[]>(() => {
     const labels = new Map(
@@ -102,9 +101,10 @@ export function useProductData() {
     cities,
     promotions,
     calculateQuote,
-    ready: Boolean(catalogQuery.data && configQuery.data),
-    isLoading: catalogQuery.isLoading || configQuery.isLoading,
-    isError: catalogQuery.isError || configQuery.isError,
+    ready: Boolean(catalogQuery.data && configQuery.data) || categories.length > 0,
+    isLoading: (catalogQuery.isLoading || configQuery.isLoading) && categories.length === 0,
+    isError: (catalogQuery.isError || configQuery.isError) && categories.length === 0,
+    usingFallback: !catalogQuery.data,
     retry,
   };
 }
