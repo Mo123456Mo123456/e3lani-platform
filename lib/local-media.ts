@@ -12,7 +12,12 @@ function extensionFor(asset: ImagePickerAsset) {
 }
 
 async function browserDataUrl(asset: ImagePickerAsset) {
-  const blob = asset.file ?? await fetch(asset.uri).then((response) => response.blob());
+  let blob: Blob;
+  if (asset.file) {
+    blob = asset.file;
+  } else {
+    blob = await fetch(asset.uri).then((response) => response.blob());
+  }
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("MEDIA_FILE_UNREADABLE"));
