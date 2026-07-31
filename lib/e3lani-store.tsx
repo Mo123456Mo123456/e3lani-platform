@@ -222,15 +222,16 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
       },
       publishFreeAd: (data) => {
         const now = new Date().toISOString();
+        const ownedBrand = state.user && state.brand?.ownerId === state.user.id ? state.brand : null;
         const ad: Ad = {
           id: uid("AD"),
           ownerId: state.user?.id ?? "local-user",
-          brandId: state.brand?.id,
+          brandId: ownedBrand?.id,
           ...data,
           displayAvatar: data.displayOwner.slice(0, 1) || "م",
           status: "active",
           revision: 1,
-          verified: Boolean(state.brand?.verified && state.user),
+          verified: Boolean(ownedBrand?.verified),
           featured: false,
           sponsored: false,
           createdAt: now,

@@ -5,7 +5,7 @@ import { router } from "expo-router";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useEffect, useState } from "react";
 import {
-  Alert,
+  Modal,
   Pressable,
   Share,
   StyleSheet,
@@ -94,6 +94,13 @@ const contactUrls = {
   product: (value: string) => (/^https?:\/\//i.test(value) ? value : `https://${value}`),
 };
 
+const REPORT_REASONS = [
+  { key: "misleading", ar: "محتوى مضلل", en: "Misleading content" },
+  { key: "prohibited", ar: "منتج ممنوع", en: "Prohibited item" },
+  { key: "fraud", ar: "احتيال", en: "Fraud" },
+  { key: "inappropriate", ar: "محتوى غير مناسب", en: "Inappropriate content" },
+];
+
 export function AdCard({
   ad,
   height = 540,
@@ -109,6 +116,8 @@ export function AdCard({
   const { brand, savedIds, toggleSave, recordMetric, submitReport } = useE3lani();
   const productData = useProductData();
   const [muted, setMuted] = useState(true);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [notice, setNotice] = useState("");
   const city = productData.cities.find((item) => item.id === ad.cityId);
   const category = productData.categories.find((item) => item.id === ad.categoryId);
   const saved = savedIds.includes(ad.id);
@@ -124,6 +133,11 @@ export function AdCard({
     : getMarket(ad.countryCode ?? "SA").en;
   const contact = ad.contacts[0];
 
+  const showNotice = (message: string) => {
+    setNotice(message);
+    setTimeout(() => setNotice(""), 1900);
+  };
+
   const save = (event: GestureResponderEvent) => {
     event.stopPropagation();
     toggleSave(ad.id);
@@ -138,11 +152,10 @@ export function AdCard({
   const openContact = async (event: GestureResponderEvent) => {
     event.stopPropagation();
     if (!contact?.value) {
-      Alert.alert(
-        locale === "ar" ? "إعلان للمعاينة" : "Preview ad",
+      showNotice(
         locale === "ar"
-          ? "أضف إعلانك لتجربة التواصل المباشر."
-          : "Publish your own ad to try direct contact.",
+          ? "هذا إعلان للمعاينة؛ أضف إعلانك لتجربة التواصل"
+          : "This is a preview ad; publish yours to try contact",
       );
       return;
     }
@@ -150,27 +163,19 @@ export function AdCard({
     try {
       await Linking.openURL(contactUrls[contact.type](contact.value));
     } catch {
-      Alert.alert(t("error"));
+      showNotice(t("error"));
     }
   };
 
   const report = (event: GestureResponderEvent) => {
     event.stopPropagation();
-    Alert.alert(
-      locale === "ar" ? "الإبلاغ عن الإعلان" : "Report ad",
-      locale === "ar" ? "اختر سبب البلاغ" : "Choose a reason",
-      [
-        {
-          text: locale === "ar" ? "محتوى مضلل" : "Misleading content",
-          onPress: () => submitReport(ad.id, "misleading"),
-        },
-        {
-          text: locale === "ar" ? "منتج ممنوع" : "Prohibited item",
-          onPress: () => submitReport(ad.id, "prohibited"),
-        },
-        { text: t("close"), style: "cancel" },
-      ],
-    );
+    setReportOpen(true);
+  };
+
+  const chooseReportReason = (reason: string) => {
+    submitReport(ad.id, reason);
+    setReportOpen(false);
+    showNotice(locale === "ar" ? "تم تسجيل البلاغ" : "Report submitted");
   };
 
   const action = (
@@ -281,6 +286,46 @@ export function AdCard({
           />
         </Pressable>
       </View>
+
+      {notice ? (
+        <View pointerEvents="none" accessibilityLiveRegion="polite" style={styles.notice}>
+          <Text numberOfLines={2} style={styles.noticeText}>{notice}</Text>
+        </View>
+      ) : null}
+
+      <Modal
+        animationType="slide"
+        transparent
+        visible={reportOpen}
+        onRequestClose={() => setReportOpen(false)}
+      >
+        <View style={styles.overlay}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("close")}
+            onPress={() => setReportOpen(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.sheet}>
+            <View style={styles.handle} />
+            <Text style={styles.sheetTitle}>{locale === "ar" ? "الإبلاغ عن الإعلان" : "Report ad"}</Text>
+            {REPORT_REASONS.map((reason) => (
+              <Pressable
+                key={reason.key}
+                accessibilityRole="button"
+                onPress={() => chooseReportReason(reason.key)}
+                style={({ pressed }) => [styles.reportOption, pressed && styles.actionPressed]}
+              >
+                <MaterialIcons name="radio-button-unchecked" size={21} color={BRAND.muted} />
+                <Text style={styles.reportOptionText}>{locale === "ar" ? reason.ar : reason.en}</Text>
+              </Pressable>
+            ))}
+            <Pressable onPress={() => setReportOpen(false)} style={styles.sheetClose}>
+              <Text style={styles.sheetCloseText}>{t("close")}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Pressable>
   );
 }
@@ -370,4 +415,43 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   ctaText: { color: BRAND.black, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  notice: {
+    position: "absolute",
+    zIndex: 30,
+    left: 78,
+    right: 16,
+    bottom: 20,
+    minHeight: 44,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: BRAND.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noticeText: { color: BRAND.black, fontSize: 11, lineHeight: 16, fontWeight: "900", textAlign: "center" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,.58)", justifyContent: "flex-end" },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 18,
+    paddingBottom: 28,
+    backgroundColor: BRAND.white,
+  },
+  handle: { width: 52, height: 5, marginBottom: 15, borderRadius: 3, backgroundColor: "#DDD", alignSelf: "center" },
+  sheetTitle: { marginBottom: 15, color: BRAND.black, fontSize: 21, lineHeight: 29, fontWeight: "900", textAlign: "right" },
+  reportOption: {
+    minHeight: 53,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    backgroundColor: BRAND.white,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 9,
+  },
+  reportOptionText: { flex: 1, color: BRAND.black, fontSize: 13, lineHeight: 19, fontWeight: "800", textAlign: "right" },
+  sheetClose: { minHeight: 50, marginTop: 2, borderWidth: 1, borderColor: BRAND.border, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  sheetCloseText: { color: BRAND.black, fontSize: 14, lineHeight: 20, fontWeight: "900" },
 });

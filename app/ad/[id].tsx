@@ -9,6 +9,7 @@ import { OutlineButton, PrimaryButton, StatusBadge } from "@/components/e3lani/u
 import { ScreenContainer } from "@/components/screen-container";
 import { BRAND, type ContactType } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
+import { getCategory } from "@/lib/e3lani-ui-data";
 import { useI18n } from "@/lib/i18n";
 import { useProductData } from "@/lib/use-product-data";
 
@@ -50,6 +51,7 @@ export default function Detail() {
 
   const city = productData.cities.find((item) => item.id === ad.cityId);
   const category = productData.categories.find((item) => item.id === ad.categoryId);
+  const owner = ad.displayOwner ?? store.brand?.name ?? "إعلاني";
   const saved = store.savedIds.includes(ad.id);
 
   const share = async () => {
@@ -116,11 +118,11 @@ export default function Detail() {
             <View style={s.copy}>
               <View style={[s.brand, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
                 <View style={s.avatar}>
-                  <Text style={s.avatarText}>{store.brand?.name.slice(0, 1) ?? "إ"}</Text>
+                  <Text style={s.avatarText}>{ad.displayAvatar ?? owner.slice(0, 1)}</Text>
                 </View>
                 <View style={s.brandCopy}>
                   <View style={[s.brandNameRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-                    <Text style={s.brandName}>{store.brand?.name}</Text>
+                    <Text style={s.brandName}>{owner}</Text>
                     {ad.verified ? (
                       <MaterialIcons name="verified" size={19} color={BRAND.yellowDark} />
                     ) : null}
@@ -138,12 +140,16 @@ export default function Detail() {
                 <View style={s.metaCard}>
                   <MaterialIcons name="location-on" size={22} color={BRAND.yellowDark} />
                   <Text style={s.muted}>{t("city")}</Text>
-                  <Text style={s.metaValue}>{(locale === "ar" ? city?.ar : city?.en) ?? "—"}</Text>
+                  <Text style={s.metaValue}>{ad.cityName ?? (locale === "ar" ? city?.ar : city?.en) ?? "—"}</Text>
                 </View>
                 <View style={s.metaCard}>
                   <MaterialIcons name="category" size={22} color={BRAND.yellowDark} />
                   <Text style={s.muted}>{t("category")}</Text>
-                  <Text style={s.metaValue}>{(locale === "ar" ? category?.ar : category?.en) ?? "—"}</Text>
+                  <Text style={s.metaValue}>
+                    {(locale === "ar" ? category?.ar : category?.en) ??
+                      (locale === "ar" ? getCategory(ad.categoryId)?.ar : getCategory(ad.categoryId)?.en) ??
+                      "—"}
+                  </Text>
                 </View>
               </View>
 

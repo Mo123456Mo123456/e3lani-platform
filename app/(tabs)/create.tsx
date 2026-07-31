@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { MediaView } from "@/components/e3lani/ad-card";
 import { Field, PrimaryButton } from "@/components/e3lani/ui";
@@ -11,6 +11,7 @@ import { BRAND, type AdContact, type AdMedia, type ContactType, type MarketCode 
 import { useE3lani } from "@/lib/e3lani-store";
 import { getMarket, MARKETS, UI_CATEGORIES } from "@/lib/e3lani-ui-data";
 import { useI18n } from "@/lib/i18n";
+import { persistPickedMedia } from "@/lib/local-media";
 
 type Selector = "category" | "country" | "city" | "contact" | null;
 
@@ -58,6 +59,8 @@ export default function Create() {
   const [contactType, setContactType] = useState<ContactType>("whatsapp");
   const [contactValue, setContactValue] = useState("");
   const [selector, setSelector] = useState<Selector>(null);
+  const [error, setError] = useState("");
+  const [published, setPublished] = useState(false);
 
   const selectedCategory = UI_CATEGORIES.find((item) => item.id === categoryId) ?? UI_CATEGORIES[0];
   const selectedMarket = getMarket(countryCode);
@@ -105,12 +108,18 @@ export default function Create() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    setMedia({
-      id: `local-${Date.now()}`,
-      kind: asset.type === "video" ? "video" : "image",
-      uri: asset.uri,
-      processingStatus: "ready",
-    });
+    try {
+      const uri = await persistPickedMedia(asset);
+      setMedia({
+        id: `local-${Date.now()}`,
+        kind: asset.type === "video" ? "video" : "image",
+        uri,
+        processingStatus: "ready",
+      });
+      setError("");
+    } catch {
+      setError(locale === "ar" ? "تعذر تجهيز الوسائط. اختر ملفًا آخر." : "Media could not be prepared. Choose another file.");
+    }
   };
 
   const choose = (id: string) => {
@@ -126,19 +135,20 @@ export default function Create() {
   };
 
   const publish = () => {
+    setPublished(false);
     if (!media) {
-      Alert.alert(locale === "ar" ? "أضف صورة أو فيديو أولًا" : "Add a photo or video first");
+      setError(locale === "ar" ? "أضف صورة أو فيديو أولًا" : "Add a photo or video first");
       return;
     }
     if (!title.trim() || !contactValue.trim()) {
-      Alert.alert(locale === "ar" ? "أكمل جميع الحقول المطلوبة" : "Complete all required fields");
+      setError(locale === "ar" ? "أكمل جميع الحقول المطلوبة" : "Complete all required fields");
       return;
     }
     if (
       (contactType === "store" || contactType === "product") &&
       !/^https?:\/\//i.test(contactValue.trim())
     ) {
-      Alert.alert(locale === "ar" ? "يجب أن يبدأ الرابط بـ https://" : "The URL must start with https://");
+      setError(locale === "ar" ? "يجب أن يبدأ الرابط بـ https://" : "The URL must start with https://");
       return;
     }
 
@@ -159,11 +169,9 @@ export default function Create() {
     setTitle("");
     setDescription("");
     setContactValue("");
-    Alert.alert(
-      locale === "ar" ? "تم نشر الإعلان" : "Ad published",
-      locale === "ar" ? "أصبح إعلانك ظاهرًا في الموجز." : "Your ad is now live in the feed.",
-      [{ text: locale === "ar" ? "عرض الإعلان" : "View ad", onPress: () => router.replace("/" as never) }],
-    );
+    setError("");
+    setPublished(true);
+    setTimeout(() => router.replace("/" as never), 900);
   };
 
   return (
@@ -220,7 +228,7 @@ export default function Create() {
             />
           </View>
 
-          <View style={styles.two}>
+          <View style={[styles.two, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <SelectField
               label={t("category")}
               value={locale === "ar" ? selectedCategory.ar : selectedCategory.en}
@@ -232,7 +240,7 @@ export default function Create() {
               onPress={() => setSelector("country")}
             />
           </View>
-          <View style={styles.two}>
+          <View style={[styles.two, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <SelectField
               label={t("city")}
               value={locale === "ar" ? selectedCity.ar : selectedCity.en}
@@ -255,6 +263,19 @@ export default function Create() {
               placeholder={contactType === "whatsapp" ? "+9665XXXXXXXX" : contactType === "phone" ? "+966XXXXXXXXX" : "https://example.com"}
             />
           </View>
+
+          {error ? (
+            <View accessibilityRole="alert" style={styles.error}>
+              <MaterialIcons name="error-outline" size={19} color={BRAND.error} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+          {published ? (
+            <View accessibilityRole="alert" style={styles.success}>
+              <MaterialIcons name="check-circle" size={19} color={BRAND.success} />
+              <Text style={styles.successText}>{locale === "ar" ? "تم نشر الإعلان — جارٍ فتح الموجز" : "Ad published — opening the feed"}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.publish}>
             <PrimaryButton
@@ -338,7 +359,7 @@ const styles = StyleSheet.create({
   uploadTextWithMedia: { color: BRAND.white },
   uploadHelp: { marginTop: 4, color: BRAND.muted, fontSize: 10, lineHeight: 14 },
   fieldGap: { marginTop: 14 },
-  two: { marginTop: 14, flexDirection: "row-reverse", gap: 10 },
+  two: { marginTop: 14, gap: 10 },
   selectWrap: { flex: 1, minWidth: 0 },
   label: { marginBottom: 7, color: BRAND.black, fontSize: 12, lineHeight: 18, fontWeight: "900", textAlign: "right" },
   select: {
@@ -354,6 +375,10 @@ const styles = StyleSheet.create({
   },
   selectText: { flex: 1, color: BRAND.black, fontSize: 12, lineHeight: 18, textAlign: "right" },
   publish: { marginTop: 18 },
+  error: { minHeight: 46, marginTop: 13, borderRadius: 12, paddingHorizontal: 11, backgroundColor: `${BRAND.error}12`, flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  errorText: { flex: 1, color: BRAND.error, fontSize: 11, lineHeight: 17, fontWeight: "800", textAlign: "right" },
+  success: { minHeight: 46, marginTop: 13, borderRadius: 12, paddingHorizontal: 11, backgroundColor: `${BRAND.success}12`, flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  successText: { flex: 1, color: BRAND.success, fontSize: 11, lineHeight: 17, fontWeight: "800", textAlign: "right" },
   pressed: { opacity: 0.65 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,.58)", justifyContent: "flex-end" },
   sheet: { maxHeight: "82%", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, backgroundColor: BRAND.white },

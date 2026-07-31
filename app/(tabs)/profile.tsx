@@ -9,6 +9,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { persistPickedMedia } from "@/lib/local-media";
 
 const rows = [
   { key: "myAds", icon: "campaign", route: "/account/my-ads" },
@@ -23,7 +24,7 @@ export default function Profile() {
   const { locale, isRTL, t, toggleLocale } = useI18n();
   const [tab, setTab] = useState<"ads" | "posts">("ads");
   const staff = Boolean(user && ["reviewer", "finance", "support", "admin", "owner"].includes(user.role));
-  const ownAds = ads.filter((ad) => ad.ownerId === (user?.id ?? "local-user"));
+  const ownAds = ads.filter((ad) => ad.ownerId === "local-user" || ad.ownerId === user?.id);
   const views = ownAds.reduce((sum, ad) => sum + (metrics[ad.id]?.views ?? 0), 0);
   const name = user?.name ?? (locale === "ar" ? "حسابي" : "My account");
   const bio = user?.bio ?? (locale === "ar"
@@ -46,7 +47,9 @@ export default function Profile() {
       allowsEditing: true,
       aspect: [1, 1],
     });
-    if (!result.canceled && result.assets[0]) updateProfile({ avatar: result.assets[0].uri });
+    if (!result.canceled && result.assets[0]) {
+      updateProfile({ avatar: await persistPickedMedia(result.assets[0]) });
+    }
   };
 
   return (
