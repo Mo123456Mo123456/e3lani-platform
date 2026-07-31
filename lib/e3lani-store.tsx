@@ -63,6 +63,7 @@ type Value = State & {
   upsertBrand: (data: Partial<BrandProfile>) => void;
   requestVerification: () => void;
   createAd: (data: NewAd) => Ad;
+  publishFreeAd: (data: NewAd) => Ad;
   toggleSave: (id: string) => void;
   recordMetric: (id: string, key: keyof Metrics) => void;
   submitReport: (id: string, reason: string, details?: string) => void;
@@ -81,7 +82,13 @@ type Value = State & {
   continueWithFreshState: () => void;
 };
 
-const zero: Metrics = { impressions: 0, views: 0, saves: 0, shares: 0, contacts: 0 };
+const zero: Metrics = {
+  impressions: 0,
+  views: 0,
+  saves: 0,
+  shares: 0,
+  contacts: 0,
+};
 
 const initial: State = {
   ready: false,
@@ -92,8 +99,27 @@ const initial: State = {
   savedIds: [],
   blockedOwners: [],
   metrics: {
-    AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
-    AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
+    AD10001: {
+      impressions: 128547,
+      views: 128547,
+      saves: 1926,
+      shares: 3842,
+      contacts: 1243,
+    },
+    AD10002: {
+      impressions: 36240,
+      views: 36240,
+      saves: 618,
+      shares: 329,
+      contacts: 256,
+    },
+    AD10003: {
+      impressions: 24810,
+      views: 21874,
+      saves: 284,
+      shares: 192,
+      contacts: 103,
+    },
   },
   notifications: [
     {
@@ -125,7 +151,11 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
       const stored = raw ? (JSON.parse(raw) as Partial<State>) : {};
       setState({ ...initial, ...stored, ready: true, loadError: null });
     } catch {
-      setState((current) => ({ ...current, ready: true, loadError: "storage_load_failed" }));
+      setState((current) => ({
+        ...current,
+        ready: true,
+        loadError: "storage_load_failed",
+      }));
     }
   }, []);
 
@@ -174,7 +204,9 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
       requestVerification: () =>
         setState((current) => ({
           ...current,
-          brand: current.brand ? { ...current.brand, verificationStatus: "pending" } : current.brand,
+          brand: current.brand
+            ? { ...current.brand, verificationStatus: "pending" }
+            : current.brand,
           notifications: [
             {
               id: uid("N"),
@@ -191,6 +223,8 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         const ad: Ad = {
           id: uid("AD"),
           ownerId: state.user?.id ?? "U1",
+          ownerName: state.brand?.name ?? state.user?.name,
+          countryCode: "SA",
           brandId: state.brand?.id,
           ...data,
           status: "awaiting_payment",
@@ -207,6 +241,44 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         }));
         return ad;
       },
+      publishFreeAd: (data) => {
+        const now = new Date().toISOString();
+        const ad: Ad = {
+          id: uid("AD"),
+          ownerId: state.user?.id ?? "local-user",
+          ownerName: state.brand?.name ?? state.user?.name ?? "حسابي",
+          countryCode: "SA",
+          brandId: state.brand?.id,
+          ...data,
+          status: "active",
+          revision: 1,
+          verified: Boolean(state.brand?.verified),
+          featured: false,
+          sponsored: false,
+          createdAt: now,
+          activatedAt: now,
+          expiresAt: new Date(
+            Date.now() + 30 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        };
+        setState((current) => ({
+          ...current,
+          ads: [ad, ...current.ads],
+          metrics: { ...current.metrics, [ad.id]: { ...zero } },
+          notifications: [
+            {
+              id: uid("N"),
+              title: "تم نشر إعلانك",
+              body: `${ad.title} أصبح ظاهرًا في الموجز المحلي.`,
+              read: false,
+              createdAt: now,
+              kind: "system",
+            },
+            ...current.notifications,
+          ],
+        }));
+        return ad;
+      },
       toggleSave: (id) =>
         setState((current) => {
           const has = current.savedIds.includes(id);
@@ -218,7 +290,10 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
               : [...current.savedIds, id],
             metrics: {
               ...current.metrics,
-              [id]: { ...metrics, saves: Math.max(0, metrics.saves + (has ? -1 : 1)) },
+              [id]: {
+                ...metrics,
+                saves: Math.max(0, metrics.saves + (has ? -1 : 1)),
+              },
             },
           };
         }),
@@ -227,7 +302,10 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           const metrics = current.metrics[id] ?? zero;
           return {
             ...current,
-            metrics: { ...current.metrics, [id]: { ...metrics, [key]: metrics[key] + 1 } },
+            metrics: {
+              ...current.metrics,
+              [id]: { ...metrics, [key]: metrics[key] + 1 },
+            },
           };
         }),
       submitReport: (id, reason, details) =>
@@ -271,14 +349,18 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
       extendAd: (id) =>
         setState((current) => ({
           ...current,
-          ads: current.ads.map((ad) => (ad.id === id ? extendAdPeriod(ad) : ad)),
+          ads: current.ads.map((ad) =>
+            ad.id === id ? extendAdPeriod(ad) : ad,
+          ),
         })),
       republishAd: (id) =>
         setState((current) => {
           const now = new Date().toISOString();
           return {
             ...current,
-            ads: current.ads.map((ad) => (ad.id === id ? republishExpiredAd(ad, now) : ad)),
+            ads: current.ads.map((ad) =>
+              ad.id === id ? republishExpiredAd(ad, now) : ad,
+            ),
           };
         }),
       moderateAd: (id, decision, reason) =>
@@ -288,7 +370,9 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           if (!target || target.status !== "pending_review") return current;
           return {
             ...current,
-            ads: current.ads.map((ad) => (ad.id === id ? moderatePendingAd(ad, decision, now) : ad)),
+            ads: current.ads.map((ad) =>
+              ad.id === id ? moderatePendingAd(ad, decision, now) : ad,
+            ),
             audit: [
               {
                 id: uid("A"),
@@ -303,7 +387,10 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
             notifications: [
               {
                 id: uid("N"),
-                title: decision === "approved" ? "تم قبول إعلانك" : "تحديث على مراجعة إعلانك",
+                title:
+                  decision === "approved"
+                    ? "تم قبول إعلانك"
+                    : "تحديث على مراجعة إعلانك",
                 body: reason,
                 read: false,
                 createdAt: now,
@@ -316,7 +403,10 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
       markNotificationsRead: () =>
         setState((current) => ({
           ...current,
-          notifications: current.notifications.map((notification) => ({ ...notification, read: true })),
+          notifications: current.notifications.map((notification) => ({
+            ...notification,
+            read: true,
+          })),
         })),
       resolveReport: (id, resolution) =>
         setState((current) => ({
@@ -339,7 +429,8 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
       retryLoad: () => {
         void loadStoredState();
       },
-      continueWithFreshState: () => setState({ ...initial, ready: true, loadError: null }),
+      continueWithFreshState: () =>
+        setState({ ...initial, ready: true, loadError: null }),
     }),
     [loadStoredState, state],
   );
