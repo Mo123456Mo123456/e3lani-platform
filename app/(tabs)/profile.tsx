@@ -2,9 +2,9 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -16,6 +16,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { shareText } from "@/lib/share";
 
 const rows = [
   { key: "myAds", icon: "campaign", route: "/account/my-ads" },
@@ -52,6 +53,14 @@ export default function Profile() {
     (total, ad) => total + (metrics[ad.id]?.views ?? 0),
     0,
   );
+  const shareProfile = async () => {
+    const shared = await shareText(`${profileName} — E3lani`, profileName);
+    if (!shared) {
+      Alert.alert(
+        locale === "ar" ? "المشاركة غير متاحة" : "Sharing is unavailable",
+      );
+    }
+  };
 
   return (
     <ScreenContainer>
@@ -95,9 +104,7 @@ export default function Profile() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() =>
-                void Share.share({ message: `${profileName} — E3lani` })
-              }
+              onPress={() => void shareProfile()}
               style={({ pressed }) => [
                 styles.profileButton,
                 pressed && styles.pressed,

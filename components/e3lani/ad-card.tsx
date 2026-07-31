@@ -7,7 +7,6 @@ import {
   Alert,
   Linking,
   Pressable,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -17,6 +16,7 @@ import {
 import { BRAND, type Ad, type AdMedia } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { shareText } from "@/lib/share";
 import { useProductData } from "@/lib/use-product-data";
 
 const localAssets = {
@@ -139,7 +139,15 @@ function FeedAdCard({
   const share = async (event: GestureResponderEvent) => {
     event.stopPropagation();
     recordMetric(ad.id, "shares");
-    await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
+    const shared = await shareText(
+      `${ad.title}\ne3lani://ad/${ad.id}`,
+      ad.title,
+    );
+    if (!shared) {
+      Alert.alert(
+        locale === "ar" ? "المشاركة غير متاحة" : "Sharing is unavailable",
+      );
+    }
   };
 
   const report = (event: GestureResponderEvent) => {
@@ -466,7 +474,15 @@ function CompactAdCard({
   const share = async (event: GestureResponderEvent) => {
     event.stopPropagation();
     recordMetric(ad.id, "shares");
-    await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
+    const shared = await shareText(
+      `${ad.title}\ne3lani://ad/${ad.id}`,
+      ad.title,
+    );
+    if (!shared) {
+      Alert.alert(
+        locale === "ar" ? "المشاركة غير متاحة" : "Sharing is unavailable",
+      );
+    }
   };
 
   return (
