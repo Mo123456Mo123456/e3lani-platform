@@ -135,7 +135,7 @@ export function AdCard({
 
   const showNotice = (message: string) => {
     setNotice(message);
-    setTimeout(() => setNotice(""), 1900);
+    setTimeout(() => setNotice(""), 4000);
   };
 
   const save = (event: GestureResponderEvent) => {
