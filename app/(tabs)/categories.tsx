@@ -1,9 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { PrimaryButton } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { BRAND } from "@/lib/e3lani-data";
 import { useI18n } from "@/lib/i18n";
@@ -27,17 +26,7 @@ export default function Categories() {
         <Text style={styles.logo}>إعلاني<Text style={styles.logoDot}>.</Text></Text>
       </View>
 
-      {productData.isLoading ? (
-        <View style={styles.state}><ActivityIndicator color={BRAND.yellowDark} size="large" /></View>
-      ) : productData.isError ? (
-        <View accessible accessibilityRole="alert" style={styles.state}>
-          <Text style={styles.stateText}>
-            {locale === "ar" ? "تعذر تحميل التصنيفات" : "Categories could not be loaded"}
-          </Text>
-          <PrimaryButton label={t("retry")} icon="refresh" onPress={productData.retry} />
-        </View>
-      ) : (
-        <FlatList
+      <FlatList
           data={categories}
           numColumns={3}
           keyExtractor={(item) => item.id}
@@ -45,6 +34,21 @@ export default function Categories() {
           contentContainerStyle={styles.list}
           ListHeaderComponent={
             <View>
+              {productData.catalogIsError ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("retry")}
+                  onPress={productData.retry}
+                  style={({ pressed }) => [styles.catalogNotice, pressed && styles.pressed]}
+                >
+                  <MaterialIcons name="cloud-off" size={18} color={BRAND.warning} />
+                  <Text style={styles.catalogNoticeText}>
+                    {locale === "ar"
+                      ? "نعرض الأقسام المحفوظة مؤقتًا — اضغط لإعادة الاتصال"
+                      : "Showing cached categories — tap to reconnect"}
+                  </Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={locale === "ar" ? "السوق الحالي: السعودية" : "Current market: Saudi Arabia"}
@@ -106,8 +110,7 @@ export default function Categories() {
               </Pressable>
             );
           }}
-        />
-      )}
+      />
     </ScreenContainer>
   );
 }
@@ -125,10 +128,20 @@ const styles = StyleSheet.create({
   headerTitle: { color: BRAND.black, fontSize: 21, lineHeight: 28, fontWeight: "900" },
   logo: { color: BRAND.black, fontSize: 19, lineHeight: 25, fontWeight: "900" },
   logoDot: { color: BRAND.yellowDark },
-  state: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 16 },
-  stateText: { color: BRAND.black, fontSize: 15, lineHeight: 22, fontWeight: "800", textAlign: "center" },
   list: { width: "100%", maxWidth: 720, alignSelf: "center", padding: 16, paddingBottom: 32, gap: 10 },
   row: { gap: 10 },
+  catalogNotice: {
+    minHeight: 42,
+    marginBottom: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: "#FFF7D2",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+  catalogNoticeText: { color: BRAND.black, fontSize: 10, lineHeight: 15, fontWeight: "800", textAlign: "right" },
   market: {
     width: "100%",
     minHeight: 76,

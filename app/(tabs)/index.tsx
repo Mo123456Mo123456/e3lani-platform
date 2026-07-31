@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -45,7 +46,7 @@ function BrandTicker({ top }: { top: number }) {
       Animated.timing(offset, {
         toValue: -1136,
         duration: 22000,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }),
     );
     animation.start();
@@ -53,7 +54,7 @@ function BrandTicker({ top }: { top: number }) {
   }, [offset]);
 
   return (
-    <View pointerEvents="none" style={[styles.tickerShell, { height: top + 40, paddingTop: top }]}>
+    <View style={[styles.tickerShell, { height: top + 40, paddingTop: top }]}>
       <View style={styles.ticker}>
         <Animated.View style={[styles.tickerTrack, { transform: [{ translateX: offset }] }]}>
           <TickerGroup />
@@ -143,6 +144,7 @@ export default function Home() {
 
       {feedHeight ? (
         <FlatList
+          style={styles.feed}
           data={visible}
           keyExtractor={(ad) => ad.id}
           renderItem={({ item }) => (
@@ -173,7 +175,7 @@ export default function Home() {
 
       <BrandTicker top={insets.top} />
 
-      <View pointerEvents="box-none" style={[styles.feedHeadShell, { top: insets.top + 48 }]}>
+      <View style={[styles.feedHeadShell, { top: insets.top + 48 }]}>
         <View style={styles.feedHead}>
           <Pressable
             accessibilityRole="button"
@@ -221,13 +223,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   adFrame: { width: "100%", backgroundColor: BRAND.black, alignItems: "center" },
+  feed: { flex: 1, width: "100%" },
   tickerShell: {
     position: "absolute",
     zIndex: 50,
     top: 0,
     right: 0,
     left: 0,
-    backgroundColor: BRAND.yellow,
+    pointerEvents: "none",
   },
   ticker: {
     width: "100%",
@@ -236,9 +239,10 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     overflow: "hidden",
     backgroundColor: BRAND.yellow,
+    direction: "ltr",
   },
-  tickerTrack: { width: 2272, height: 40, flexDirection: "row", alignItems: "center" },
-  tickerGroup: { width: 1136, height: 40, flexDirection: "row", alignItems: "center" },
+  tickerTrack: { width: 2272, height: 40, flexDirection: "row", alignItems: "center", direction: "ltr" },
+  tickerGroup: { width: 1136, height: 40, flexDirection: "row", alignItems: "center", direction: "ltr" },
   tickerItem: { width: 142, height: 40, flexDirection: "row", alignItems: "center" },
   tickerName: { width: 76, color: BRAND.black, fontSize: 12, fontWeight: "900", textAlign: "center" },
   tickerSeparator: {
@@ -250,7 +254,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tickerSeparatorText: { color: BRAND.white, fontSize: 9, fontWeight: "900" },
-  feedHeadShell: { position: "absolute", zIndex: 45, right: 0, left: 0 },
+  feedHeadShell: { position: "absolute", zIndex: 45, right: 0, left: 0, pointerEvents: "box-none" },
   feedHead: {
     width: "100%",
     maxWidth: 480,

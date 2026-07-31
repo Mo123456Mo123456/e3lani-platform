@@ -1,10 +1,10 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { CompactAdCard } from "@/components/e3lani/compact-ad-card";
-import { EmptyState, Pill, PrimaryButton } from "@/components/e3lani/ui";
+import { EmptyState, Pill } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
@@ -68,25 +68,27 @@ export default function Search() {
           ) : null}
         </View>
 
-        {productData.isLoading ? (
-          <View style={styles.catalogState}><ActivityIndicator color={BRAND.yellowDark} /></View>
-        ) : productData.isError ? (
-          <View accessible accessibilityRole="alert" style={styles.catalogError}>
-            <Text style={styles.catalogErrorText}>{locale === "ar" ? "تعذر تحميل فلاتر البحث" : "Search filters could not be loaded"}</Text>
-            <PrimaryButton label={t("retry")} icon="refresh" onPress={productData.retry} />
-          </View>
-        ) : (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <Pill label={locale === "ar" ? "كل الأقسام" : "All categories"} active={!category} onPress={() => setCategory("")} />
-              {productData.categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={category === item.id} onPress={() => setCategory(item.id)} />)}
-            </ScrollView>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <Pill label={locale === "ar" ? "كل المدن" : "All cities"} active={!city} onPress={() => setCity("")} />
-              {productData.cities.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={city === item.id} onPress={() => setCity(item.id)} />)}
-            </ScrollView>
-          </>
-        )}
+        {productData.catalogIsError ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("retry")}
+            onPress={productData.retry}
+            style={({ pressed }) => [styles.catalogError, pressed && styles.pressed]}
+          >
+            <MaterialIcons name="cloud-off" size={17} color={BRAND.warning} />
+            <Text style={styles.catalogErrorText}>
+              {locale === "ar" ? "فلاتر محفوظة مؤقتًا — اضغط لإعادة الاتصال" : "Cached filters — tap to reconnect"}
+            </Text>
+          </Pressable>
+        ) : null}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+          <Pill label={locale === "ar" ? "كل الأقسام" : "All categories"} active={!category} onPress={() => setCategory("")} />
+          {productData.categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={category === item.id} onPress={() => setCategory(item.id)} />)}
+        </ScrollView>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+          <Pill label={locale === "ar" ? "كل المدن" : "All cities"} active={!city} onPress={() => setCity("")} />
+          {productData.cities.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={city === item.id} onPress={() => setCity(item.id)} />)}
+        </ScrollView>
 
         {data.length ? (
           <FlatList
@@ -112,9 +114,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 50, color: BRAND.black, fontSize: 14, lineHeight: 20 },
   clear: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   pressed: { opacity: 0.6 },
-  catalogState: { minHeight: 96, alignItems: "center", justifyContent: "center" },
-  catalogError: { minHeight: 112, paddingVertical: 12, alignItems: "center", justifyContent: "center", gap: 10 },
-  catalogErrorText: { color: BRAND.muted, fontSize: 13, lineHeight: 20, textAlign: "center" },
+  catalogError: { minHeight: 38, marginTop: 8, borderRadius: 11, paddingHorizontal: 10, backgroundColor: "#FFF7D2", flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 7 },
+  catalogErrorText: { color: BRAND.black, fontSize: 10, lineHeight: 15, fontWeight: "800", textAlign: "center" },
   chips: { gap: 7, paddingVertical: 8 },
   list: { paddingTop: 7, paddingBottom: 25 },
   item: { marginBottom: 13 },
