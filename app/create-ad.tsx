@@ -194,6 +194,8 @@ export default function CreateAd() {
     );
   }
 
+  const paymentEnabled = productData.config.paymentEnabled;
+
   const pickMedia = async () => {
     const policy = productData.config?.mediaPolicy;
     if (!policy) return Alert.alert(t("error"));
@@ -285,7 +287,7 @@ export default function CreateAd() {
       promotions,
       media,
     });
-    if (!productData.config?.paymentEnabled) {
+    if (!paymentEnabled) {
       store.setAdStatus(ad.id, "active", "FREE_LAUNCH");
       router.replace({ pathname: "/ad/[id]", params: { id: ad.id } } as never);
       return;
@@ -397,7 +399,7 @@ export default function CreateAd() {
                   accessible
                   accessibilityRole="checkbox"
                   accessibilityLabel={
-                    productData.config.paymentEnabled
+                    paymentEnabled
                       ? `${locale === "ar" ? option.ar : option.en}، ${option.priceHalalas / 100} ${t("sar")}`
                       : `${locale === "ar" ? option.ar : option.en}، ${locale === "ar" ? "مجاني حاليًا" : "Currently free"}`
                   }
@@ -409,7 +411,7 @@ export default function CreateAd() {
                   <MaterialIcons accessible={false} name={active ? "check-circle" : "radio-button-unchecked"} size={24} color={active ? BRAND.yellowDark : BRAND.muted} />
                   <Text style={styles.promotionName}>{locale === "ar" ? option.ar : option.en}</Text>
                   <Text style={styles.promotionPrice}>
-                    {productData.config.paymentEnabled
+                    {paymentEnabled
                       ? `${(option.priceHalalas / 100).toFixed(2)} ${t("sar")}`
                       : locale === "ar"
                         ? "مجاني"
@@ -420,21 +422,21 @@ export default function CreateAd() {
             })}
             <View style={styles.quote}>
               <Text style={styles.quoteLabel}>
-                {productData.config.paymentEnabled
+                {paymentEnabled
                   ? t("total")
                   : locale === "ar"
                     ? "الإطلاق المجاني"
                     : "Free launch"}
               </Text>
               <Text style={styles.quoteTotal}>
-                {productData.config.paymentEnabled
+                {paymentEnabled
                   ? `${(quote.totalHalalas / 100).toFixed(2)} ${t("sar")}`
                   : locale === "ar"
                     ? "مجانًا"
                     : "Free"}
               </Text>
               <Text style={styles.quoteVat}>
-                {productData.config.paymentEnabled
+                {paymentEnabled
                   ? `${t("vatIncluded")}: ${(quote.vatHalalas / 100).toFixed(2)} ${t("sar")}`
                   : locale === "ar"
                     ? "لن تُحصّل أي رسوم ما دام الدفع معطلًا."
@@ -469,14 +471,14 @@ export default function CreateAd() {
             disabled={step === 1 && uploads.some((item) => item.status !== "ready")}
             label={
               step === 5
-                ? productData.config.paymentEnabled
+                ? paymentEnabled
                   ? t("pay")
                   : locale === "ar"
                     ? "نشر الإعلان الآن"
                     : "Publish now"
                 : t("next")
             }
-            icon={step === 5 ? (productData.config.paymentEnabled ? "payments" : "publish") : "arrow-back"}
+            icon={step === 5 ? (paymentEnabled ? "payments" : "publish") : "arrow-back"}
             onPress={next}
           />
         </View>

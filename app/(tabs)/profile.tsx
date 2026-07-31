@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 
 import { MediaView } from "@/components/e3lani/ad-card";
-import { EmptyState, PrimaryButton } from "@/components/e3lani/ui";
+import { EmptyState } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
