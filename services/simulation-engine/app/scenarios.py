@@ -101,7 +101,10 @@ def _sample_metrics(
         subtree: set[str] = set()
         for rid in root_event_ids:
             subtree |= descendant_ids(state["events"], rid)
-        impact = sum(1 for e in new_events if e["id"] in subtree)
+        impact = sum(
+            1 for e in new_events
+            if e["id"] in subtree or e.get("contributionId") == contribution_id
+        )
 
     habitability = (
         0.35 * min(1.0, pop / 30000.0)

@@ -34,6 +34,20 @@ CATEGORIES = [
 ]
 
 
+_UNBOUNDED_TRAITS = {"tempMin", "tempMax"}
+
+
+def _normalized_traits(contribution: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k, v in (contribution.get("traits") or {}).items():
+        try:
+            f = float(v)
+            out[k] = f if k in _UNBOUNDED_TRAITS else clamp(f)
+        except (TypeError, ValueError):
+            out[k] = v  # enumerated traits (e.g. diet) pass through
+    return out
+
+
 def inject_contribution(state: dict[str, Any], contribution: dict[str, Any]) -> dict[str, Any]:
     """Apply a contribution; returns the root events created."""
     meta = state["meta"]
@@ -43,7 +57,7 @@ def inject_contribution(state: dict[str, Any], contribution: dict[str, Any]) -> 
     cid_value = contribution.get("id") or f"uc_{len(state['contributions'])}"
     category = contribution["category"]
     name = contribution["name"]
-    traits = {k: clamp(float(v)) for k, v in (contribution.get("traits") or {}).items()}
+    traits = _normalized_traits(contribution)
 
     state["contributions"][cid_value] = {
         "id": cid_value,
@@ -359,7 +373,7 @@ def _creature_fit(state, traits, cell) -> float:
 
 def assess_contribution(state: dict[str, Any], contribution: dict[str, Any]) -> dict[str, Any]:
     """Algorithmic pre-flight assessment used by the preview step."""
-    traits = {k: clamp(float(v)) for k, v in (contribution.get("traits") or {}).items()}
+    traits = _normalized_traits(contribution)
     category = contribution["category"]
     target = contribution.get("targetCellId")
     grid = grid_of(state)

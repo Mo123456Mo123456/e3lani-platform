@@ -118,9 +118,11 @@ async function main(): Promise<void> {
   }
 
   console.log("> persisting final state + materializing read models");
+  const { createHash } = await import("node:crypto");
+  const finalHash = createHash("sha256").update(JSON.stringify(current)).digest("hex").slice(0, 32);
   await db
     .updateTable("planets")
-    .set({ current_state: current as never, tick: current.meta.tick, state_hash: null })
+    .set({ current_state: current as never, tick: current.meta.tick, state_hash: finalHash })
     .where("id", "=", planet.id)
     .execute();
   await materializeState(db, planet.id, current, current.meta.tick);
