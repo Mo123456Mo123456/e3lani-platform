@@ -1,0 +1,38 @@
+{
+  "name": "@e3lani/ui",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tailwind-preset": "./tailwind-preset.js",
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "echo \"@e3lani/ui is consumed as source (transpilePackages)\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "clean": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@e3lani/config": "workspace:*",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.469.0",
+    "tailwind-merge": "^2.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@e3lani/eslint-config": "workspace:*",
+    "@e3lani/tsconfig": "workspace:*",
+    "@types/react": "~19.1.17",
+    "@types/react-dom": "~19.1.7",
+    "eslint": "^9.18.0",
+    "react": "19.1.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "5.7.3"
+  }
+}

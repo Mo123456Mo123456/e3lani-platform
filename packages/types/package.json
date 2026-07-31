@@ -1,0 +1,22 @@
+{
+  "name": "@e3lani/types",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@e3lani/config": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@e3lani/tsconfig": "workspace:*",
+    "typescript": "5.7.3"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "إعلاني",
+    "slug": "e3lani",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "e3lani",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "primaryColor": "#FFC400",
+    "backgroundColor": "#FFFFFF",
+    "splash": {
+      "backgroundColor": "#FFC400",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "sa.e3lani.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "نحتاج الوصول إلى الصور لرفع صور ومقاطع إعلانك.",
+        "NSCameraUsageDescription": "نحتاج الكاميرا لتصوير إعلانك مباشرة.",
+        "NSLocationWhenInUseUsageDescription": "نستخدم موقعك لعرض الإعلانات القريبة منك فقط.",
+        "CFBundleAllowMixedLocalizations": true
+      }
+    },
+    "android": {
+      "package": "sa.e3lani.app",
+      "adaptiveIcon": { "backgroundColor": "#FFC400" },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "web": { "bundler": "metro", "output": "single" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-video",
+      [
+        "expo-image-picker",
+        { "photosPermission": "نحتاج الوصول إلى الصور لرفع وسائط إعلانك." }
+      ],
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "نستخدم موقعك لعرض الإعلانات القريبة منك." }
+      ]
+    ],
+    "experiments": { "typedRoutes": false },
+    "extra": {
+      "apiUrl": "http://localhost:4000/api",
+      "siteUrl": "http://localhost:3000"
+    }
+  }
+}

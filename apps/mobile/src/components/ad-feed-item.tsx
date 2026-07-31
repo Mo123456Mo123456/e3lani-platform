@@ -1,0 +1,192 @@
+import * as React from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
+import type { AdDto } from '@e3lani/types';
+import { theme } from '@/lib/theme';
+import { api } from '@/lib/api';
+import { track } from '@/lib/track';
+import { AdMedia } from './ad-media';
+import { Avatar, Badge } from './ui';
+
+const CONTACT: Record<AdDto['contactMethod'], { label: string; icon: any; event: string }> = {
+  WHATSAPP: { label: 'واتساب', icon: 'logo-whatsapp', event: 'CLICK_WHATSAPP' },
+  PHONE: { label: 'اتصال', icon: 'call', event: 'CLICK_CALL' },
+  STORE_LINK: { label: 'زيارة المتجر', icon: 'storefront', event: 'CLICK_STORE' },
+  PRODUCT_LINK: { label: 'عرض المنتج', icon: 'pricetag', event: 'CLICK_STORE' },
+  EXTERNAL_LINK: { label: 'فتح الرابط', icon: 'link', event: 'CLICK_LINK' },
+};
+
+export function contactUrl(ad: AdDto): string | null {
+  if (!ad.contactValue) return null;
+  if (ad.contactMethod === 'WHATSAPP') {
+    return `https://wa.me/${ad.contactValue}?text=${encodeURIComponent(`مرحبًا، بخصوص إعلان «${ad.title}»`)}`;
+  }
+  if (ad.contactMethod === 'PHONE') return `tel:+${ad.contactValue}`;
+  return ad.contactValue;
+}
+
+export function AdFeedItem({
+  ad,
+  active,
+  height,
+  isAuthed,
+  onShare,
+}: {
+  ad: AdDto;
+  active: boolean;
+  height: number;
+  isAuthed: boolean;
+  onShare: (ad: AdDto) => void;
+}) {
+  const [saved, setSaved] = React.useState(ad.isSaved);
+  const contact = CONTACT[ad.contactMethod];
+
+  const openContact = async () => {
+    const url = contactUrl(ad);
+    if (!url) return;
+    track(ad.id, contact.event);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    await Linking.openURL(url).catch(() => undefined);
+  };
+
+  const toggleSave = async () => {
+    if (!isAuthed) {
+      router.push('/login');
+      return;
+    }
+    const next = !saved;
+    setSaved(next);
+    try {
+      await api(`/saved/ads/${ad.id}`, { method: next ? 'POST' : 'DELETE', auth: true });
+      track(ad.id, next ? 'SAVE' : 'UNSAVE');
+    } catch {
+      setSaved(!next);
+    }
+  };
+
+  const mediaHeight = height - 132;
+
+  return (
+    <View style={[styles.container, { height }]}>
+      <AdMedia media={ad.media} active={active} height={mediaHeight} />
+
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={styles.badges}>
+          {ad.isHighlighted ? <Badge label="مميز" tone="primary" /> : null}
+          {ad.isTopOfCategory ? <Badge label="أعلى القسم" tone="primary" /> : null}
+          {ad.category ? <Badge label={ad.category.nameAr} /> : null}
+        </View>
+
+        <Pressable onPress={() => router.push(`/ad/${ad.id}`)}>
+          <Text style={styles.title} numberOfLines={2}>
+            {ad.title}
+          </Text>
+        </Pressable>
+
+        <View style={styles.metaRow}>
+          {ad.price !== null ? (
+            <Text style={styles.price}>{ad.price.toLocaleString('ar-SA')} ر.س</Text>
+          ) : null}
+          {ad.city ? <Text style={styles.meta}>{ad.city.nameAr}</Text> : null}
+          <Text style={styles.meta}>{ad.viewsCount} مشاهدة</Text>
+        </View>
+
+        <Pressable style={styles.owner} onPress={() => router.push(`/u/${ad.owner.id}`)}>
+          <Avatar uri={ad.owner.avatarUrl} name={ad.owner.name} size={30} />
+          <Text style={styles.ownerName}>{ad.owner.name}</Text>
+          {ad.owner.isVerified ? (
+            <Ionicons name="checkmark-circle" size={14} color={theme.colors.primary} />
+          ) : null}
+        </Pressable>
+      </View>
+
+      <View style={styles.actions}>
+        <Pressable style={styles.contactButton} onPress={openContact} accessibilityRole="button">
+          <Ionicons name={contact.icon} size={18} color={theme.colors.ink} />
+          <Text style={styles.contactLabel}>{contact.label}</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.iconButton, saved ? styles.iconButtonActive : null]}
+          onPress={toggleSave}
+          accessibilityLabel={saved ? 'إلغاء الحفظ' : 'حفظ'}
+        >
+          <Ionicons
+            name={saved ? 'bookmark' : 'bookmark-outline'}
+            size={19}
+            color={theme.colors.ink}
+          />
+        </Pressable>
+
+        <Pressable style={styles.iconButton} onPress={() => onShare(ad)} accessibilityLabel="مشاركة">
+          <Ionicons name="share-social-outline" size={19} color={theme.colors.ink} />
+        </Pressable>
+
+        <Pressable
+          style={styles.iconButton}
+          onPress={() => router.push(`/report?adId=${ad.id}`)}
+          accessibilityLabel="إبلاغ"
+        >
+          <Ionicons name="flag-outline" size={18} color={theme.colors.inkMuted} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { backgroundColor: '#000000' },
+  overlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 132,
+    padding: 14,
+    paddingBottom: 18,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  badges: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  title: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', marginTop: 8, textAlign: 'right' },
+  metaRow: { flexDirection: 'row', gap: 12, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
+  price: { color: theme.colors.primary, fontSize: 16, fontWeight: '800' },
+  meta: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
+  owner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  ownerName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  actions: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 132,
+    backgroundColor: theme.colors.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingBottom: 56,
+    paddingTop: 12,
+  },
+  contactButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  contactLabel: { fontSize: 15, fontWeight: '700', color: theme.colors.ink },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonActive: { backgroundColor: '#FFF6D9', borderColor: theme.colors.primary },
+});

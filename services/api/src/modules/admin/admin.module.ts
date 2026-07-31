@@ -1,0 +1,15 @@
+import { Module } from '@nestjs/common';
+import { AdminService } from './admin.service';
+import { AdminController } from './admin.controller';
+import { AnalyticsModule } from '../analytics/analytics.module';
+import { PricingModule } from '../pricing/pricing.module';
+import { ModerationModule } from '../moderation/moderation.module';
+import { TickerModule } from '../ticker/ticker.module';
+import { CatalogModule } from '../catalog/catalog.module';
+
+@Module({
+  imports: [AnalyticsModule, PricingModule, ModerationModule, TickerModule, CatalogModule],
+  controllers: [AdminController],
+  providers: [AdminService],
+})
+export class AdminModule {}
