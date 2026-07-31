@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,22 +10,40 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AdCard } from "@/components/e3lani/ad-card";
-import { EmptyState, Pill } from "@/components/e3lani/ui";
-import { ScreenContainer } from "@/components/screen-container";
+import { BrandTicker } from "@/components/e3lani/brand-ticker";
+import { EmptyState } from "@/components/e3lani/ui";
 import { BRAND, type Ad } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
+import { rankFeedAds, type FeedMode } from "@/lib/feed/rank";
 import { useI18n } from "@/lib/i18n";
+import { useProductData } from "@/lib/use-product-data";
+
+const TAB_BAR = 72;
 
 export default function Home() {
   const { height, width } = useWindowDimensions();
-  const { ads, blockedOwners, ready, recordMetric } = useE3lani();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ category?: string; focus?: string }>();
+  const {
+    ads,
+    blockedOwners,
+    ready,
+    recordMetric,
+    metrics,
+    marketCode,
+    categoryFilter,
+    setCategoryFilter,
+  } = useE3lani();
+  const productData = useProductData();
   const { isRTL, t } = useI18n();
-  const [tab, setTab] = useState("forYou");
+  const [tab, setTab] = useState<FeedMode>("forYou");
   const [active, setActive] = useState("");
+  const listRef = useRef<FlatList<Ad>>(null);
   const seen = useRef(new Set<string>());
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 70 }).current;
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 65 }).current;
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: { item: Ad }[] }) => {
       const id = viewableItems[0]?.item.id ?? "";
@@ -37,112 +55,210 @@ export default function Home() {
       }
     },
   ).current;
-  const itemHeight = Math.min(Math.max(height - 238, 430), 680);
-  const visible = ads
-    .filter((ad) => ad.status === "active" && !blockedOwners.includes(ad.ownerId))
-    .sort((a, b) =>
-      tab === "latest"
-        ? b.createdAt.localeCompare(a.createdAt)
-        : Number(b.sponsored) - Number(a.sponsored),
-    );
+
+  useEffect(() => {
+    if (typeof params.category === "string" && params.category) {
+      setCategoryFilter(params.category);
+      setTab("latest");
+    }
+  }, [params.category, setCategoryFilter]);
+
+  const itemHeight = Math.max(height - TAB_BAR - insets.bottom, 520);
+
+  const cities = useMemo(
+    () =>
+      productData.cities.map((city) => ({
+        id: city.id,
+        region: city.region,
+        countryCode: "SA" as const,
+      })),
+    [productData.cities],
+  );
+
+  const visible = useMemo(
+    () =>
+      rankFeedAds(ads, {
+        mode: tab,
+        marketCode,
+        categoryId: categoryFilter || undefined,
+        cities,
+        metrics,
+        blockedOwners,
+      }),
+    [ads, blockedOwners, categoryFilter, cities, marketCode, metrics, tab],
+  );
+
+  useEffect(() => {
+    if (!params.focus || !ready) return;
+    const index = visible.findIndex((ad) => ad.id === params.focus);
+    if (index < 0) return;
+    const timer = setTimeout(() => {
+      listRef.current?.scrollToIndex({ index, animated: true });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [params.focus, ready, visible]);
 
   if (!ready) {
     return (
-      <ScreenContainer>
-        <View style={styles.center}>
-          <ActivityIndicator color={BRAND.yellowDark} size="large" />
-        </View>
-      </ScreenContainer>
+      <View style={[styles.root, styles.center]}>
+        <ActivityIndicator color={BRAND.yellowDark} size="large" />
+      </View>
     );
   }
 
   return (
-    <ScreenContainer>
-      <View style={[styles.header, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-        <View>
-          <Text style={styles.logo}>إعلاني</Text>
-          <Text style={styles.logoEn}>E3lani</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={t("search")} onPress={() => router.push("/search" as never)} style={styles.search}>
-          <Text style={styles.searchText}>{t("search")}</Text>
-          <MaterialIcons accessible={false} name="search" size={23} color={BRAND.black} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("notifications")}
-          onPress={() => router.push("/account/notifications" as never)}
-          style={styles.bell}
-        >
-          <MaterialIcons accessible={false} name="notifications-none" size={25} color={BRAND.black} />
-        </Pressable>
-      </View>
-      <View style={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-        {["forYou", "near", "latest"].map((key) => (
-          <Pill key={key} label={t(key)} active={tab === key} onPress={() => setTab(key)} />
-        ))}
-      </View>
+    <View style={styles.root}>
       <FlatList
+        ref={listRef}
         data={visible}
         keyExtractor={(ad) => ad.id}
+        pagingEnabled
+        decelerationRate="fast"
+        snapToInterval={itemHeight}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        showsVerticalScrollIndicator={false}
+        getItemLayout={(_, index) => ({
+          length: itemHeight,
+          offset: itemHeight * index,
+          index,
+        })}
         renderItem={({ item }) => (
-          <View style={{ height: itemHeight, justifyContent: "center" }}>
-            <AdCard ad={item} height={itemHeight - 12} active={active === item.id} />
+          <View style={{ height: itemHeight, width }}>
+            <AdCard ad={item} height={itemHeight} active={active === item.id} fullscreen />
           </View>
         )}
         ListEmptyComponent={
-          <EmptyState
-            icon="campaign"
-            title={t("empty")}
-            text={t("emptyHelp")}
-            actionLabel={t("createAd")}
-            onAction={() => router.push("/create-ad" as never)}
-          />
+          <View style={[styles.emptyWrap, { height: itemHeight }]}>
+            <EmptyState
+              icon="campaign"
+              title={t("noAds")}
+              text={t("noAdsHelp")}
+              actionLabel={t("create")}
+              onAction={() => router.push("/(tabs)/create" as never)}
+            />
+          </View>
         }
-        contentContainerStyle={[styles.list, width > 700 && styles.web]}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={itemHeight}
-        decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         initialNumToRender={2}
         windowSize={3}
       />
-    </ScreenContainer>
+
+      <View pointerEvents="box-none" style={[styles.overlay, { paddingTop: insets.top }]}>
+        <BrandTicker />
+        <View style={[styles.feedHead, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("search")}
+            onPress={() => router.push("/search" as never)}
+            style={styles.round}
+          >
+            <MaterialIcons name="search" size={22} color={BRAND.white} />
+          </Pressable>
+
+          <View style={styles.tabs}>
+            {(
+              [
+                ["forYou", t("forYou")],
+                ["nearby", t("near")],
+                ["latest", t("latest")],
+              ] as const
+            ).map(([key, label]) => (
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: tab === key }}
+                onPress={() => {
+                  setTab(key);
+                  if (key !== "latest") setCategoryFilter("");
+                }}
+                style={[styles.tab, tab === key && styles.tabActive]}
+              >
+                <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("notifications")}
+            onPress={() => router.push("/account/notifications" as never)}
+            style={styles.round}
+          >
+            <MaterialIcons name="notifications-none" size={22} color={BRAND.white} />
+          </Pressable>
+        </View>
+
+        {categoryFilter ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setCategoryFilter("")}
+            style={styles.filterChip}
+          >
+            <Text style={styles.filterText}>
+              {productData.categories.find((item) => item.id === categoryFilter)?.ar ?? categoryFilter}
+            </Text>
+            <MaterialIcons name="close" size={16} color={BRAND.white} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: {
-    minHeight: 68,
-    paddingHorizontal: 15,
-    alignItems: "center",
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: BRAND.border,
+  root: { flex: 1, backgroundColor: BRAND.black },
+  center: { alignItems: "center", justifyContent: "center" },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
   },
-  logo: { color: BRAND.black, fontSize: 20, lineHeight: 23, fontWeight: "900" },
-  logoEn: {
-    color: BRAND.muted,
-    fontSize: 9,
-    lineHeight: 12,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  search: {
-    flex: 1,
-    maxWidth: 430,
-    minHeight: 44,
-    borderRadius: 15,
-    paddingHorizontal: 13,
-    backgroundColor: BRAND.surface,
-    flexDirection: "row-reverse",
+  feedHead: {
+    marginTop: 8,
+    paddingHorizontal: 12,
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
-  searchText: { flex: 1, color: BRAND.muted, fontSize: 13, lineHeight: 18, textAlign: "right" },
-  bell: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  chips: { paddingHorizontal: 13, paddingVertical: 8, gap: 7 },
-  list: { flexGrow: 1, paddingHorizontal: 10 },
-  web: { maxWidth: 850, width: "100%", alignSelf: "center" },
+  round: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.19)",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabs: {
+    flexDirection: "row",
+    padding: 3,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    gap: 2,
+  },
+  tab: {
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  tabActive: { backgroundColor: BRAND.yellow },
+  tabText: { color: "#eee", fontSize: 12, fontWeight: "900" },
+  tabTextActive: { color: BRAND.black },
+  filterChip: {
+    alignSelf: "center",
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  filterText: { color: BRAND.white, fontSize: 12, fontWeight: "800" },
+  emptyWrap: { justifyContent: "center", paddingHorizontal: 24 },
 });

@@ -9,6 +9,7 @@ import { Field, OutlineButton, Pill, PrimaryButton, ScreenTitle } from "@/compon
 import { ScreenContainer } from "@/components/screen-container";
 import {
   BRAND,
+  isPaymentFlowVisible,
   type AdContact,
   type AdMedia,
   type ContactType,
@@ -42,6 +43,11 @@ export default function CreateAd() {
   const store = useE3lani();
   const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
+  const paymentVisible = isPaymentFlowVisible(
+    store.launchMode,
+    Boolean(productData.config?.paymentEnabled),
+  );
+  const totalSteps = paymentVisible ? 5 : 4;
   const [step, setStep] = useState(1);
   const [media, setMedia] = useState<AdMedia[]>([]);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
@@ -272,7 +278,11 @@ export default function CreateAd() {
     if (step === 1 && !media.length) return Alert.alert(t("mediaHelp"));
     if (step === 2 && (title.trim().length < 4 || description.trim().length < 20)) return Alert.alert(t("error"));
     if (step === 3 && !contacts.length) return Alert.alert(t("contact"));
-    if (step < 5) {
+    if (paymentVisible && step === 4) {
+      setStep(5);
+      return;
+    }
+    if (step < totalSteps) {
       setStep((current) => current + 1);
       return;
     }
@@ -282,13 +292,20 @@ export default function CreateAd() {
       categoryId,
       cityId,
       contacts,
-      promotions,
+      promotions: paymentVisible ? promotions : [],
       media,
     });
-    router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
+    if (paymentVisible && ad.status === "awaiting_payment") {
+      router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
+      return;
+    }
+    Alert.alert(t("success"), t("freePublish"));
+    router.replace("/(tabs)" as never);
   };
 
-  const quote = productData.calculateQuote(promotions);
+  const quote = paymentVisible
+    ? productData.calculateQuote(promotions)
+    : { items: [] as PromotionCode[], totalHalalas: 0, vatHalalas: 0 };
   const city = productData.cities.find((item) => item.id === cityId);
   const cityName = locale === "ar" ? city?.ar : city?.en;
 
@@ -299,13 +316,20 @@ export default function CreateAd() {
           <MaterialIcons name="close" size={27} color={BRAND.black} />
         </Pressable>
         <Text style={styles.headerTitle}>{t("postTitle")}</Text>
-        <Text style={styles.step}>{step}/5</Text>
+        <Text style={styles.step}>{step}/{totalSteps}</Text>
       </View>
       <View style={styles.progressDots}>
-        {[1, 2, 3, 4, 5].map((value) => (
+        {Array.from({ length: totalSteps }, (_, index) => index + 1).map((value) => (
           <View key={value} style={[styles.dot, { backgroundColor: value <= step ? BRAND.yellowDark : BRAND.border }]} />
         ))}
       </View>
+
+      {!paymentVisible ? (
+        <View style={styles.freeBanner}>
+          <Text style={styles.freeBannerTitle}>{t("freePublish")}</Text>
+          <Text style={styles.freeBannerText}>{t("freePublishHelp")}</Text>
+        </View>
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         {step === 1 ? (
@@ -382,7 +406,7 @@ export default function CreateAd() {
           </View>
         ) : null}
 
-        {step === 4 ? (
+        {paymentVisible && step === 4 ? (
           <View>
             <ScreenTitle title={t("promotion")} />
             {productData.promotions.map((option) => {
@@ -411,7 +435,7 @@ export default function CreateAd() {
           </View>
         ) : null}
 
-        {step === 5 ? (
+        {step === totalSteps ? (
           <View>
             <ScreenTitle title={t("preview")} />
             <View style={styles.preview}>
@@ -432,7 +456,12 @@ export default function CreateAd() {
           {step > 1 ? <OutlineButton label={t("previous")} icon="arrow-forward" onPress={() => setStep((current) => current - 1)} /> : null}
         </View>
         <View style={styles.footerNext}>
-          <PrimaryButton disabled={step === 1 && uploads.some((item) => item.status !== "ready")} label={step === 5 ? t("pay") : t("next")} icon={step === 5 ? "payments" : "arrow-back"} onPress={next} />
+          <PrimaryButton
+            disabled={step === 1 && uploads.some((item) => item.status !== "ready")}
+            label={step === totalSteps ? (paymentVisible ? t("pay") : t("publishNow")) : t("next")}
+            icon={step === totalSteps ? (paymentVisible ? "payments" : "campaign") : "arrow-back"}
+            onPress={next}
+          />
         </View>
       </View>
     </ScreenContainer>
@@ -442,6 +471,17 @@ export default function CreateAd() {
 const styles = StyleSheet.create({
   gate: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 18 },
   gateTitle: { color: BRAND.black, fontSize: 22, lineHeight: 30, fontWeight: "900" },
+  freeBanner: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#f0d45e",
+    backgroundColor: "#fff7d2",
+  },
+  freeBannerTitle: { color: BRAND.black, fontSize: 13, fontWeight: "900", textAlign: "right" },
+  freeBannerText: { marginTop: 4, color: BRAND.black, fontSize: 12, lineHeight: 18, textAlign: "right" },
   header: { minHeight: 58, paddingHorizontal: 12, alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: BRAND.border },
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: BRAND.black, fontSize: 17, lineHeight: 24, fontWeight: "900" },

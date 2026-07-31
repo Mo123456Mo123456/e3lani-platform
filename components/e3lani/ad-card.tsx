@@ -78,16 +78,47 @@ export function MediaView({
   );
 }
 
-export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: number; active?: boolean }) {
+export function AdCard({
+  ad,
+  height = 540,
+  active = false,
+  fullscreen = false,
+}: {
+  ad: Ad;
+  height?: number;
+  active?: boolean;
+  fullscreen?: boolean;
+}) {
   const { locale, isRTL, t } = useI18n();
   const { brand, savedIds, toggleSave, recordMetric, metrics } = useE3lani();
   const productData = useProductData();
   const city = productData.cities.find((item) => item.id === ad.cityId);
+  const category = productData.categories.find((item) => item.id === ad.categoryId);
   const saved = savedIds.includes(ad.id);
   const metric = metrics[ad.id];
   const saves = metric?.saves?.toLocaleString() ?? "0";
   const shares = metric?.shares?.toLocaleString() ?? "0";
   const views = metric?.views?.toLocaleString() ?? "0";
+  const ownerName = brand?.name ?? "إعلاني";
+  const contact = ad.contacts[0];
+  const ctaLabel =
+    contact?.type === "whatsapp"
+      ? locale === "ar"
+        ? "تواصل عبر واتساب"
+        : "WhatsApp"
+      : contact?.type === "phone"
+        ? locale === "ar"
+          ? "اتصال بالمعلن"
+          : "Call advertiser"
+        : contact?.type === "product"
+          ? locale === "ar"
+            ? "صفحة المنتج"
+            : "Product page"
+          : contact?.type === "store"
+            ? locale === "ar"
+              ? "زيارة المتجر"
+              : "Visit store"
+            : t("details");
 
   const save = (event: GestureResponderEvent) => {
     event.stopPropagation();
@@ -100,19 +131,31 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
     await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
   };
 
+  const openDetails = () => router.push({ pathname: "/ad/[id]", params: { id: ad.id } } as never);
+
   return (
     <Pressable
       accessible
       accessibilityRole="link"
       accessibilityLabel={ad.title}
       accessibilityHint={locale === "ar" ? "يفتح تفاصيل الإعلان" : "Opens ad details"}
-      onPress={() => router.push({ pathname: "/ad/[id]", params: { id: ad.id } } as never)}
-      style={({ pressed }) => [styles.card, { height, opacity: pressed ? 0.96 : 1 }]}
+      onPress={openDetails}
+      style={({ pressed }) => [
+        styles.card,
+        fullscreen && styles.cardFullscreen,
+        { height, opacity: pressed ? 0.98 : 1 },
+      ]}
     >
       <MediaView media={ad.media[0]} active={active} accessibilityLabel={ad.title} />
-      <View accessible={false} style={styles.scrim} />
+      <View accessible={false} style={[styles.scrim, fullscreen && styles.scrimFullscreen]} />
 
-      <View style={[styles.badges, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+      <View
+        style={[
+          styles.badges,
+          fullscreen && styles.badgesFullscreen,
+          { flexDirection: isRTL ? "row-reverse" : "row" },
+        ]}
+      >
         {ad.sponsored ? (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{t("sponsored")}</Text>
@@ -125,7 +168,15 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
         ) : null}
       </View>
 
-      <View style={styles.actions}>
+      {fullscreen ? (
+        <View style={styles.mediaLabel}>
+          <Text style={styles.mediaLabelText}>
+            {ad.media[0]?.kind === "video" ? (locale === "ar" ? "فيديو" : "Video") : locale === "ar" ? "صورة" : "Photo"}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={[styles.actions, fullscreen && styles.actionsFullscreen]}>
         <Pressable
           accessible
           accessibilityRole="button"
@@ -134,13 +185,15 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
           onPress={save}
           style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         >
-          <MaterialIcons
-            accessible={false}
-            name={saved ? "bookmark" : "bookmark-border"}
-            size={25}
-            color={saved ? BRAND.yellow : BRAND.white}
-          />
-          <Text style={styles.actionText}>{saves}</Text>
+          <View style={[styles.actionIcon, saved && styles.actionIconSaved]}>
+            <MaterialIcons
+              accessible={false}
+              name={saved ? "favorite" : "favorite-border"}
+              size={22}
+              color={saved ? BRAND.black : BRAND.white}
+            />
+          </View>
+          <Text style={styles.actionText}>{fullscreen ? t("save") : saves}</Text>
         </Pressable>
         <Pressable
           accessible
@@ -149,26 +202,62 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
           onPress={share}
           style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         >
-          <MaterialIcons accessible={false} name="share" size={24} color={BRAND.white} />
-          <Text style={styles.actionText}>{shares}</Text>
+          <View style={styles.actionIcon}>
+            <MaterialIcons accessible={false} name="share" size={22} color={BRAND.white} />
+          </View>
+          <Text style={styles.actionText}>{fullscreen ? t("share") : shares}</Text>
         </Pressable>
-        <View accessible accessibilityLabel={`${t("views")}: ${views}`} style={styles.action}>
-          <MaterialIcons accessible={false} name="visibility" size={24} color={BRAND.white} />
-          <Text style={styles.actionText}>{views}</Text>
-        </View>
+        {!fullscreen ? (
+          <View accessible accessibilityLabel={`${t("views")}: ${views}`} style={styles.action}>
+            <MaterialIcons accessible={false} name="visibility" size={24} color={BRAND.white} />
+            <Text style={styles.actionText}>{views}</Text>
+          </View>
+        ) : (
+          <Pressable
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t("report")}
+            onPress={(event) => {
+              event.stopPropagation();
+              openDetails();
+            }}
+            style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+          >
+            <View style={styles.actionIcon}>
+              <MaterialIcons accessible={false} name="report-gmailerrorred" size={22} color={BRAND.white} />
+            </View>
+            <Text style={styles.actionText}>{t("report")}</Text>
+          </Pressable>
+        )}
       </View>
 
-      <View style={[styles.copy, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
+      <View
+        style={[
+          styles.copy,
+          fullscreen && styles.copyFullscreen,
+          { alignItems: isRTL ? "flex-end" : "flex-start" },
+        ]}
+      >
         <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{brand?.name.slice(0, 1) ?? "إ"}</Text>
+          <View style={[styles.avatar, fullscreen && styles.avatarFullscreen]}>
+            <Text style={styles.avatarText}>{ownerName.slice(0, 1)}</Text>
           </View>
-          <Text numberOfLines={1} style={styles.brandName}>
-            {brand?.name ?? "إعلاني"}
-          </Text>
-          {ad.verified ? (
-            <MaterialIcons accessible={false} name="verified" size={18} color={BRAND.yellow} />
-          ) : null}
+          <View style={{ flexShrink: 1 }}>
+            <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+              <Text numberOfLines={1} style={styles.brandName}>
+                {ownerName}
+              </Text>
+              {ad.verified ? (
+                <MaterialIcons accessible={false} name="verified" size={18} color={BRAND.yellow} />
+              ) : null}
+            </View>
+            {fullscreen ? (
+              <Text style={styles.metaLine}>
+                {(locale === "ar" ? city?.ar : city?.en) ?? "—"} ·{" "}
+                {(locale === "ar" ? category?.ar : category?.en) ?? "—"}
+              </Text>
+            ) : null}
+          </View>
         </View>
         <Text numberOfLines={2} style={[styles.adTitle, { textAlign: isRTL ? "right" : "left" }]}>
           {ad.title}
@@ -176,12 +265,14 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
         <Text numberOfLines={2} style={[styles.description, { textAlign: isRTL ? "right" : "left" }]}>
           {ad.description}
         </Text>
-        <View style={[styles.location, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-          <MaterialIcons accessible={false} name="location-on" size={16} color={BRAND.white} />
-          <Text style={styles.locationText}>{(locale === "ar" ? city?.ar : city?.en) ?? "—"}</Text>
-        </View>
-        <View accessible={false} style={styles.cta}>
-          <Text style={styles.ctaText}>{t("details")}</Text>
+        {!fullscreen ? (
+          <View style={[styles.location, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+            <MaterialIcons accessible={false} name="location-on" size={16} color={BRAND.white} />
+            <Text style={styles.locationText}>{(locale === "ar" ? city?.ar : city?.en) ?? "—"}</Text>
+          </View>
+        ) : null}
+        <View accessible={false} style={[styles.cta, fullscreen && styles.ctaFullscreen]}>
+          <Text style={styles.ctaText}>{ctaLabel}</Text>
           <MaterialIcons
             accessible={false}
             name={isRTL ? "arrow-back" : "arrow-forward"}
@@ -203,9 +294,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: BRAND.charcoal,
   },
+  cardFullscreen: {
+    maxWidth: "100%",
+    borderRadius: 0,
+  },
   fallback: { alignItems: "center", justifyContent: "center", backgroundColor: BRAND.charcoal },
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,.29)" },
+  scrimFullscreen: { backgroundColor: "rgba(0,0,0,0.35)" },
   badges: { position: "absolute", top: 15, left: 15, right: 15, gap: 7 },
+  badgesFullscreen: { top: 104, right: 14, left: undefined, width: "auto" },
   badge: {
     minHeight: 29,
     borderRadius: 15,
@@ -216,11 +313,34 @@ const styles = StyleSheet.create({
   },
   badgeDark: { backgroundColor: "rgba(17,17,17,.8)" },
   badgeText: { color: BRAND.black, fontSize: 10, lineHeight: 14, fontWeight: "900" },
+  mediaLabel: {
+    position: "absolute",
+    top: 104,
+    left: 14,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.57)",
+  },
+  mediaLabelText: { color: BRAND.white, fontSize: 10, fontWeight: "900" },
   actions: { position: "absolute", right: 12, bottom: 88, gap: 13 },
+  actionsFullscreen: { left: 10, right: undefined, bottom: 34, gap: 14 },
   action: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", gap: 2 },
+  actionIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.19)",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionIconSaved: { backgroundColor: BRAND.yellow, borderColor: BRAND.yellow },
   actionPressed: { opacity: 0.58, transform: [{ scale: 0.97 }] },
   actionText: { color: BRAND.white, fontSize: 9, lineHeight: 13, fontWeight: "800" },
   copy: { position: "absolute", left: 17, right: 58, bottom: 18 },
+  copyFullscreen: { right: 82, left: 16, bottom: 24 },
   brandRow: { alignItems: "center", gap: 7, maxWidth: "100%" },
   avatar: {
     width: 34,
@@ -230,8 +350,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  avatarFullscreen: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: BRAND.white,
+  },
   avatarText: { color: BRAND.black, fontSize: 16, lineHeight: 21, fontWeight: "900" },
   brandName: { color: BRAND.white, maxWidth: 220, fontSize: 13, lineHeight: 19, fontWeight: "900" },
+  metaLine: { marginTop: 3, color: "#ddd", fontSize: 11, lineHeight: 16 },
   adTitle: { marginTop: 11, color: BRAND.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   description: { marginTop: 5, color: "#EFEFEF", fontSize: 13, lineHeight: 20 },
   location: { marginTop: 7, alignItems: "center", gap: 4 },
@@ -247,6 +375,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
+  },
+  ctaFullscreen: {
+    width: "100%",
+    height: 49,
+    justifyContent: "space-between",
   },
   ctaText: { color: BRAND.black, fontSize: 13, lineHeight: 18, fontWeight: "900" },
 });
