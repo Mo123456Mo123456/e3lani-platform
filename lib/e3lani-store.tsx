@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import {
+  addDaysIso,
   extendAdPeriod,
   moderatePendingAd,
   republishExpiredAd,
@@ -22,6 +23,7 @@ import {
   type AuditLog,
   type BrandProfile,
   type Invoice,
+  type MarketCode,
   type Metrics,
   type NotificationItem,
   type Order,
@@ -40,6 +42,12 @@ type NewAd = {
   promotions: PromotionCode[];
 };
 
+type FreeAd = NewAd & {
+  countryCode: MarketCode;
+  cityName: string;
+  displayOwner: string;
+};
+
 type State = {
   ready: boolean;
   loadError: "storage_load_failed" | null;
@@ -54,6 +62,7 @@ type State = {
   invoices: Invoice[];
   audit: AuditLog[];
   blockedOwners: string[];
+  market: MarketCode;
 };
 
 type Value = State & {
@@ -63,6 +72,7 @@ type Value = State & {
   upsertBrand: (data: Partial<BrandProfile>) => void;
   requestVerification: () => void;
   createAd: (data: NewAd) => Ad;
+  publishFreeAd: (data: FreeAd) => Ad;
   toggleSave: (id: string) => void;
   recordMetric: (id: string, key: keyof Metrics) => void;
   submitReport: (id: string, reason: string, details?: string) => void;
@@ -79,6 +89,7 @@ type Value = State & {
   resolveReport: (id: string, resolution: string) => void;
   retryLoad: () => void;
   continueWithFreshState: () => void;
+  selectMarket: (market: MarketCode) => void;
 };
 
 const zero: Metrics = { impressions: 0, views: 0, saves: 0, shares: 0, contacts: 0 };
@@ -91,9 +102,11 @@ const initial: State = {
   ads: seedAds,
   savedIds: [],
   blockedOwners: [],
+  market: "SA",
   metrics: {
     AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
     AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
+    AD10003: { impressions: 21874, views: 21874, saves: 204, shares: 97, contacts: 84 },
   },
   notifications: [
     {
@@ -204,6 +217,41 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           ...current,
           ads: [ad, ...current.ads],
           metrics: { ...current.metrics, [ad.id]: { ...zero } },
+        }));
+        return ad;
+      },
+      publishFreeAd: (data) => {
+        const now = new Date().toISOString();
+        const ad: Ad = {
+          id: uid("AD"),
+          ownerId: state.user?.id ?? "local-user",
+          brandId: state.brand?.id,
+          ...data,
+          displayAvatar: data.displayOwner.slice(0, 1) || "م",
+          status: "active",
+          revision: 1,
+          verified: Boolean(state.brand?.verified && state.user),
+          featured: false,
+          sponsored: false,
+          createdAt: now,
+          activatedAt: now,
+          expiresAt: addDaysIso(now, 30),
+        };
+        setState((current) => ({
+          ...current,
+          ads: [ad, ...current.ads],
+          metrics: { ...current.metrics, [ad.id]: { ...zero } },
+          notifications: [
+            {
+              id: uid("N"),
+              title: "تم نشر إعلانك",
+              body: `${ad.title} أصبح ظاهرًا في الموجز المحلي.`,
+              read: false,
+              createdAt: now,
+              kind: "system",
+            },
+            ...current.notifications,
+          ],
         }));
         return ad;
       },
@@ -340,6 +388,7 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         void loadStoredState();
       },
       continueWithFreshState: () => setState({ ...initial, ready: true, loadError: null }),
+      selectMarket: (market) => setState((current) => ({ ...current, market })),
     }),
     [loadStoredState, state],
   );
