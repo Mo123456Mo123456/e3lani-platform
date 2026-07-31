@@ -188,7 +188,7 @@ export function AdCard({
       <MediaView media={media} active={active} muted={muted} accessibilityLabel={ad.title} />
       <View accessible={false} style={styles.scrim} />
 
-      <View style={[styles.badges, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+      <View style={[styles.badges, isRTL ? { right: 14 } : { left: 14 }]}>
         {ad.sponsored ? (
           <View style={styles.badgePaid}>
             <Text style={styles.badgePaidText}>{t("sponsored")}</Text>
@@ -341,10 +341,8 @@ const styles = StyleSheet.create({
   badges: {
     position: "absolute",
     top: 104,
-    right: 14,
-    left: 14,
+    flexDirection: "row",
     gap: 6,
-    justifyContent: "flex-end",
   },
   badge: {
     minHeight: 28,

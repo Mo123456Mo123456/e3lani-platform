@@ -116,7 +116,7 @@ export default function Profile() {
   );
 
   return (
-    <ScreenContainer edges={["left", "right"]}>
+    <ScreenContainer>
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.cover} />
         <View style={styles.main}>
@@ -124,7 +124,7 @@ export default function Profile() {
             {user?.avatarUri ? (
               <Image source={{ uri: user.avatarUri }} style={styles.avatarImage} contentFit="cover" />
             ) : (
-              <Text style={styles.avatarText}>{displayName.slice(0, 1)}</Text>
+              <Text style={styles.avatarText}>{(displayName || "م").slice(0, 1)}</Text>
             )}
           </Pressable>
           <Text style={[styles.name, { textAlign: isRTL ? "right" : "left" }]}>{displayName}</Text>
@@ -450,7 +450,6 @@ const styles = StyleSheet.create({
   empty: {
     padding: 30,
     borderWidth: 1,
-    borderStyle: "dashed",
     borderColor: "#ccc",
     borderRadius: 18,
     backgroundColor: BRAND.white,

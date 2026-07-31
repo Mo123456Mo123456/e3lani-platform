@@ -28,7 +28,6 @@ export default function Home() {
   const { ads, blockedOwners, ready, recordMetric, market, metrics } = useE3lani();
   const { isRTL, t } = useI18n();
   const [tab, setTab] = useState<FeedMode>("forYou");
-  const [categoryId, setCategoryId] = useState<string | undefined>();
   const [active, setActive] = useState("");
   const seen = useRef(new Set<string>());
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 70 }).current;
@@ -44,16 +43,15 @@ export default function Home() {
     },
   ).current;
 
-  const itemHeight = Math.max(height - TAB_BAR - insets.bottom, 520);
+  const itemHeight = Math.max(height - TAB_BAR - Math.max(insets.bottom, 0), 520);
   const visible = useMemo(
     () =>
       rankFeedAds(ads, tab, {
         market,
-        categoryId,
         blockedOwners,
         metrics,
       }),
-    [ads, blockedOwners, categoryId, market, metrics, tab],
+    [ads, blockedOwners, market, metrics, tab],
   );
 
   if (!ready) {
@@ -66,52 +64,8 @@ export default function Home() {
 
   return (
     <View style={styles.root}>
-      <BrandTicker />
-
-      <View style={[styles.head, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("search")}
-          onPress={() => router.push("/search" as never)}
-          style={styles.round}
-        >
-          <MaterialIcons name="search" size={22} color={BRAND.white} />
-        </Pressable>
-
-        <View style={[styles.tabs, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
-          {(
-            [
-              ["forYou", t("forYou")],
-              ["near", t("near")],
-              ["latest", t("latest")],
-            ] as const
-          ).map(([key, label]) => (
-            <Pressable
-              key={key}
-              accessibilityRole="button"
-              accessibilityState={{ selected: tab === key }}
-              onPress={() => {
-                setTab(key);
-                setCategoryId(undefined);
-              }}
-              style={[styles.tab, tab === key && styles.tabActive]}
-            >
-              <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("notifications")}
-          onPress={() => router.push("/account/notifications" as never)}
-          style={styles.round}
-        >
-          <MaterialIcons name="notifications-none" size={22} color={BRAND.white} />
-        </Pressable>
-      </View>
-
       <FlatList
+        style={styles.feed}
         data={visible}
         keyExtractor={(ad) => ad.id}
         renderItem={({ item }) => (
@@ -144,12 +98,59 @@ export default function Home() {
           index,
         })}
       />
+
+      <View style={styles.overlay} pointerEvents="box-none">
+        <BrandTicker />
+        <View style={[styles.head, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("search")}
+            onPress={() => router.push("/search" as never)}
+            style={styles.round}
+          >
+            <MaterialIcons name="search" size={22} color={BRAND.white} />
+          </Pressable>
+
+          <View style={[styles.tabs, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            {(
+              [
+                ["forYou", t("forYou")],
+                ["near", t("near")],
+                ["latest", t("latest")],
+              ] as const
+            ).map(([key, label]) => (
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: tab === key }}
+                onPress={() => setTab(key)}
+                style={[styles.tab, tab === key && styles.tabActive]}
+              >
+                <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("notifications")}
+            onPress={() => router.push("/account/notifications" as never)}
+            style={styles.round}
+          >
+            <MaterialIcons name="notifications-none" size={22} color={BRAND.white} />
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BRAND.black },
+  feed: { flex: 1 },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   loading: {
     flex: 1,
     alignItems: "center",
@@ -157,11 +158,7 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND.black,
   },
   head: {
-    position: "absolute",
-    zIndex: 20,
-    top: 48,
-    left: 0,
-    right: 0,
+    marginTop: 8,
     paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "space-between",
