@@ -12,8 +12,8 @@ import { speciesName } from "../names.js";
  */
 export function applyDiseases(world: WorldState): void {
   // New spontaneous outbreaks (contribution diseases enter via applyContribution).
-  if (world.tick % 7 === 0 && chance(world.rng, "disease", 0.06)) {
-    const crowded = world.cities.filter((c) => !c.fallen && c.population > 1500);
+  if (world.tick % 7 === 0 && chance(world.rng, "disease", 0.15)) {
+    const crowded = world.cities.filter((c) => !c.fallen && c.population > 400);
     if (crowded.length > 0) {
       const city = crowded[Math.floor(random(world.rng, "disease") * crowded.length)]!;
       const civ = world.civs.find((c) => c.id === city.civId);

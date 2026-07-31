@@ -35,10 +35,23 @@ function carryingCapacity(world: WorldState, s: Species, cell: number): number {
  * Ecology: logistic growth toward carrying capacity, Lotka–Volterra-inspired
  * predation, cellular spread to suitable neighbours, mutation and extinction.
  */
+const MAX_SPECIES = 1500;
+const MUTATIONS_PER_TICK = 2;
+
 export function applyEcology(world: WorldState): void {
   const plantGrowthLaw = world.laws.find((l) => l.modifier === "plantGrowthMultiplier");
   const byId = new Map(world.species.map((s) => [s.id, s]));
-  const herbivores = world.species.filter((s) => s.kind === "fauna" && !s.extinct && s.diet !== "carnivore");
+  // floraId -> grazing species (built once per tick, not per cell).
+  const preyMap = new Map<number, Species[]>();
+  for (const s of world.species) {
+    if (s.kind !== "fauna" || s.extinct || s.diet === "carnivore") continue;
+    for (const preyId of s.prey) {
+      const list = preyMap.get(preyId) ?? [];
+      list.push(s);
+      preyMap.set(preyId, list);
+    }
+  }
+  let mutationBudget = world.species.length < MAX_SPECIES ? MUTATIONS_PER_TICK : 0;
 
   for (const s of world.species) {
     if (s.extinct) continue;
@@ -68,10 +81,8 @@ export function applyEcology(world: WorldState): void {
       }
       // Herbivores consume flora in the cell.
       if (s.kind === "flora") {
-        for (const other of herbivores) {
-          if (!other.prey.includes(s.id)) continue;
-          const grazers = other.cells[key] ?? 0;
-          next -= grazers * 0.15;
+        for (const grazer of preyMap.get(s.id) ?? []) {
+          next -= (grazer.cells[key] ?? 0) * 0.15;
         }
       }
 
@@ -116,6 +127,13 @@ export function applyEcology(world: WorldState): void {
       }
     }
 
+    // Range limit: keep the strongest cells, bounding per-tick cost.
+    const keys = Object.keys(s.cells);
+    if (keys.length > 60) {
+      keys.sort((a, b) => (s.cells[b] ?? 0) - (s.cells[a] ?? 0));
+      for (const k of keys.slice(60)) delete s.cells[k];
+    }
+
     // Extinction check.
     if (speciesPopulation(s) < EXTINCTION_THRESHOLD) {
       s.extinct = true;
@@ -129,8 +147,10 @@ export function applyEcology(world: WorldState): void {
       continue;
     }
 
-    // Mutation: a subspecies with perturbed traits.
-    if (chance(world.rng, "mutation", s.mutationRate * (0.5 + s.adaptability))) {
+    // Mutation: a subspecies with perturbed traits. Globally budgeted so
+    // species count stays bounded over millennia of ticks.
+    if (mutationBudget > 0 && chance(world.rng, "mutation", s.mutationRate * (0.5 + s.adaptability) * 0.25)) {
+      mutationBudget -= 1;
       const child: Species = {
         ...s,
         id: nextId(world, "species"),

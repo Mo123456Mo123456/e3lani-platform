@@ -12,13 +12,13 @@ export interface WorldCreateConfig extends Partial<PlanetGenConfig> {
   worldId: string;
   name: string;
   seed: number;
-  yearsPerTick: number;
-  plantSpecies: number;
-  animalSpecies: number;
-  civilizations: number;
+  yearsPerTick?: number;
+  plantSpecies?: number;
+  animalSpecies?: number;
+  civilizations?: number;
 }
 
-export const DEFAULT_WORLD_CONFIG: Omit<WorldCreateConfig, "worldId" | "name" | "seed"> = {
+export const DEFAULT_WORLD_CONFIG = {
   ...DEFAULT_GEN_CONFIG,
   yearsPerTick: 1,
   plantSpecies: 800,
@@ -93,9 +93,9 @@ export function createWorld(config: WorldCreateConfig): WorldState {
     importance: 1,
   });
 
-  seedFlora(world, merged.plantSpecies);
-  seedFauna(world, merged.animalSpecies);
-  seedCivilizations(world, merged.civilizations);
+  seedFlora(world, merged.plantSpecies ?? DEFAULT_WORLD_CONFIG.plantSpecies);
+  seedFauna(world, merged.animalSpecies ?? DEFAULT_WORLD_CONFIG.animalSpecies);
+  seedCivilizations(world, merged.civilizations ?? DEFAULT_WORLD_CONFIG.civilizations);
   return world;
 }
 
@@ -260,6 +260,9 @@ function seedCivilizations(world: WorldState, count: number): void {
     for (const other of world.civs) {
       if (other.id !== civ.id) world.relations[relationKey(other.id, civ.id)] = 0;
     }
+    // Founding civs already master the basics (agriculture, irrigation, writing).
+    civ.techLevel = 2;
+    for (let tier = 0; tier <= 2; tier++) ensureTech(world, tier, civ.id);
     emitEvent(world, {
       type: WorldEventType.CivilizationFounded,
       cellIndex: cell,

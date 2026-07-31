@@ -17,6 +17,7 @@ const DECISION_INTERVAL = 4; // civs reassess every N ticks
  * knowledge) and executes the best one — Utility AI, fully seeded.
  */
 export function applyCivilizations(world: WorldState): void {
+  if (world.tick % DECISION_INTERVAL === 0) updateRelations(world);
   for (const civ of world.civs) {
     if (civ.fallen) continue;
     updateNeeds(world, civ);
@@ -87,11 +88,48 @@ function growPopulation(world: WorldState, civ: Civilization): void {
 }
 
 function progressTechnology(world: WorldState, civ: Civilization): void {
-  const rate = civ.curiosity * civ.education * civ.stability * 0.004;
-  if (civ.techLevel < TECH_TIER_COUNT - 1 && chance(world.rng, "tech", rate * (1 + civ.techLevel * 0.1))) {
+  const rate = civ.curiosity * (0.2 + civ.education) * civ.stability * 0.15 * (1 + civ.techLevel * 0.1);
+  if (civ.techLevel < TECH_TIER_COUNT - 1 && chance(world.rng, "tech", rate)) {
     civ.techLevel += 1;
-    civ.education = clamp01(civ.education + 0.01);
+    civ.education = clamp01(civ.education + 0.03);
     ensureTech(world, civ.techLevel, civ.id);
+  }
+}
+
+/**
+ * Slow diplomatic drift: open civs warm toward tradeability; civs sharing a
+ * border accumulate territorial friction. This is what makes trade, alliances
+ * and wars emerge from geography and history — never at random.
+ */
+function updateRelations(world: WorldState): void {
+  const alive = world.civs.filter((c) => !c.fallen);
+  for (let i = 0; i < alive.length; i++) {
+    for (let j = i + 1; j < alive.length; j++) {
+      const a = alive[i]!;
+      const b = alive[j]!;
+      if (atWar(world, a.id, b.id)) continue;
+      const current = getRelation(world, a.id, b.id);
+      const bCells = new Set(b.cells);
+      const sharesBorder = a.cells.some((cell) =>
+        neighbors4(world.grid.width, world.grid.height, cell).some((n) => bCells.has(n)),
+      );
+      const foesOf = (civId: number): number[] =>
+        world.wars
+          .filter((w) => w.endedTick === undefined)
+          .flatMap((w) => (w.attacker === civId ? [w.defender] : w.defender === civId ? [w.attacker] : []));
+      const aFoes = foesOf(a.id);
+      const sharedFoes = aFoes.some((foe) => foesOf(b.id).includes(foe));
+      if (sharedFoes) {
+        // A common enemy is the strongest bond.
+        setRelation(world, a.id, b.id, current + 0.02);
+      } else if (sharesBorder) {
+        // Proximity breeds friction, scaled by mutual aggression.
+        setRelation(world, a.id, b.id, current - 0.004 * (a.aggression + b.aggression) + 0.001);
+      } else if (current < 0.4) {
+        // Distant, unprovoked civs slowly open to contact.
+        setRelation(world, a.id, b.id, current + 0.004);
+      }
+    }
   }
 }
 
@@ -102,6 +140,22 @@ interface Candidate {
 }
 
 function decide(world: WorldState, civ: Civilization): void {
+  // Diplomatic formalization: very strong relations naturally become
+  // alliances — this does not compete with the action utility argmax.
+  if (chance(world.rng, "diplomacy", 0.3)) {
+    const partner = world.civs.find(
+      (o) =>
+        o.id !== civ.id &&
+        !o.fallen &&
+        getRelation(world, civ.id, o.id) > 0.45 &&
+        !world.alliances.some((a) => !a.brokenTick && a.civIds.includes(civ.id) && a.civIds.includes(o.id)),
+    );
+    if (partner) {
+      formAlliance(world, civ, partner.id);
+      return;
+    }
+  }
+
   const candidates: Candidate[] = [];
 
   // --- Expand territory ----------------------------------------------------
@@ -129,7 +183,7 @@ function decide(world: WorldState, civ: Civilization): void {
   );
   candidates.push({
     action: "trade",
-    utility: tradePartner ? 0.35 + civ.economy * 0.3 + getRelation(world, civ.id, tradePartner.id) * 0.2 : 0,
+    utility: tradePartner ? 0.4 + civ.economy * 0.3 + getRelation(world, civ.id, tradePartner.id) * 0.25 : 0,
     target: tradePartner?.id,
   });
 
@@ -146,21 +200,21 @@ function decide(world: WorldState, civ: Civilization): void {
     );
     const resourceNeed = 1 - civ.foodSecurity;
     const militaryEdge = civ.military * (1 + civ.techLevel * 0.1) - other.military * (1 + other.techLevel * 0.1);
-    let u = tension * 0.25 + grievance * 0.3 + (border ? 0.15 : 0) + resourceNeed * 0.2 + militaryEdge * 0.3 + civ.aggression * 0.2 - 0.55;
+    let u = tension * 0.35 + grievance * 0.35 + (border ? 0.15 : 0) + resourceNeed * 0.3 + militaryEdge * 0.3 + civ.aggression * 0.25 - 0.3;
     if (warReluctance) u *= 1 - warReluctance.factor;
     if (u > warUtility) {
       warUtility = u;
       warTarget = other;
     }
   }
-  candidates.push({ action: "war", utility: Math.max(0, warUtility), target: warTarget?.id });
+  candidates.push({ action: "war", utility: Math.max(0, warUtility + 0.05), target: warTarget?.id });
 
   // --- Alliance ----------------------------------------------------------------
   const allyCandidate = world.civs.find(
     (o) =>
       o.id !== civ.id &&
       !o.fallen &&
-      getRelation(world, civ.id, o.id) > 0.45 &&
+      getRelation(world, civ.id, o.id) > 0.3 &&
       !world.alliances.some((a) => !a.brokenTick && a.civIds.includes(civ.id) && a.civIds.includes(o.id)),
   );
   candidates.push({
@@ -223,24 +277,28 @@ function decide(world: WorldState, civ: Civilization): void {
     }
     case "ally": {
       if (best.target === undefined) break;
-      const alliance = {
-        id: nextId(world, "alliance"),
-        civIds: [civ.id, best.target],
-        createdTick: world.tick,
-        causeEvents: [],
-      };
-      world.alliances.push(alliance);
-      setRelation(world, civ.id, best.target, 0.8);
-      civ.memory.pastAllies.push(best.target);
-      emitEvent(world, {
-        type: WorldEventType.AllianceCreated,
-        civIds: [civ.id, best.target],
-        payload: { members: alliance.civIds.map((id) => world.civs.find((c) => c.id === id)?.name) },
-        importance: 0.55,
-      });
+      formAlliance(world, civ, best.target);
       break;
     }
   }
+}
+
+function formAlliance(world: WorldState, civ: Civilization, partnerId: number): void {
+  const alliance = {
+    id: nextId(world, "alliance"),
+    civIds: [civ.id, partnerId],
+    createdTick: world.tick,
+    causeEvents: [] as number[],
+  };
+  world.alliances.push(alliance);
+  setRelation(world, civ.id, partnerId, 0.8);
+  civ.memory.pastAllies.push(partnerId);
+  emitEvent(world, {
+    type: WorldEventType.AllianceCreated,
+    civIds: [civ.id, partnerId],
+    payload: { members: alliance.civIds.map((id) => world.civs.find((c) => c.id === id)?.name) },
+    importance: 0.55,
+  });
 }
 
 export function frontierCells(world: WorldState, civ: Civilization): number[] {
@@ -281,7 +339,7 @@ function establishTrade(world: WorldState, civ: Civilization, partnerId: number)
   });
   civ.economy = clamp01(civ.economy + 0.03);
   partner.economy = clamp01(partner.economy + 0.03);
-  setRelation(world, civ.id, partner.id, getRelation(world, civ.id, partner.id) + 0.05);
+  setRelation(world, civ.id, partner.id, getRelation(world, civ.id, partner.id) + 0.1);
   emitEvent(world, {
     type: WorldEventType.TradeRouteCreated,
     cellIndex: from.cell,
@@ -307,7 +365,7 @@ export function startWar(world: WorldState, attacker: Civilization, defenderId: 
   world.wars.push(war);
   setRelation(world, attacker.id, defenderId, -1);
   defender.memory.grievances.push({ civId: attacker.id, weight: 0.5, tick: world.tick });
-  emitEvent(world, {
+  const ev = emitEvent(world, {
     type: WorldEventType.WarStarted,
     civIds: [attacker.id, defenderId],
     cellIndex: defender.capitalCell,
@@ -316,6 +374,8 @@ export function startWar(world: WorldState, attacker: Civilization, defenderId: 
     contributionId: attacker.contributionId ?? defender.contributionId,
     importance: 0.85,
   });
+  // The war's end and its battles causally descend from its declaration.
+  war.causeEvents.push(ev.seq);
 }
 
 export function atWar(world: WorldState, a: number, b: number): boolean {
