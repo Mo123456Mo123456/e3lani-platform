@@ -1,9 +1,9 @@
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Platform, View } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { HapticTab } from "@/components/haptic-tab";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { useI18n } from "@/lib/i18n";
 import { BRAND } from "@/lib/e3lani-data";
@@ -18,7 +18,8 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: BRAND.yellowDark,
+        tabBarActiveTintColor: BRAND.black,
+        tabBarInactiveTintColor: "#777",
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
@@ -27,20 +28,68 @@ export default function TabLayout() {
           height: tabBarHeight,
           backgroundColor: colors.background,
           borderTopColor: colors.border,
-          borderTopWidth: 0.5,
+          borderTopWidth: 1,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "900",
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: t("home"), tabBarIcon: ({ color }) => <MaterialIcons size={27} name="home" color={color} />,
+          title: t("home"),
+          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="home" color={color} />,
         }}
       />
-      <Tabs.Screen name="categories" options={{ title:t("categories"),tabBarIcon:({color})=><MaterialIcons size={25} name="grid-view" color={color}/> }}/>
-      <Tabs.Screen name="create" options={{ title:t("create"),tabBarIcon:()=><MaterialIcons size={38} name="add-circle" color={BRAND.yellowDark}/> }}/>
-      <Tabs.Screen name="saved" options={{ title:t("saved"),tabBarIcon:({color})=><MaterialIcons size={25} name="bookmark" color={color}/> }}/>
-      <Tabs.Screen name="profile" options={{ title:t("account"),tabBarIcon:({color})=><MaterialIcons size={25} name="person" color={color}/> }}/>
+      <Tabs.Screen
+        name="categories"
+        options={{
+          title: t("categories"),
+          tabBarIcon: ({ color }) => <MaterialIcons size={23} name="grid-view" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="create"
+        options={{
+          title: t("create"),
+          tabBarIcon: () => (
+            <View
+              style={{
+                width: 41,
+                height: 41,
+                marginTop: -17,
+                borderRadius: 21,
+                backgroundColor: BRAND.yellow,
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: "#000",
+                shadowOpacity: 0.2,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 7 },
+                elevation: 6,
+              }}
+            >
+              <MaterialIcons size={29} name="add" color={BRAND.black} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="saved"
+        options={{
+          title: t("saved"),
+          tabBarIcon: ({ color }) => <MaterialIcons size={23} name="favorite-border" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: t("account"),
+          tabBarIcon: ({ color }) => <MaterialIcons size={23} name="person" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#FFC400">
+<title>إعلاني | E3lani</title>
+<style>
+:root{--yellow:#FFC400;--black:#111111;--gray:#F7F7F7;--border:#E8E8E8;--nav:72px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Tahoma,Arial,sans-serif;color:#111}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.app{position:relative;width:100%;height:100dvh;overflow:hidden;background:var(--gray)}
+.screen{display:none;position:absolute;inset:0 0 var(--nav);overflow:auto;background:var(--gray)}
+.screen.active{display:block}.feed-screen{background:#111;overflow:hidden}
+.ticker{position:absolute;z-index:50;top:0;left:0;right:0;height:40px;background:var(--yellow);overflow:hidden;pointer-events:none}
+.ticker-track{width:max-content;height:100%;display:flex;align-items:center;direction:ltr;animation:tickerMove 22s linear infinite}
+.ticker-logo{min-width:90px;padding:0 14px;text-align:center;font-size:13px;font-weight:900;white-space:nowrap}
+.ticker-separator{min-width:62px;margin:0 5px;padding:6px 9px;border-radius:10px;background:#111;color:#fff;font-size:10px;font-weight:900;text-align:center}
+@keyframes tickerMove{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.feed-head{position:absolute;z-index:45;top:48px;left:0;right:0;padding:0 12px;display:grid;grid-template-columns:42px 1fr 42px;align-items:center;gap:8px;direction:ltr}
+.round{width:42px;height:42px;border:1px solid #ffffff30;border-radius:50%;background:#0008;color:#fff;font-size:20px;backdrop-filter:blur(8px)}
+.tabs{justify-self:center;display:flex;padding:3px;border:1px solid #ffffff25;border-radius:25px;background:#0008;backdrop-filter:blur(8px);direction:rtl}
+.tabs button{border:0;border-radius:20px;padding:8px 13px;background:transparent;color:#eee;font-size:12px;font-weight:900}
+.tabs button.active{background:var(--yellow);color:#111}
+.feed{height:100%;overflow-y:auto;scroll-snap-type:y mandatory;scrollbar-width:none}
+.feed::-webkit-scrollbar{display:none}
+.ad{position:relative;height:100%;min-height:100%;overflow:hidden;scroll-snap-align:start;scroll-snap-stop:always;background:#222}
+.ad-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.fallback{position:absolute;inset:0;background:radial-gradient(circle at 50% 25%,#8d6922,#282828 48%,#080808)}
+.shade{position:absolute;inset:0;background:linear-gradient(to bottom,#00000025 0%,transparent 40%,#00000020 55%,#000000e8 100%)}
+.badges{position:absolute;z-index:4;top:104px;right:14px;display:flex;gap:6px}
+.badge{padding:6px 9px;border-radius:9px;background:#0009;color:#fff;font-size:10px;font-weight:900}
+.badge.paid{background:var(--yellow);color:#111}
+.media-label{position:absolute;z-index:4;top:104px;left:14px;padding:6px 9px;border-radius:9px;background:#0009;color:#fff;font-size:10px;font-weight:900}
+.ad-content{position:absolute;z-index:5;right:16px;left:82px;bottom:24px;color:#fff}
+.owner{display:flex;align-items:center;gap:10px;border:0;padding:0;margin:0 0 9px;background:transparent;color:#fff;text-align:right}
+.avatar{width:44px;height:44px;flex:none;display:grid;place-items:center;overflow:hidden;border:2px solid #fff;border-radius:50%;background:var(--yellow);color:#111;font-weight:900}
+.owner strong{display:block;font-size:14px}.owner small{display:block;margin-top:3px;color:#ddd;font-size:11px}
+.verify{color:var(--yellow)}.ad-title{margin:0 0 6px;font-size:22px;line-height:1.25}
+.ad-description{margin:0;color:#eee;font-size:13px;line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cta{width:100%;height:49px;margin-top:12px;padding:0 16px;border:0;border-radius:14px;background:var(--yellow);color:#111;display:flex;align-items:center;justify-content:space-between;font-weight:900}
+.actions{position:absolute;z-index:6;left:10px;bottom:34px;display:flex;flex-direction:column;gap:14px}
+.action{width:58px;border:0;background:transparent;color:#fff;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:900}
+.action i{width:43px;height:43px;display:grid;place-items:center;border:1px solid #ffffff30;border-radius:50%;background:#0008;font-style:normal;font-size:22px}
+.action.saved i{background:var(--yellow);color:#111}
+.bottom-nav{position:absolute;z-index:70;right:0;bottom:0;left:0;height:var(--nav);padding-bottom:env(safe-area-inset-bottom,0);border-top:1px solid var(--border);background:#fff;display:grid;grid-template-columns:repeat(5,1fr);direction:rtl}
+.nav-btn{border:0;background:#fff;color:#777;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:900}
+.nav-btn i{font-style:normal;font-size:22px}.nav-btn.active{color:#111}
+.nav-btn.create i{width:41px;height:41px;margin-top:-17px;border-radius:50%;background:var(--yellow);color:#111;display:grid;place-items:center;font-size:29px;box-shadow:0 7px 20px #0003}
+.page-head{position:sticky;z-index:20;top:0;min-height:64px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between}
+.page-head h1{margin:0;font-size:21px}.logo{font-size:19px;font-weight:900}.logo span{color:#E9AE00}
+.page-body{padding:16px}
+.searchbox{display:flex;align-items:center;gap:9px;margin-bottom:15px;padding:0 14px;border:1px solid var(--border);border-radius:16px;background:#fff}
+.searchbox input{width:100%;height:50px;border:0;outline:0;background:transparent}
+.market{width:100%;margin-bottom:14px;padding:14px;border:0;border-radius:18px;background:#111;color:#fff;display:flex;align-items:center;justify-content:space-between;text-align:right}
+.market small{display:block;margin-top:4px;color:#bbb}
+.market-code{padding:8px 11px;border-radius:11px;background:var(--yellow);color:#111;font-weight:900}
+.category-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.category{min-height:96px;padding:10px 6px;border:1px solid var(--border);border-radius:17px;background:#fff;color:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.category i{font-style:normal;font-size:27px}.category b{font-size:11px;line-height:1.35}
+.notice{display:flex;gap:10px;margin-bottom:14px;padding:13px;border:1px solid #f0d45e;border-radius:16px;background:#fff7d2;font-size:12px;line-height:1.55}
+.form-card{padding:16px;border:1px solid var(--border);border-radius:20px;background:#fff}
+.upload{position:relative;height:170px;overflow:hidden;border:2px dashed #d4d4d4;border-radius:17px;background:#fafafa;color:#666;display:grid;place-items:center;text-align:center}
+.upload img,.upload video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.upload-copy{position:relative;z-index:2}.upload.has-media .upload-copy{padding:8px 11px;border-radius:12px;background:#0009;color:#fff}
+.hidden{display:none}.label{display:block;margin:14px 0 7px;font-size:12px;font-weight:900}.required{color:#c00020}
+.field{width:100%;min-height:49px;padding:0 13px;border:1px solid var(--border);border-radius:14px;outline:0;background:#fbfbfb}
+textarea.field{height:94px;padding-top:12px;resize:none}.field:focus{border-color:#E9AE00;box-shadow:0 0 0 3px #ffc40025}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.primary,.secondary{width:100%;height:51px;border-radius:14px;font-weight:900}
+.primary{border:0;background:var(--yellow);color:#111}.secondary{border:1px solid var(--border);background:#fff;color:#111}
+.error{display:none;margin-top:9px;color:#b00020;font-size:11px}.error.show{display:block}
+.list{display:grid;gap:11px}.list-card{min-height:112px;overflow:hidden;border:1px solid var(--border);border-radius:17px;background:#fff;display:flex}
+.list-thumb{width:116px;min-width:116px;object-fit:cover;background:linear-gradient(135deg,#e6c75f,#333)}
+.list-info{flex:1;min-width:0;padding:12px}.list-info h3{margin:0 0 7px;overflow:hidden;font-size:14px;white-space:nowrap;text-overflow:ellipsis}
+.list-info p{margin:4px 0;color:#777;font-size:11px}
+.mini{margin-top:8px;padding:7px 10px;border:0;border-radius:9px;background:#f1f1f1;font-size:11px;font-weight:900}
+.empty{padding:30px;border:1px dashed #ccc;border-radius:18px;background:#fff;color:#777;text-align:center}
+.profile-cover{height:150px;background:linear-gradient(135deg,#111 0 55%,#FFC400 55%)}
+.profile-main{padding:0 16px 18px;border-bottom:1px solid var(--border);background:#fff}
+.profile-avatar{position:relative;width:86px;height:86px;margin-top:-43px;overflow:hidden;border:4px solid #fff;border-radius:50%;background:var(--yellow);display:grid;place-items:center;font-size:30px;font-weight:900}
+.profile-main h2{margin:10px 0 4px}.profile-main p{margin:0;color:#777;font-size:12px;line-height:1.6}
+.profile-buttons{display:flex;gap:8px;margin-top:13px}
+.profile-buttons button{padding:9px 11px;border:1px solid var(--border);border-radius:11px;background:#fff;font-size:11px;font-weight:900}
+.stats{padding:14px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.stat{padding:12px;border:1px solid var(--border);border-radius:15px;background:#fff;text-align:center}
+.stat b{display:block;font-size:17px}.stat span{color:#777;font-size:10px}
+.profile-tabs{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border);background:#fff}
+.profile-tabs button{height:48px;border:0;border-bottom:3px solid transparent;background:#fff;color:#777;font-weight:900}
+.profile-tabs button.active{border-color:var(--yellow);color:#111}
+.profile-content{padding:14px 16px}
+.media-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.media-item{position:relative;overflow:hidden;aspect-ratio:1/1.12;border:0;border-radius:13px;background:#ddd}
+.media-item img{width:100%;height:100%;object-fit:cover}
+.media-item span{position:absolute;right:7px;bottom:7px;left:7px;overflow:hidden;color:#fff;font-size:10px;font-weight:900;white-space:nowrap;text-overflow:ellipsis;text-shadow:0 2px 8px #000}
+.overlay{display:none;position:absolute;z-index:100;inset:0;align-items:flex-end;background:#0009}
+.overlay.open{display:flex}.sheet{width:100%;max-height:88%;overflow:auto;padding:18px;border-radius:24px 24px 0 0;background:#fff}
+.sheet h2{margin:0 0 15px}.handle{width:52px;height:5px;margin:0 auto 15px;border-radius:5px;background:#ddd}
+.option{width:100%;margin-bottom:8px;padding:13px;border:1px solid var(--border);border-radius:14px;background:#fff;display:flex;align-items:center;gap:9px;text-align:right}
+.toast{position:absolute;z-index:150;bottom:88px;left:50%;max-width:88%;overflow:hidden;padding:11px 16px;border:1px solid var(--border);border-radius:13px;background:#fff;box-shadow:0 12px 40px #0008;opacity:0;transform:translate(-50%,18px);transition:.22s;font-size:12px;font-weight:900;white-space:nowrap;text-overflow:ellipsis}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(min-width:700px){body{display:grid;place-items:center;background:radial-gradient(circle at top,#333,#080808 70%)}.app{width:430px;height:900px;overflow:hidden;border:8px solid #222;border-radius:38px;box-shadow:0 34px 100px #000}}
+</style>
+</head>
+<body>
+<div class="app">
+<section id="home" class="screen feed-screen active">
+  <div class="ticker"><div id="tickerTrack" class="ticker-track"></div></div>
+  <div class="feed-head">
+    <button class="round" onclick="openSearch()">⌕</button>
+    <div class="tabs">
+      <button class="active" onclick="selectFeed(this,'forYou')">لك</button>
+      <button onclick="selectFeed(this,'nearby')">قريب منك</button>
+      <button onclick="selectFeed(this,'latest')">الأحدث</button>
+    </div>
+    <button class="round" onclick="switchScreen('notifications')">♢</button>
+  </div>
+  <div id="feed" class="feed"></div>
+</section>
+<section id="categories" class="screen">
+  <header class="page-head"><h1>الأقسام</h1><div class="logo">إعلاني<span>.</span></div></header>
+  <div class="page-body">
+    <button class="market" onclick="openMarket()"><span><b id="marketName">السعودية</b><small>السوق الحالي — اضغط للتغيير</small></span><span id="marketCode" class="market-code">SA</span></button>
+    <div class="searchbox"><span>⌕</span><input id="categorySearch" placeholder="ابحث عن قسم" oninput="renderCategories(this.value)"></div>
+    <div id="categoryGrid" class="category-grid"></div>
+  </div>
+</section>
+<section id="create" class="screen">
+  <header class="page-head"><h1>أضف إعلانًا</h1><div class="logo">إعلاني<span>.</span></div></header>
+  <div class="page-body">
+    <div class="notice"><span>✓</span><span><b>النشر مجاني حاليًا</b><br>ينشر الإعلان مباشرة في هذه النسخة بعد التحقق من البيانات.</span></div>
+    <form class="form-card" onsubmit="publishAd(event)">
+      <label id="uploadBox" class="upload" for="mediaInput"><div class="upload-copy"><div style="font-size:34px">＋</div><b>أضف صورة أو فيديو</b><div style="font-size:10px;margin-top:5px">صورة أو فيديو حتى 60 ثانية</div></div></label>
+      <input id="mediaInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" onchange="handleMedia(event)">
+      <label class="label">عنوان الإعلان <span class="required">*</span></label><input id="adTitle" class="field" maxlength="80" required>
+      <label class="label">الوصف</label><textarea id="adDescription" class="field" maxlength="280"></textarea>
+      <div class="two"><div><label class="label">القسم <span class="required">*</span></label><select id="adCategory" class="field" required></select></div><div><label class="label">الدولة <span class="required">*</span></label><select id="adCountry" class="field" onchange="updateCities()" required></select></div></div>
+      <div class="two"><div><label class="label">المدينة <span class="required">*</span></label><select id="adCity" class="field" required></select></div><div><label class="label">نطاق العرض</label><select id="adScope" class="field"><option value="CITY">المدينة</option><option value="COUNTRY">الدولة</option><option value="GLOBAL">عالمي</option></select></div></div>
+      <label class="label">وسيلة التواصل</label><select id="contactMethod" class="field" onchange="updateContactPlaceholder()"><option value="WHATSAPP">واتساب</option><option value="PHONE">اتصال</option><option value="STORE_URL">رابط متجر</option><option value="PRODUCT_URL">رابط منتج</option><option value="EXTERNAL_URL">رابط خارجي</option></select>
+      <label class="label">الرابط أو الرقم <span class="required">*</span></label><input id="contactValue" class="field" placeholder="+9665XXXXXXXX" required>
+      <div id="formError" class="error"></div>
+      <button class="primary" style="margin-top:18px">نشر الإعلان الآن</button>
+    </form>
+  </div>
+</section>
+<section id="saved" class="screen"><header class="page-head"><h1>المحفوظات</h1><div class="logo">إعلاني<span>.</span></div></header><div class="page-body"><div id="savedList" class="list"></div></div></section>
+<section id="profile" class="screen">
+  <div class="profile-cover"></div>
+  <div class="profile-main"><label id="profileAvatar" class="profile-avatar" for="avatarInput">م</label><input id="avatarInput" class="hidden" type="file" accept="image/*" onchange="changeAvatar(event)"><h2 id="profileName">حسابي</h2><p id="profileBio">صفحتك العامة للإعلانات والمنشورات المجانية.</p><div class="profile-buttons"><button onclick="openProfile()">تعديل الحساب</button><button onclick="shareProfile()">مشاركة</button></div></div>
+  <div class="stats"><div class="stat"><b id="myAdsCount">0</b><span>الإعلانات</span></div><div class="stat"><b id="myPostsCount">0</b><span>المنشورات</span></div><div class="stat"><b id="myViews">0</b><span>المشاهدات</span></div></div>
+  <div class="profile-tabs"><button class="active" onclick="profileTab(this,'ads')">الإعلانات</button><button onclick="profileTab(this,'posts')">المنشورات</button></div>
+  <div id="profileContent" class="profile-content"></div>
+</section>
+<section id="searchScreen" class="screen"><header class="page-head"><h1>البحث</h1><button onclick="switchScreen('home')">عودة</button></header><div class="page-body"><div class="searchbox"><span>⌕</span><input id="globalSearch" placeholder="ابحث عن إعلان أو براند" oninput="renderSearch()"></div><div id="searchResults" class="list"></div></div></section>
+<section id="notifications" class="screen"><header class="page-head"><h1>الإشعارات</h1><button onclick="switchScreen('home')">عودة</button></header><div class="page-body"><div id="notificationsList" class="list"></div></div></section>
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-screen="home" onclick="switchScreen('home')"><i>⌂</i><span>الرئيسية</span></button>
+  <button class="nav-btn" data-screen="categories" onclick="switchScreen('categories')"><i>▦</i><span>الأقسام</span></button>
+  <button class="nav-btn create" data-screen="create" onclick="switchScreen('create')"><i>+</i><span>أضف إعلانًا</span></button>
+  <button class="nav-btn" data-screen="saved" onclick="switchScreen('saved')"><i>♡</i><span>المحفوظات</span></button>
+  <button class="nav-btn" data-screen="profile" onclick="switchScreen('profile')"><i>◉</i><span>حسابي</span></button>
+</nav>
+<div id="marketSheet" class="overlay" onclick="closeBackdrop(event,'marketSheet')"><div class="sheet"><div class="handle"></div><h2>اختر السوق</h2><div id="marketOptions"></div><button class="secondary" onclick="closeSheet('marketSheet')">إغلاق</button></div></div>
+<div id="reportSheet" class="overlay" onclick="closeBackdrop(event,'reportSheet')"><div class="sheet"><div class="handle"></div><h2>الإبلاغ عن الإعلان</h2><div id="reportOptions"></div><button class="primary" onclick="submitReport()">إرسال البلاغ</button><button class="secondary" style="margin-top:8px" onclick="closeSheet('reportSheet')">إلغاء</button></div></div>
+<div id="postSheet" class="overlay" onclick="closeBackdrop(event,'postSheet')"><form class="sheet" onsubmit="createPost(event)"><div class="handle"></div><h2>منشور مجاني</h2><div class="notice">يظهر المنشور داخل صفحة الحساب فقط، ولا يظهر في موجز الإعلانات.</div><label class="label">صورة المنشور</label><input id="postMedia" class="field" type="file" accept="image/*"><label class="label">العنوان</label><input id="postTitle" class="field" required maxlength="80"><label class="label">النص</label><textarea id="postText" class="field" maxlength="280"></textarea><button class="primary" style="margin-top:15px">نشر داخل صفحتي</button><button type="button" class="secondary" style="margin-top:8px" onclick="closeSheet('postSheet')">إلغاء</button></form></div>
+<div id="profileSheet" class="overlay" onclick="closeBackdrop(event,'profileSheet')"><form class="sheet" onsubmit="saveProfile(event)"><div class="handle"></div><h2>تعديل الحساب</h2><label class="label">الاسم</label><input id="editName" class="field"><label class="label">النبذة</label><textarea id="editBio" class="field"></textarea><label class="label">المدينة</label><input id="editCity" class="field"><label class="label">نوع الحساب</label><select id="editType" class="field"><option>فرد</option><option>متجر</option><option>براند</option><option>شركة</option></select><button class="primary" style="margin-top:15px">حفظ</button><button type="button" class="secondary" style="margin-top:8px" onclick="closeSheet('profileSheet')">إلغاء</button></form></div>
+<div id="toast" class="toast"></div>
+</div>
+<script src="./appsgeyser-e3lani.js"></script>
+</body>
+</html>

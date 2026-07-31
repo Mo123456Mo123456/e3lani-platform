@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import {
+  activateFreeLaunchAd,
   extendAdPeriod,
   moderatePendingAd,
   republishExpiredAd,
@@ -19,12 +20,15 @@ import {
   type AdContact,
   type AdMedia,
   type AdStatus,
+  type AudienceScope,
   type AuditLog,
   type BrandProfile,
   type Invoice,
+  type MarketCode,
   type Metrics,
   type NotificationItem,
   type Order,
+  type ProfilePost,
   type PromotionCode,
   type ReportItem,
   type UserProfile,
@@ -35,9 +39,28 @@ type NewAd = {
   description: string;
   categoryId: string;
   cityId: string;
+  countryCode?: MarketCode;
+  audienceScope?: AudienceScope;
   media: AdMedia[];
   contacts: AdContact[];
   promotions: PromotionCode[];
+};
+
+type FreeAdInput = {
+  title: string;
+  description: string;
+  categoryId: string;
+  cityId: string;
+  countryCode: MarketCode;
+  audienceScope: AudienceScope;
+  media: AdMedia[];
+  contacts: AdContact[];
+};
+
+type NewPost = {
+  title: string;
+  text: string;
+  mediaUri?: string;
 };
 
 type State = {
@@ -46,6 +69,8 @@ type State = {
   user: UserProfile | null;
   brand: BrandProfile | null;
   ads: Ad[];
+  posts: ProfilePost[];
+  market: MarketCode;
   savedIds: string[];
   metrics: Record<string, Metrics>;
   notifications: NotificationItem[];
@@ -63,6 +88,9 @@ type Value = State & {
   upsertBrand: (data: Partial<BrandProfile>) => void;
   requestVerification: () => void;
   createAd: (data: NewAd) => Ad;
+  publishFreeAd: (data: FreeAdInput) => Ad;
+  createPost: (data: NewPost) => ProfilePost;
+  setMarket: (code: MarketCode) => void;
   toggleSave: (id: string) => void;
   recordMetric: (id: string, key: keyof Metrics) => void;
   submitReport: (id: string, reason: string, details?: string) => void;
@@ -89,17 +117,20 @@ const initial: State = {
   user: null,
   brand: seedBrand,
   ads: seedAds,
+  posts: [],
+  market: "SA",
   savedIds: [],
   blockedOwners: [],
   metrics: {
     AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
-    AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
+    AD10002: { impressions: 36240, views: 36240, saves: 318, shares: 229, contacts: 156 },
+    AD10003: { impressions: 21874, views: 21874, saves: 210, shares: 188, contacts: 97 },
   },
   notifications: [
     {
       id: "N1",
       title: "مرحبًا بك في إعلاني",
-      body: "اكتشف الإعلانات المرئية أو ابدأ نشر إعلانك.",
+      body: "النشر مجاني حاليًا. أضف إعلانك وظهر في الموجز مباشرة.",
       read: false,
       createdAt: new Date().toISOString(),
       kind: "system",
@@ -110,6 +141,13 @@ const initial: State = {
   invoices: [],
   audit: [],
 };
+
+function mergeSeedAds(storedAds: Ad[] | undefined): Ad[] {
+  const list = storedAds?.length ? storedAds : [];
+  const seedIds = new Set(seedAds.map((ad) => ad.id));
+  const extras = list.filter((ad) => !seedIds.has(ad.id));
+  return [...extras, ...seedAds];
+}
 
 const C = createContext<Value | null>(null);
 const KEY = "e3lani.store.v1";
@@ -123,7 +161,15 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
     try {
       const raw = await AsyncStorage.getItem(KEY);
       const stored = raw ? (JSON.parse(raw) as Partial<State>) : {};
-      setState({ ...initial, ...stored, ready: true, loadError: null });
+      setState({
+        ...initial,
+        ...stored,
+        ads: mergeSeedAds(stored.ads),
+        posts: stored.posts ?? [],
+        market: stored.market === "AE" || stored.market === "EG" ? stored.market : "SA",
+        ready: true,
+        loadError: null,
+      });
     } catch {
       setState((current) => ({ ...current, ready: true, loadError: "storage_load_failed" }));
     }
@@ -192,7 +238,10 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           id: uid("AD"),
           ownerId: state.user?.id ?? "U1",
           brandId: state.brand?.id,
+          ownerName: state.user?.name ?? state.brand?.name,
           ...data,
+          countryCode: data.countryCode ?? "SA",
+          audienceScope: data.audienceScope ?? "CITY",
           status: "awaiting_payment",
           revision: 1,
           verified: Boolean(state.brand?.verified),
@@ -207,6 +256,76 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         }));
         return ad;
       },
+      publishFreeAd: (data) => {
+        const now = new Date().toISOString();
+        const draft: Ad = {
+          id: uid("AD"),
+          ownerId: state.user?.id ?? "guest",
+          brandId: state.brand?.id,
+          ownerName: state.user?.name ?? "حسابي",
+          ownerAvatar: state.user?.avatarUri,
+          title: data.title,
+          description: data.description,
+          categoryId: data.categoryId,
+          cityId: data.cityId,
+          countryCode: data.countryCode,
+          audienceScope: data.audienceScope,
+          media: data.media,
+          contacts: data.contacts,
+          status: "draft",
+          revision: 1,
+          verified: false,
+          featured: false,
+          sponsored: false,
+          createdAt: now,
+          promotions: [],
+        };
+        const ad = activateFreeLaunchAd(draft, now);
+        setState((current) => ({
+          ...current,
+          ads: [ad, ...current.ads],
+          metrics: { ...current.metrics, [ad.id]: { ...zero } },
+          notifications: [
+            {
+              id: uid("N"),
+              title: "تم نشر إعلانك",
+              body: `${ad.title} أصبح ظاهرًا في الموجز.`,
+              read: false,
+              createdAt: now,
+              kind: "system",
+            },
+            ...current.notifications,
+          ],
+        }));
+        return ad;
+      },
+      createPost: (data) => {
+        const post: ProfilePost = {
+          id: uid("POST"),
+          ownerId: state.user?.id ?? "guest",
+          title: data.title,
+          text: data.text,
+          mediaUri: data.mediaUri,
+          createdAt: new Date().toISOString(),
+        };
+        setState((current) => ({
+          ...current,
+          posts: [post, ...current.posts],
+          notifications: [
+            {
+              id: uid("N"),
+              title: "تم نشر المنشور",
+              body: "المنشور يظهر داخل صفحتك فقط.",
+              read: false,
+              createdAt: post.createdAt,
+              kind: "system",
+            },
+            ...current.notifications,
+          ],
+        }));
+        return post;
+      },
+      setMarket: (code) => setState((current) => ({ ...current, market: code })),
       toggleSave: (id) =>
         setState((current) => {
           const has = current.savedIds.includes(id);
