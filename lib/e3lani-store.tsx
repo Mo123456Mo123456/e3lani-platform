@@ -192,6 +192,8 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           id: uid("AD"),
           ownerId: state.user?.id ?? "U1",
           brandId: state.brand?.id,
+          ownerName: state.brand?.name ?? state.user?.name ?? "معلن إعلاني",
+          ownerAvatar: (state.brand?.name ?? state.user?.name ?? "م").slice(0, 1),
           ...data,
           status: "awaiting_payment",
           revision: 1,

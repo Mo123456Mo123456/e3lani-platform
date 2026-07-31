@@ -1,9 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Image } from "expo-image";
+import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
+  Alert,
   Pressable,
   Share,
   StyleSheet,
@@ -12,7 +14,7 @@ import {
   type GestureResponderEvent,
 } from "react-native";
 
-import { BRAND, type Ad, type AdMedia } from "@/lib/e3lani-data";
+import { BRAND, type Ad, type AdMedia, type ContactType } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
 import { useProductData } from "@/lib/use-product-data";
@@ -23,16 +25,20 @@ const localAssets = {
   icon: require("@/assets/images/icon.png"),
 };
 
-function VideoMedia({ uri, active }: { uri: string; active: boolean }) {
+function VideoMedia({ uri, active, muted }: { uri: string; active: boolean; muted: boolean }) {
   const player = useVideoPlayer({ uri, useCaching: true }, (instance) => {
     instance.loop = true;
-    instance.muted = true;
+    instance.muted = muted;
   });
 
   useEffect(() => {
     if (active) player.play();
     else player.pause();
   }, [active, player]);
+
+  useEffect(() => {
+    player.muted = muted;
+  }, [muted, player]);
 
   return (
     <VideoView
@@ -49,10 +55,12 @@ function VideoMedia({ uri, active }: { uri: string; active: boolean }) {
 export function MediaView({
   media,
   active = false,
+  muted = true,
   accessibilityLabel,
 }: {
   media?: AdMedia;
   active?: boolean;
+  muted?: boolean;
   accessibilityLabel?: string;
 }) {
   if (!media) {
@@ -63,7 +71,7 @@ export function MediaView({
     );
   }
   if (media.kind === "video" && !media.uri.startsWith("asset:")) {
-    return <VideoMedia uri={media.uri} active={active} />;
+    return <VideoMedia uri={media.uri} active={active} muted={muted} />;
   }
   const source = media.localAsset ? localAssets[media.localAsset] : { uri: media.uri };
   return (
@@ -78,26 +86,75 @@ export function MediaView({
   );
 }
 
+const contactLabels: Record<ContactType, [string, string]> = {
+  whatsapp: ["تواصل عبر واتساب", "Contact on WhatsApp"],
+  phone: ["اتصال بالمعلن", "Call advertiser"],
+  store: ["زيارة المتجر", "Visit store"],
+  product: ["صفحة المنتج", "View product"],
+};
+
+const contactUrl = (type: ContactType, value: string) =>
+  type === "whatsapp"
+    ? `https://wa.me/${value.replace(/\D/g, "")}`
+    : type === "phone"
+      ? `tel:${value.replace(/[^\d+]/g, "")}`
+      : value.startsWith("http")
+        ? value
+        : `https://${value}`;
+
 export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: number; active?: boolean }) {
   const { locale, isRTL, t } = useI18n();
-  const { brand, savedIds, toggleSave, recordMetric, metrics } = useE3lani();
+  const store = useE3lani();
   const productData = useProductData();
+  const [muted, setMuted] = useState(true);
   const city = productData.cities.find((item) => item.id === ad.cityId);
-  const saved = savedIds.includes(ad.id);
-  const metric = metrics[ad.id];
-  const saves = metric?.saves?.toLocaleString() ?? "0";
-  const shares = metric?.shares?.toLocaleString() ?? "0";
-  const views = metric?.views?.toLocaleString() ?? "0";
+  const category = productData.categories.find((item) => item.id === ad.categoryId);
+  const saved = store.savedIds.includes(ad.id);
+  const ownerName = ad.ownerName ?? store.brand?.name ?? "إعلاني";
+  const primaryContact = ad.contacts[0];
 
   const save = (event: GestureResponderEvent) => {
     event.stopPropagation();
-    toggleSave(ad.id);
+    store.toggleSave(ad.id);
   };
 
   const share = async (event: GestureResponderEvent) => {
     event.stopPropagation();
-    recordMetric(ad.id, "shares");
+    store.recordMetric(ad.id, "shares");
     await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
+  };
+
+  const contact = async (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    if (!primaryContact) {
+      router.push({ pathname: "/ad/[id]", params: { id: ad.id } } as never);
+      return;
+    }
+    store.recordMetric(ad.id, "contacts");
+    try {
+      await Linking.openURL(contactUrl(primaryContact.type, primaryContact.value));
+    } catch {
+      Alert.alert(t("error"));
+    }
+  };
+
+  const report = (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    Alert.alert(
+      t("report"),
+      locale === "ar" ? "اختر سبب الإبلاغ عن هذا الإعلان." : "Choose a reason for reporting this ad.",
+      [
+        {
+          text: locale === "ar" ? "محتوى مضلل" : "Misleading content",
+          onPress: () => store.submitReport(ad.id, "misleading"),
+        },
+        {
+          text: locale === "ar" ? "منتج ممنوع" : "Prohibited item",
+          onPress: () => store.submitReport(ad.id, "prohibited"),
+        },
+        { text: t("close"), style: "cancel" },
+      ],
+    );
   };
 
   return (
@@ -109,8 +166,9 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
       onPress={() => router.push({ pathname: "/ad/[id]", params: { id: ad.id } } as never)}
       style={({ pressed }) => [styles.card, { height, opacity: pressed ? 0.96 : 1 }]}
     >
-      <MediaView media={ad.media[0]} active={active} accessibilityLabel={ad.title} />
+      <MediaView media={ad.media[0]} active={active} muted={muted} accessibilityLabel={ad.title} />
       <View accessible={false} style={styles.scrim} />
+      <View accessible={false} style={styles.bottomScrim} />
 
       <View style={[styles.badges, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         {ad.sponsored ? (
@@ -120,75 +178,140 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
         ) : null}
         {ad.featured ? (
           <View style={[styles.badge, styles.badgeDark]}>
-            <Text style={[styles.badgeText, { color: BRAND.white }]}>{t("featured")}</Text>
+            <Text style={[styles.badgeText, styles.badgeTextLight]}>{t("featured")}</Text>
           </View>
         ) : null}
       </View>
 
-      <View style={styles.actions}>
+      <View style={styles.mediaLabel}>
+        <Text style={styles.mediaLabelText}>
+          {ad.media[0]?.kind === "video"
+            ? locale === "ar"
+              ? "فيديو"
+              : "Video"
+            : locale === "ar"
+              ? "صورة"
+              : "Photo"}
+        </Text>
+      </View>
+
+      <View style={[styles.actions, isRTL ? styles.actionsRTL : styles.actionsLTR]}>
+        {ad.media[0]?.kind === "video" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              muted
+                ? locale === "ar"
+                  ? "تشغيل الصوت"
+                  : "Turn sound on"
+                : locale === "ar"
+                  ? "كتم الصوت"
+                  : "Mute"
+            }
+            onPress={(event) => {
+              event.stopPropagation();
+              setMuted((current) => !current);
+            }}
+            style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+          >
+            <View style={styles.actionIcon}>
+              <MaterialIcons accessible={false} name={muted ? "volume-off" : "volume-up"} size={23} color={BRAND.white} />
+            </View>
+            <Text style={styles.actionText}>{locale === "ar" ? "الصوت" : "Sound"}</Text>
+          </Pressable>
+        ) : null}
+
         <Pressable
-          accessible
           accessibilityRole="button"
           accessibilityLabel={saved ? t("savedDone") : t("save")}
           accessibilityState={{ selected: saved }}
           onPress={save}
           style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         >
-          <MaterialIcons
-            accessible={false}
-            name={saved ? "bookmark" : "bookmark-border"}
-            size={25}
-            color={saved ? BRAND.yellow : BRAND.white}
-          />
-          <Text style={styles.actionText}>{saves}</Text>
+          <View style={[styles.actionIcon, saved && styles.actionIconSaved]}>
+            <MaterialIcons
+              accessible={false}
+              name={saved ? "favorite" : "favorite-border"}
+              size={23}
+              color={saved ? BRAND.black : BRAND.white}
+            />
+          </View>
+          <Text style={styles.actionText}>{t("save")}</Text>
         </Pressable>
+
         <Pressable
-          accessible
           accessibilityRole="button"
           accessibilityLabel={t("share")}
-          onPress={share}
+          onPress={(event) => void share(event)}
           style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         >
-          <MaterialIcons accessible={false} name="share" size={24} color={BRAND.white} />
-          <Text style={styles.actionText}>{shares}</Text>
+          <View style={styles.actionIcon}>
+            <MaterialIcons accessible={false} name="share" size={23} color={BRAND.white} />
+          </View>
+          <Text style={styles.actionText}>{t("share")}</Text>
         </Pressable>
-        <View accessible accessibilityLabel={`${t("views")}: ${views}`} style={styles.action}>
-          <MaterialIcons accessible={false} name="visibility" size={24} color={BRAND.white} />
-          <Text style={styles.actionText}>{views}</Text>
-        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("report")}
+          onPress={report}
+          style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+        >
+          <View style={styles.actionIcon}>
+            <MaterialIcons accessible={false} name="priority-high" size={23} color={BRAND.white} />
+          </View>
+          <Text style={styles.actionText}>{t("report")}</Text>
+        </Pressable>
       </View>
 
-      <View style={[styles.copy, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
+      <View
+        style={[
+          styles.copy,
+          isRTL ? styles.copyRTL : styles.copyLTR,
+          { alignItems: isRTL ? "flex-end" : "flex-start" },
+        ]}
+      >
         <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{brand?.name.slice(0, 1) ?? "إ"}</Text>
+            <Text style={styles.avatarText}>{ad.ownerAvatar ?? ownerName.slice(0, 1)}</Text>
           </View>
           <Text numberOfLines={1} style={styles.brandName}>
-            {brand?.name ?? "إعلاني"}
+            {ownerName}
           </Text>
           {ad.verified ? (
             <MaterialIcons accessible={false} name="verified" size={18} color={BRAND.yellow} />
           ) : null}
         </View>
+
         <Text numberOfLines={2} style={[styles.adTitle, { textAlign: isRTL ? "right" : "left" }]}>
           {ad.title}
         </Text>
         <Text numberOfLines={2} style={[styles.description, { textAlign: isRTL ? "right" : "left" }]}>
           {ad.description}
         </Text>
-        <View style={[styles.location, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-          <MaterialIcons accessible={false} name="location-on" size={16} color={BRAND.white} />
-          <Text style={styles.locationText}>{(locale === "ar" ? city?.ar : city?.en) ?? "—"}</Text>
-        </View>
-        <View accessible={false} style={styles.cta}>
-          <Text style={styles.ctaText}>{t("details")}</Text>
+        <Text style={[styles.locationText, { textAlign: isRTL ? "right" : "left" }]}>
+          {(locale === "ar" ? city?.ar : city?.en) ?? "—"} ·{" "}
+          {(locale === "ar" ? category?.ar : category?.en) ?? "—"}
+        </Text>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            primaryContact ? contactLabels[primaryContact.type][locale === "ar" ? 0 : 1] : t("details")
+          }
+          onPress={(event) => void contact(event)}
+          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+        >
+          <Text style={styles.ctaText}>
+            {primaryContact ? contactLabels[primaryContact.type][locale === "ar" ? 0 : 1] : t("details")}
+          </Text>
           <MaterialIcons
             accessible={false}
             name={isRTL ? "arrow-back" : "arrow-forward"}
             size={18}
             color={BRAND.black}
           />
-        </View>
+        </Pressable>
       </View>
     </Pressable>
   );
@@ -197,18 +320,25 @@ export function AdCard({ ad, height = 540, active = false }: { ad: Ad; height?: 
 const styles = StyleSheet.create({
   card: {
     width: "100%",
-    maxWidth: 580,
+    maxWidth: 480,
     alignSelf: "center",
-    borderRadius: 28,
     overflow: "hidden",
     backgroundColor: BRAND.charcoal,
   },
   fallback: { alignItems: "center", justifyContent: "center", backgroundColor: BRAND.charcoal },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,.29)" },
-  badges: { position: "absolute", top: 15, left: 15, right: 15, gap: 7 },
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,.12)" },
+  bottomScrim: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    left: 0,
+    height: "50%",
+    backgroundColor: "rgba(0,0,0,.64)",
+  },
+  badges: { position: "absolute", top: 108, right: 14, gap: 7 },
   badge: {
     minHeight: 29,
-    borderRadius: 15,
+    borderRadius: 9,
     paddingHorizontal: 10,
     backgroundColor: BRAND.yellow,
     alignItems: "center",
@@ -216,37 +346,67 @@ const styles = StyleSheet.create({
   },
   badgeDark: { backgroundColor: "rgba(17,17,17,.8)" },
   badgeText: { color: BRAND.black, fontSize: 10, lineHeight: 14, fontWeight: "900" },
-  actions: { position: "absolute", right: 12, bottom: 88, gap: 13 },
-  action: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", gap: 2 },
+  badgeTextLight: { color: BRAND.white },
+  mediaLabel: {
+    position: "absolute",
+    top: 108,
+    left: 14,
+    minHeight: 27,
+    borderRadius: 9,
+    paddingHorizontal: 9,
+    backgroundColor: "rgba(0,0,0,.62)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediaLabelText: { color: BRAND.white, fontSize: 10, lineHeight: 14, fontWeight: "900" },
+  actions: { position: "absolute", bottom: 28, gap: 13 },
+  actionsRTL: { left: 9 },
+  actionsLTR: { right: 9 },
+  action: { width: 58, minHeight: 48, alignItems: "center", justifyContent: "center", gap: 3 },
+  actionIcon: {
+    width: 43,
+    height: 43,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,.2)",
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,.52)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionIconSaved: { borderColor: BRAND.yellow, backgroundColor: BRAND.yellow },
   actionPressed: { opacity: 0.58, transform: [{ scale: 0.97 }] },
   actionText: { color: BRAND.white, fontSize: 9, lineHeight: 13, fontWeight: "800" },
-  copy: { position: "absolute", left: 17, right: 58, bottom: 18 },
+  copy: { position: "absolute", bottom: 22 },
+  copyRTL: { right: 16, left: 76 },
+  copyLTR: { right: 76, left: 16 },
   brandRow: { alignItems: "center", gap: 7, maxWidth: "100%" },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderWidth: 2,
+    borderColor: BRAND.white,
+    borderRadius: 22,
     backgroundColor: BRAND.yellow,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: BRAND.black, fontSize: 16, lineHeight: 21, fontWeight: "900" },
+  avatarText: { color: BRAND.black, fontSize: 17, lineHeight: 22, fontWeight: "900" },
   brandName: { color: BRAND.white, maxWidth: 220, fontSize: 13, lineHeight: 19, fontWeight: "900" },
-  adTitle: { marginTop: 11, color: BRAND.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  adTitle: { marginTop: 10, color: BRAND.white, fontSize: 22, lineHeight: 29, fontWeight: "900" },
   description: { marginTop: 5, color: "#EFEFEF", fontSize: 13, lineHeight: 20 },
-  location: { marginTop: 7, alignItems: "center", gap: 4 },
-  locationText: { color: BRAND.white, fontSize: 12, lineHeight: 17 },
+  locationText: { marginTop: 5, color: "#DDDDDD", fontSize: 11, lineHeight: 16 },
   cta: {
-    marginTop: 13,
-    minHeight: 44,
-    minWidth: 138,
+    width: "100%",
+    minHeight: 49,
+    marginTop: 12,
     borderRadius: 14,
     paddingHorizontal: 15,
     backgroundColor: BRAND.yellow,
     flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     gap: 7,
   },
+  ctaPressed: { opacity: 0.72 },
   ctaText: { color: BRAND.black, fontSize: 13, lineHeight: 18, fontWeight: "900" },
 });

@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { AdCard } from "@/components/e3lani/ad-card";
+import { CompactAdCard } from "@/components/e3lani/compact-ad-card";
 import { EmptyState, Pill, PrimaryButton } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { BRAND } from "@/lib/e3lani-data";
@@ -89,7 +89,12 @@ export default function Search() {
         )}
 
         {data.length ? (
-          <FlatList data={data} keyExtractor={(ad) => ad.id} contentContainerStyle={styles.list} renderItem={({ item }) => <View style={styles.item}><AdCard ad={item} height={430} /></View>} />
+          <FlatList
+            data={data}
+            keyExtractor={(ad) => ad.id}
+            contentContainerStyle={styles.list}
+            renderItem={({ item }) => <View style={styles.item}><CompactAdCard ad={item} /></View>}
+          />
         ) : (
           <EmptyState icon="search-off" title={t("noAds")} text={locale === "ar" ? "جرّب كلمات أو فلاتر أخرى." : "Try different words or filters."} />
         )}

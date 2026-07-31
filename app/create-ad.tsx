@@ -285,6 +285,11 @@ export default function CreateAd() {
       promotions,
       media,
     });
+    if (!productData.config?.paymentEnabled) {
+      store.setAdStatus(ad.id, "active", "FREE_LAUNCH");
+      router.replace({ pathname: "/ad/[id]", params: { id: ad.id } } as never);
+      return;
+    }
     router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
   };
 
@@ -391,7 +396,11 @@ export default function CreateAd() {
                 <Pressable
                   accessible
                   accessibilityRole="checkbox"
-                  accessibilityLabel={`${locale === "ar" ? option.ar : option.en}، ${option.priceHalalas / 100} ${t("sar")}`}
+                  accessibilityLabel={
+                    productData.config.paymentEnabled
+                      ? `${locale === "ar" ? option.ar : option.en}، ${option.priceHalalas / 100} ${t("sar")}`
+                      : `${locale === "ar" ? option.ar : option.en}، ${locale === "ar" ? "مجاني حاليًا" : "Currently free"}`
+                  }
                   accessibilityState={{ checked: active }}
                   key={option.code}
                   onPress={() => togglePromotion(option.code)}
@@ -399,14 +408,38 @@ export default function CreateAd() {
                 >
                   <MaterialIcons accessible={false} name={active ? "check-circle" : "radio-button-unchecked"} size={24} color={active ? BRAND.yellowDark : BRAND.muted} />
                   <Text style={styles.promotionName}>{locale === "ar" ? option.ar : option.en}</Text>
-                  <Text style={styles.promotionPrice}>{(option.priceHalalas / 100).toFixed(2)} {t("sar")}</Text>
+                  <Text style={styles.promotionPrice}>
+                    {productData.config.paymentEnabled
+                      ? `${(option.priceHalalas / 100).toFixed(2)} ${t("sar")}`
+                      : locale === "ar"
+                        ? "مجاني"
+                        : "Free"}
+                  </Text>
                 </Pressable>
               );
             })}
             <View style={styles.quote}>
-              <Text style={styles.quoteLabel}>{t("total")}</Text>
-              <Text style={styles.quoteTotal}>{(quote.totalHalalas / 100).toFixed(2)} {t("sar")}</Text>
-              <Text style={styles.quoteVat}>{t("vatIncluded")}: {(quote.vatHalalas / 100).toFixed(2)} {t("sar")}</Text>
+              <Text style={styles.quoteLabel}>
+                {productData.config.paymentEnabled
+                  ? t("total")
+                  : locale === "ar"
+                    ? "الإطلاق المجاني"
+                    : "Free launch"}
+              </Text>
+              <Text style={styles.quoteTotal}>
+                {productData.config.paymentEnabled
+                  ? `${(quote.totalHalalas / 100).toFixed(2)} ${t("sar")}`
+                  : locale === "ar"
+                    ? "مجانًا"
+                    : "Free"}
+              </Text>
+              <Text style={styles.quoteVat}>
+                {productData.config.paymentEnabled
+                  ? `${t("vatIncluded")}: ${(quote.vatHalalas / 100).toFixed(2)} ${t("sar")}`
+                  : locale === "ar"
+                    ? "لن تُحصّل أي رسوم ما دام الدفع معطلًا."
+                    : "No fee is charged while payments are disabled."}
+              </Text>
             </View>
           </View>
         ) : null}
@@ -432,7 +465,20 @@ export default function CreateAd() {
           {step > 1 ? <OutlineButton label={t("previous")} icon="arrow-forward" onPress={() => setStep((current) => current - 1)} /> : null}
         </View>
         <View style={styles.footerNext}>
-          <PrimaryButton disabled={step === 1 && uploads.some((item) => item.status !== "ready")} label={step === 5 ? t("pay") : t("next")} icon={step === 5 ? "payments" : "arrow-back"} onPress={next} />
+          <PrimaryButton
+            disabled={step === 1 && uploads.some((item) => item.status !== "ready")}
+            label={
+              step === 5
+                ? productData.config.paymentEnabled
+                  ? t("pay")
+                  : locale === "ar"
+                    ? "نشر الإعلان الآن"
+                    : "Publish now"
+                : t("next")
+            }
+            icon={step === 5 ? (productData.config.paymentEnabled ? "payments" : "publish") : "arrow-back"}
+            onPress={next}
+          />
         </View>
       </View>
     </ScreenContainer>
