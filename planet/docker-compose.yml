@@ -1,0 +1,197 @@
+name: planet
+
+# كوكب يولد أمامك — full local stack.
+#   docker compose up -d --build
+#   docker compose run --rm seed   (one-time demo world)
+
+services:
+  db:
+    build: ./docker/db
+    environment:
+      POSTGRES_USER: planet
+      POSTGRES_PASSWORD: planet
+      POSTGRES_DB: planet
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planet"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+    command: ["-js"]
+    # Reserved for the event-bus topology (see services/realtime-gateway/README.md).
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: planet
+      MINIO_ROOT_PASSWORD: planetdev
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio-data:/data
+
+  simulation-engine:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/simulation-engine"
+    environment:
+      PORT: "4100"
+      ENGINE_PLANT_SPECIES: "800"
+      ENGINE_ANIMAL_SPECIES: "300"
+      ENGINE_CIVILIZATIONS: "12"
+    ports:
+      - "4100:4100"
+    volumes:
+      - engine-data:/app/data
+
+  ai-orchestrator:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/ai-orchestrator"
+    environment:
+      PORT: "4200"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "4200:4200"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/api"
+    environment:
+      PORT: "4000"
+      DATABASE_URL: postgresql://planet:planet@db:5432/planet
+      ENGINE_URL: http://simulation-engine:4100
+      ORCHESTRATOR_URL: http://ai-orchestrator:4200
+      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+      simulation-engine:
+        condition: service_started
+      ai-orchestrator:
+        condition: service_started
+
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/api"
+    environment:
+      DATABASE_URL: postgresql://planet:planet@db:5432/planet
+    command: ["sh", "-c", "pnpm --filter @planet/api exec prisma migrate deploy"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  seed:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/api"
+    environment:
+      DATABASE_URL: postgresql://planet:planet@db:5432/planet
+      SEED_HISTORY_TICKS: ${SEED_HISTORY_TICKS:-1000}
+      SEED_YEARS_PER_TICK: ${SEED_YEARS_PER_TICK:-5}
+    command: ["sh", "-c", "pnpm --filter @planet/api run seed"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["setup"]
+
+  notification-worker:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/notification-worker"
+    environment:
+      ENGINE_URL: http://simulation-engine:4100
+      API_URL: http://api:4000
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      NOTIFY_WORLDS: demo-world
+    depends_on:
+      - api
+      - simulation-engine
+
+  world-generator:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/world-generator"
+    environment:
+      PORT: "4300"
+      ENGINE_URL: http://simulation-engine:4100
+      API_URL: http://api:4000
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+    ports:
+      - "4300:4300"
+    depends_on:
+      - api
+      - simulation-engine
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/web"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  admin:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        PACKAGE: "@planet/admin"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    ports:
+      - "3100:3100"
+    depends_on:
+      - api
+    # Deploy behind VPN/allowlist in real environments; never link publicly.
+
+volumes:
+  db-data:
+  redis-data:
+  minio-data:
+  engine-data:
