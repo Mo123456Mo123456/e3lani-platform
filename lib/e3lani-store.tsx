@@ -10,6 +10,8 @@ import {
 } from "react";
 
 import {
+  DEFAULT_LAUNCH_MODE,
+  buildFreeLaunchAd,
   extendAdPeriod,
   moderatePendingAd,
   republishExpiredAd,
@@ -22,9 +24,11 @@ import {
   type AuditLog,
   type BrandProfile,
   type Invoice,
+  type LaunchMode,
   type Metrics,
   type NotificationItem,
   type Order,
+  type ProfilePost,
   type PromotionCode,
   type ReportItem,
   type UserProfile,
@@ -46,6 +50,9 @@ type State = {
   user: UserProfile | null;
   brand: BrandProfile | null;
   ads: Ad[];
+  posts: ProfilePost[];
+  market: string;
+  launchMode: LaunchMode;
   savedIds: string[];
   metrics: Record<string, Metrics>;
   notifications: NotificationItem[];
@@ -63,6 +70,9 @@ type Value = State & {
   upsertBrand: (data: Partial<BrandProfile>) => void;
   requestVerification: () => void;
   createAd: (data: NewAd) => Ad;
+  publishFreeAd: (data: Omit<NewAd, "promotions"> & { ownerName?: string }) => Ad;
+  createPost: (data: { title: string; text: string; media?: string }) => ProfilePost;
+  setMarket: (code: string) => void;
   toggleSave: (id: string) => void;
   recordMetric: (id: string, key: keyof Metrics) => void;
   submitReport: (id: string, reason: string, details?: string) => void;
@@ -89,17 +99,21 @@ const initial: State = {
   user: null,
   brand: seedBrand,
   ads: seedAds,
+  posts: [],
+  market: "SA",
+  launchMode: DEFAULT_LAUNCH_MODE,
   savedIds: [],
   blockedOwners: [],
   metrics: {
     AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
-    AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
+    AD10002: { impressions: 36240, views: 36240, saves: 318, shares: 229, contacts: 156 },
+    AD10003: { impressions: 21874, views: 21874, saves: 210, shares: 180, contacts: 96 },
   },
   notifications: [
     {
       id: "N1",
       title: "مرحبًا بك في إعلاني",
-      body: "اكتشف الإعلانات المرئية أو ابدأ نشر إعلانك.",
+      body: "النشر مجاني حاليًا. أضف إعلانك وشاهده مباشرة في الموجز.",
       read: false,
       createdAt: new Date().toISOString(),
       kind: "system",
@@ -192,6 +206,7 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           id: uid("AD"),
           ownerId: state.user?.id ?? "U1",
           brandId: state.brand?.id,
+          ownerName: state.user?.name ?? state.brand?.name,
           ...data,
           status: "awaiting_payment",
           revision: 1,
@@ -207,6 +222,67 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         }));
         return ad;
       },
+      publishFreeAd: (data) => {
+        const now = new Date().toISOString();
+        const ad = buildFreeLaunchAd({
+          id: uid("AD"),
+          ownerId: state.user?.id ?? "guest",
+          brandId: state.brand?.id,
+          ownerName: data.ownerName ?? state.user?.name ?? "حسابي",
+          title: data.title,
+          description: data.description,
+          categoryId: data.categoryId,
+          cityId: data.cityId,
+          media: data.media,
+          contacts: data.contacts,
+          createdAt: now,
+          verified: Boolean(state.brand?.verified && state.user),
+        }, now);
+        setState((current) => ({
+          ...current,
+          ads: [ad, ...current.ads],
+          metrics: { ...current.metrics, [ad.id]: { ...zero } },
+          notifications: [
+            {
+              id: uid("N"),
+              title: "تم نشر إعلانك",
+              body: `${data.title} أصبح ظاهرًا في الموجز المحلي.`,
+              read: false,
+              createdAt: now,
+              kind: "system",
+            },
+            ...current.notifications,
+          ],
+        }));
+        return ad;
+      },
+      createPost: (data) => {
+        const post: ProfilePost = {
+          id: uid("POST"),
+          ownerId: state.user?.id ?? "guest",
+          title: data.title,
+          text: data.text,
+          media: data.media,
+          createdAt: new Date().toISOString(),
+        };
+        setState((current) => ({
+          ...current,
+          posts: [post, ...current.posts],
+          notifications: [
+            {
+              id: uid("N"),
+              title: "تم نشر المنشور",
+              body: "المنشور يظهر داخل صفحتك فقط.",
+              read: false,
+              createdAt: post.createdAt,
+              kind: "system",
+            },
+            ...current.notifications,
+          ],
+        }));
+        return post;
+      },
+      setMarket: (code) => setState((current) => ({ ...current, market: code })),
       toggleSave: (id) =>
         setState((current) => {
           const has = current.savedIds.includes(id);

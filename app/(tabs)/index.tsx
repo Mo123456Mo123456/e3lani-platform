@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,22 +10,33 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AdCard } from "@/components/e3lani/ad-card";
-import { EmptyState, Pill } from "@/components/e3lani/ui";
-import { ScreenContainer } from "@/components/screen-container";
-import { BRAND, type Ad } from "@/lib/e3lani-data";
+import { BrandTicker } from "@/components/e3lani/brand-ticker";
+import { EmptyState } from "@/components/e3lani/ui";
+import { BRAND, cityIdsForMarket, fallbackCities, type Ad } from "@/lib/e3lani-data";
+import { rankFeedAds, type FeedMode } from "@/lib/e3lani-feed";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { useProductData } from "@/lib/use-product-data";
+
+const MODES: FeedMode[] = ["forYou", "near", "latest"];
 
 export default function Home() {
-  const { height, width } = useWindowDimensions();
-  const { ads, blockedOwners, ready, recordMetric } = useE3lani();
-  const { isRTL, t } = useI18n();
-  const [tab, setTab] = useState("forYou");
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ category?: string; focus?: string }>();
+  const { ads, blockedOwners, ready, recordMetric, metrics, market, user } = useE3lani();
+  const { isRTL, t, locale } = useI18n();
+  const productData = useProductData();
+  const cities = productData.cities.length ? productData.cities : fallbackCities;
+  const [tab, setTab] = useState<FeedMode>("forYou");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [active, setActive] = useState("");
+  const listRef = useRef<FlatList<Ad>>(null);
   const seen = useRef(new Set<string>());
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 70 }).current;
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 65 }).current;
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: { item: Ad }[] }) => {
       const id = viewableItems[0]?.item.id ?? "";
@@ -37,112 +48,197 @@ export default function Home() {
       }
     },
   ).current;
-  const itemHeight = Math.min(Math.max(height - 238, 430), 680);
-  const visible = ads
-    .filter((ad) => ad.status === "active" && !blockedOwners.includes(ad.ownerId))
-    .sort((a, b) =>
-      tab === "latest"
-        ? b.createdAt.localeCompare(a.createdAt)
-        : Number(b.sponsored) - Number(a.sponsored),
-    );
+
+  const tabBarReserve = 72 + Math.max(insets.bottom, 0);
+  const itemHeight = Math.max(height - tabBarReserve, 480);
+
+  useEffect(() => {
+    if (typeof params.category === "string" && params.category) {
+      setCategoryFilter(params.category);
+      setTab("latest");
+    }
+  }, [params.category]);
+
+  const marketCityIds = useMemo(
+    () => cityIdsForMarket(cities, market),
+    [cities, market],
+  );
+
+  const visible = useMemo(
+    () =>
+      rankFeedAds(ads, {
+        mode: tab,
+        marketCityIds,
+        preferredCityId: user?.cityId,
+        metrics,
+        categoryFilter: categoryFilter || undefined,
+        blockedOwners,
+      }),
+    [ads, blockedOwners, categoryFilter, marketCityIds, metrics, tab, user?.cityId],
+  );
+
+  useEffect(() => {
+    if (!params.focus || !ready) return;
+    const index = visible.findIndex((ad) => ad.id === params.focus);
+    if (index >= 0) {
+      setTimeout(() => {
+        listRef.current?.scrollToIndex({ index, animated: true });
+      }, 120);
+    }
+  }, [params.focus, ready, visible]);
 
   if (!ready) {
     return (
-      <ScreenContainer>
-        <View style={styles.center}>
-          <ActivityIndicator color={BRAND.yellowDark} size="large" />
-        </View>
-      </ScreenContainer>
+      <View style={[styles.root, styles.center]}>
+        <ActivityIndicator color={BRAND.yellow} size="large" />
+      </View>
     );
   }
 
   return (
-    <ScreenContainer>
-      <View style={[styles.header, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-        <View>
-          <Text style={styles.logo}>إعلاني</Text>
-          <Text style={styles.logoEn}>E3lani</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={t("search")} onPress={() => router.push("/search" as never)} style={styles.search}>
-          <Text style={styles.searchText}>{t("search")}</Text>
-          <MaterialIcons accessible={false} name="search" size={23} color={BRAND.black} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("notifications")}
-          onPress={() => router.push("/account/notifications" as never)}
-          style={styles.bell}
-        >
-          <MaterialIcons accessible={false} name="notifications-none" size={25} color={BRAND.black} />
-        </Pressable>
-      </View>
-      <View style={[styles.chips, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-        {["forYou", "near", "latest"].map((key) => (
-          <Pill key={key} label={t(key)} active={tab === key} onPress={() => setTab(key)} />
-        ))}
-      </View>
+    <View style={styles.root}>
       <FlatList
+        ref={listRef}
         data={visible}
         keyExtractor={(ad) => ad.id}
-        renderItem={({ item }) => (
-          <View style={{ height: itemHeight, justifyContent: "center" }}>
-            <AdCard ad={item} height={itemHeight - 12} active={active === item.id} />
-          </View>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            icon="campaign"
-            title={t("empty")}
-            text={t("emptyHelp")}
-            actionLabel={t("createAd")}
-            onAction={() => router.push("/create-ad" as never)}
-          />
-        }
-        contentContainerStyle={[styles.list, width > 700 && styles.web]}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={itemHeight}
+        pagingEnabled
         decelerationRate="fast"
+        snapToInterval={itemHeight}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        showsVerticalScrollIndicator={false}
+        getItemLayout={(_, index) => ({
+          length: itemHeight,
+          offset: itemHeight * index,
+          index,
+        })}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
-        initialNumToRender={2}
+        initialNumToRender={1}
         windowSize={3}
+        ListEmptyComponent={
+          <View style={[styles.center, { height: itemHeight }]}>
+            <EmptyState
+              icon="campaign"
+              title={t("noAds")}
+              text={locale === "ar" ? "اختر قسمًا آخر أو أضف إعلانًا." : "Pick another category or post an ad."}
+              actionLabel={t("create")}
+              onAction={() => router.push("/(tabs)/create" as never)}
+            />
+          </View>
+        }
+        renderItem={({ item }) => (
+          <AdCard
+            ad={item}
+            height={itemHeight}
+            active={active === item.id}
+            fullscreen
+          />
+        )}
       />
-    </ScreenContainer>
+
+      <View style={[styles.overlayTop, { paddingTop: insets.top }]} pointerEvents="box-none">
+        <BrandTicker />
+        <View style={[styles.feedHead, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("search")}
+            onPress={() => router.push("/search" as never)}
+            style={styles.round}
+          >
+            <MaterialIcons name="search" size={22} color={BRAND.white} />
+          </Pressable>
+
+          <View style={styles.tabs}>
+            {MODES.map((mode) => (
+              <Pressable
+                key={mode}
+                accessibilityRole="button"
+                accessibilityState={{ selected: tab === mode }}
+                onPress={() => {
+                  setTab(mode);
+                  setCategoryFilter("");
+                }}
+                style={[styles.tab, tab === mode && styles.tabActive]}
+              >
+                <Text style={[styles.tabText, tab === mode && styles.tabTextActive]}>
+                  {t(mode)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("notifications")}
+            onPress={() => router.push("/account/notifications" as never)}
+            style={styles.round}
+          >
+            <MaterialIcons name="notifications-none" size={22} color={BRAND.white} />
+          </Pressable>
+        </View>
+
+        {categoryFilter ? (
+          <Pressable
+            onPress={() => setCategoryFilter("")}
+            style={styles.filterChip}
+          >
+            <Text style={styles.filterText}>
+              {categoryFilter} · {t("clear")}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#111" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: {
-    minHeight: 68,
-    paddingHorizontal: 15,
-    alignItems: "center",
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: BRAND.border,
+  overlayTop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
   },
-  logo: { color: BRAND.black, fontSize: 20, lineHeight: 23, fontWeight: "900" },
-  logoEn: {
-    color: BRAND.muted,
-    fontSize: 9,
-    lineHeight: 12,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  search: {
-    flex: 1,
-    maxWidth: 430,
-    minHeight: 44,
-    borderRadius: 15,
-    paddingHorizontal: 13,
-    backgroundColor: BRAND.surface,
-    flexDirection: "row-reverse",
+  feedHead: {
+    marginTop: 8,
+    paddingHorizontal: 12,
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
-  searchText: { flex: 1, color: BRAND.muted, fontSize: 13, lineHeight: 18, textAlign: "right" },
-  bell: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  chips: { paddingHorizontal: 13, paddingVertical: 8, gap: 7 },
-  list: { flexGrow: 1, paddingHorizontal: 10 },
-  web: { maxWidth: 850, width: "100%", alignSelf: "center" },
+  round: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.19)",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabs: {
+    flexDirection: "row",
+    padding: 3,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  tab: { borderRadius: 20, paddingHorizontal: 13, paddingVertical: 8 },
+  tabActive: { backgroundColor: BRAND.yellow },
+  tabText: { color: "#eee", fontSize: 12, fontWeight: "900" },
+  tabTextActive: { color: BRAND.black },
+  filterChip: {
+    alignSelf: "center",
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  filterText: { color: BRAND.white, fontSize: 11, fontWeight: "900" },
 });

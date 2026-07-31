@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#FFC400">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>إعلاني — E3lani</title>
+<style>
+:root {
+  --yellow: #FFC400;
+  --black: #111111;
+  --gray: #F7F7F7;
+  --border: #E8E8E8;
+  --nav: 72px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --font: 'Segoe UI', Tahoma, Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; font-family: var(--font); background: var(--gray); color: var(--black); -webkit-tap-highlight-color: transparent; }
+button, input, select, textarea { font-family: inherit; }
+img { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #fff;
+}
+
+/* Screens */
+.screen {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+  flex-direction: column;
+  min-height: 0;
+}
+.screen.active { display: flex; }
+
+/* Ticker */
+.ticker {
+  background: var(--yellow);
+  color: var(--black);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.ticker-inner {
+  display: inline-block;
+  animation: ticker 18s linear infinite;
+}
+@keyframes ticker {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Feed tabs */
+.feed-tabs {
+  display: flex;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+.feed-tab {
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  position: relative;
+  transition: color .2s;
+}
+.feed-tab.active { color: var(--black); }
+.feed-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 20%;
+  left: 20%;
+  height: 3px;
+  background: var(--yellow);
+  border-radius: 3px 3px 0 0;
+}
+
+/* Vertical snap feed */
+.feed-container {
+  flex: 1;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  background: #000;
+}
+.feed-container::-webkit-scrollbar { display: none; }
+.ad-card {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  height: 100%;
+  min-height: calc(100vh - var(--nav) - 90px);
+  min-height: calc(100dvh - var(--nav) - 90px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #111;
+}
+.ad-media {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+.ad-media img, .ad-media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ad-media-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #333, #555);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+}
+.ad-gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60%;
+  background: linear-gradient(transparent, rgba(0,0,0,.85));
+  pointer-events: none;
+}
+.ad-badges {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  z-index: 2;
+}
+.badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+.badge.yellow { background: var(--yellow); color: var(--black); }
+.badge.green { background: #22c55e; color: #fff; }
+.ad-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 16px 20px;
+  color: #fff;
+  z-index: 2;
+}
+.ad-owner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ad-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  border: 2px solid #fff;
+  flex-shrink: 0;
+}
+.ad-owner-name { font-weight: 700; font-size: 14px; }
+.ad-owner-meta { font-size: 12px; opacity: .75; }
+.ad-title { font-size: 20px; font-weight: 800; margin-bottom: 6px; line-height: 1.3; }
+.ad-desc {
+  font-size: 14px;
+  opacity: .9;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ad-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: var(--yellow);
+  color: var(--black);
+  border: none;
+  border-radius: 30px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ad-actions {
+  position: absolute;
+  left: 12px;
+  bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 3;
+}
+.ad-action-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.15);
+  backdrop-filter: blur(8px);
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .15s, background .15s;
+}
+.ad-action-btn:active { transform: scale(.9); }
+.ad-action-btn.saved { color: #ff4757; }
+.ad-action-label { font-size: 10px; text-align: center; color: #fff; margin-top: 2px; }
+
+/* Empty feed */
+.feed-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  background: var(--gray);
+  padding: 32px;
+  text-align: center;
+  gap: 12px;
+}
+.feed-empty-icon { font-size: 48px; }
+
+/* Page header */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.page-header h1 { font-size: 20px; font-weight: 800; }
+.page-header .btn-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gray);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Categories */
+.market-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.market-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.categories-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  align-content: start;
+}
+.cat-item {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, box-shadow .2s;
+}
+.cat-item:active { border-color: var(--yellow); box-shadow: 0 0 0 2px rgba(255,196,0,.3); }
+.cat-icon { font-size: 32px; margin-bottom: 8px; }
+.cat-name { font-size: 12px; font-weight: 600; }
+
+/* Create form */
+.create-form {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: calc(var(--nav) + 24px);
+}
+.form-group { margin-bottom: 16px; }
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #555;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 15px;
+  background: #fff;
+  outline: none;
+  transition: border-color .2s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--yellow);
+}
+.form-group textarea { resize: vertical; min-height: 80px; }
+.media-upload {
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--gray);
+}
+.media-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.media-upload img { max-height: 200px; border-radius: 12px; object-fit: cover; }
+.media-upload-icon { font-size: 36px; }
+.media-upload-text { font-size: 13px; color: #888; }
+.scope-options {
+  display: flex;
+  gap: 8px;
+}
+.scope-opt {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  transition: all .2s;
+}
+.scope-opt.active { border-color: var(--yellow); background: rgba(255,196,0,.15); }
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  background: var(--yellow);
+  color: var(--black);
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Saved / list views */
+.list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  padding-bottom: calc(var(--nav) + 16px);
+}
+.list-card {
+  display: flex;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: box-shadow .2s;
+}
+.list-card:active { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.list-card-img {
+  width: 90px;
+  height: 90px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--gray);
+}
+.list-card-body { flex: 1; min-width: 0; }
+.list-card-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-card-meta { font-size: 12px; color: #888; margin-bottom: 4px; }
+.list-card-price { font-size: 14px; font-weight: 700; color: var(--black); }
+.list-card-save {
+  align-self: center;
+  border: none;
+  background: none;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* Profile */
+.profile-header {
+  background: #fff;
+  padding: 24px 16px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--black);
+  font-size: 32px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+  border: 3px solid var(--yellow);
+}
+.profile-name { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+.profile-bio { font-size: 13px; color: #888; margin-bottom: 12px; }
+.profile-stats {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+.profile-stat { text-align: center; }
+.profile-stat-num { font-size: 18px; font-weight: 800; }
+.profile-stat-label { font-size: 11px; color: #888; }
+.profile-actions { display: flex; gap: 8px; justify-content: center; }
+.btn-outline {
+  padding: 8px 20px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.profile-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  flex-shrink: 0;
+}
+.profile-tab {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  position: relative;
+}
+.profile-tab.active { color: var(--black); }
+.profile-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 25%;
+  left: 25%;
+  height: 3px;
+  background: var(--yellow);
+  border-radius: 3px 3px 0 0;
+}
+.profile-content { flex: 1; overflow-y: auto; padding-bottom: calc(var(--nav) + 16px); }
+
+/* Search */
+.search-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.search-bar input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 15px;
+  outline: none;
+}
+.search-bar input:focus { border-color: var(--yellow); }
+.search-filters {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.filter-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.filter-chip.active { background: var(--yellow); border-color: var(--yellow); }
+
+/* Notifications */
+.notif-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+}
+.notif-item.unread { background: rgba(255,196,0,.08); }
+.notif-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--gray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.notif-body { flex: 1; }
+.notif-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.notif-text { font-size: 12px; color: #888; }
+.notif-time { font-size: 11px; color: #aaa; margin-top: 4px; }
+
+/* Bottom nav */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--nav) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: #fff;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 100;
+}
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  font-size: 10px;
+  font-weight: 600;
+  color: #aaa;
+  cursor: pointer;
+  padding: 8px 12px;
+  min-width: 56px;
+}
+.nav-item.active { color: var(--black); }
+.nav-icon { font-size: 22px; }
+.nav-create {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--black);
+  border: none;
+  font-size: 28px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(255,196,0,.45);
+  margin-top: -20px;
+  transition: transform .15s;
+}
+.nav-create:active { transform: scale(.92); }
+
+/* Sheets */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+.sheet-overlay.open { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  z-index: 201;
+  transform: translateY(100%);
+  transition: transform .3s ease;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.sheet.open { transform: translateY(0); }
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: #ddd;
+  border-radius: 4px;
+  margin: 10px auto;
+  flex-shrink: 0;
+}
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 12px;
+  flex-shrink: 0;
+}
+.sheet-header h2 { font-size: 18px; font-weight: 800; }
+.sheet-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gray);
+  font-size: 16px;
+  cursor: pointer;
+}
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 24px;
+}
+.sheet-body .form-group { margin-bottom: 14px; }
+.report-reason {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.report-reason:has(input:checked) { border-color: var(--yellow); background: rgba(255,196,0,.1); }
+.report-reason input { accent-color: var(--yellow); }
+.market-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+}
+.market-option:has(input:checked) { border-color: var(--yellow); background: rgba(255,196,0,.1); }
+.market-option input { accent-color: var(--yellow); }
+.market-flag { font-size: 24px; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: calc(var(--nav) + 16px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--black);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 300;
+  opacity: 0;
+  transition: transform .3s, opacity .3s;
+  white-space: nowrap;
+  max-width: 90%;
+  text-align: center;
+}
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* Desktop phone frame */
+@media (min-width: 700px) {
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1a1a2e;
+    min-height: 100vh;
+  }
+  #app {
+    width: 390px;
+    height: 844px;
+    max-height: 95vh;
+    border-radius: 40px;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0,0,0,.5), 0 0 0 3px #333, 0 0 0 6px #1a1a2e;
+    position: relative;
+  }
+  #app::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 28px;
+    background: #1a1a2e;
+    border-radius: 0 0 16px 16px;
+    z-index: 999;
+  }
+  .bottom-nav {
+    position: absolute;
+    border-radius: 0 0 40px 40px;
+  }
+  .sheet-overlay, .sheet { position: absolute; }
+  .toast { position: absolute; }
+  .ad-card {
+    min-height: calc(844px - var(--nav) - 90px);
+  }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- HOME -->
+  <div id="screen-home" class="screen active">
+    <div class="ticker">
+      <div class="ticker-inner">📢 إعلاني — منصتك الأولى للإعلانات المبوبة في الخليج والعالم العربي &nbsp;&nbsp;|&nbsp;&nbsp; انشر إعلانك مجاناً الآن &nbsp;&nbsp;|&nbsp;&nbsp; آلاف الإعلانات الجديدة يومياً</div>
+    </div>
+    <div class="feed-tabs">
+      <button class="feed-tab active" data-feed="forYou" onclick="switchFeedTab('forYou')">لك</button>
+      <button class="feed-tab" data-feed="nearby" onclick="switchFeedTab('nearby')">قريب منك</button>
+      <button class="feed-tab" data-feed="latest" onclick="switchFeedTab('latest')">الأحدث</button>
+    </div>
+    <div id="feedContainer" class="feed-container"></div>
+  </div>
+
+  <!-- CATEGORIES -->
+  <div id="screen-categories" class="screen">
+    <div class="page-header">
+      <h1>التصنيفات</h1>
+      <button class="btn-icon" onclick="openSearch()">🔍</button>
+    </div>
+    <div class="market-bar">
+      <button class="market-btn" onclick="openMarketSheet()">
+        <span id="marketFlag">🇸🇦</span>
+        <span id="marketLabel">السعودية</span>
+        ▾
+      </button>
+    </div>
+    <div id="categoriesGrid" class="categories-grid"></div>
+  </div>
+
+  <!-- CREATE -->
+  <div id="screen-create" class="screen">
+    <div class="page-header">
+      <h1>إنشاء إعلان</h1>
+    </div>
+    <form id="createForm" class="create-form" onsubmit="publishAd(event)">
+      <div class="form-group">
+        <label>الصورة أو الفيديو</label>
+        <div class="media-upload" id="mediaUploadArea">
+          <input type="file" id="mediaInput" accept="image/*,video/*" onchange="handleMediaSelect(event)">
+          <div id="mediaPreview">
+            <div class="media-upload-icon">📷</div>
+            <div class="media-upload-text">اضغط لرفع صورة أو فيديو</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>عنوان الإعلان *</label>
+        <input type="text" id="adTitle" required maxlength="80" placeholder="مثال: سيارة تويوتا كامري 2022">
+      </div>
+      <div class="form-group">
+        <label>الوصف *</label>
+        <textarea id="adDesc" required maxlength="500" placeholder="اكتب وصفاً تفصيلياً للإعلان..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>التصنيف *</label>
+        <select id="adCategory" required></select>
+      </div>
+      <div class="form-group">
+        <label>الدولة *</label>
+        <select id="adCountry" required onchange="updateCities()">
+          <option value="SA">🇸🇦 السعودية</option>
+          <option value="AE">🇦🇪 الإمارات</option>
+          <option value="EG">🇪🇬 مصر</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>المدينة *</label>
+        <select id="adCity" required></select>
+      </div>
+      <div class="form-group">
+        <label>نطاق الإعلان</label>
+        <div class="scope-options">
+          <div class="scope-opt active" data-scope="local" onclick="selectScope('local')">محلي</div>
+          <div class="scope-opt" data-scope="national" onclick="selectScope('national')">وطني</div>
+          <div class="scope-opt" data-scope="global" onclick="selectScope('global')">عالمي</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>رقم التواصل *</label>
+        <input type="tel" id="adContact" required placeholder="05xxxxxxxx">
+      </div>
+      <div class="form-group">
+        <label>السعر (اختياري)</label>
+        <input type="text" id="adPrice" placeholder="مثال: 85000 ريال">
+      </div>
+      <button type="submit" class="btn-primary" id="publishBtn">نشر الإعلان مجاناً</button>
+    </form>
+  </div>
+
+  <!-- SAVED -->
+  <div id="screen-saved" class="screen">
+    <div class="page-header">
+      <h1>المحفوظات</h1>
+    </div>
+    <div id="savedList" class="list-container"></div>
+  </div>
+
+  <!-- PROFILE -->
+  <div id="screen-profile" class="screen">
+    <div class="profile-header">
+      <div class="profile-avatar" id="profileAvatar">م</div>
+      <div class="profile-name" id="profileName">مستخدم إعلاني</div>
+      <div class="profile-bio" id="profileBio">مرحباً بك في إعلاني</div>
+      <div class="profile-stats">
+        <div class="profile-stat"><div class="profile-stat-num" id="statAds">0</div><div class="profile-stat-label">إعلان</div></div>
+        <div class="profile-stat"><div class="profile-stat-num" id="statPosts">0</div><div class="profile-stat-label">منشور</div></div>
+        <div class="profile-stat"><div class="profile-stat-num" id="statSaved">0</div><div class="profile-stat-label">محفوظ</div></div>
+      </div>
+      <div class="profile-actions">
+        <button class="btn-outline" onclick="openProfileEdit()">تعديل الملف</button>
+        <button class="btn-outline" onclick="openPostsSheet()">منشور حر</button>
+      </div>
+    </div>
+    <div class="profile-tabs">
+      <button class="profile-tab active" data-ptab="ads" onclick="switchProfileTab('ads')">إعلاناتي</button>
+      <button class="profile-tab" data-ptab="posts" onclick="switchProfileTab('posts')">منشوراتي</button>
+    </div>
+    <div id="profileContent" class="profile-content list-container"></div>
+  </div>
+
+  <!-- SEARCH -->
+  <div id="screen-searchScreen" class="screen">
+    <div class="page-header">
+      <button class="btn-icon" onclick="closeSearch()">→</button>
+      <h1>بحث</h1>
+      <div style="width:40px"></div>
+    </div>
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="ابحث عن إعلان..." oninput="performSearch()">
+    </div>
+    <div class="search-filters" id="searchFilters"></div>
+    <div id="searchResults" class="list-container"></div>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div id="screen-notifications" class="screen">
+    <div class="page-header">
+      <button class="btn-icon" onclick="navigateTo('home')">→</button>
+      <h1>الإشعارات</h1>
+      <button class="btn-icon" onclick="markAllRead()" title="قراءة الكل">✓</button>
+    </div>
+    <div id="notifList" style="flex:1;overflow-y:auto;padding-bottom:calc(var(--nav)+16px)"></div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav" id="bottomNav">
+    <button class="nav-item active" data-screen="home" onclick="navigateTo('home')">
+      <span class="nav-icon">🏠</span>الرئيسية
+    </button>
+    <button class="nav-item" data-screen="categories" onclick="navigateTo('categories')">
+      <span class="nav-icon">📂</span>التصنيفات
+    </button>
+    <button class="nav-create" onclick="navigateTo('create')" title="إنشاء إعلان">+</button>
+    <button class="nav-item" data-screen="saved" onclick="navigateTo('saved')">
+      <span class="nav-icon">❤️</span>المحفوظات
+    </button>
+    <button class="nav-item" data-screen="profile" onclick="navigateTo('profile')">
+      <span class="nav-icon">👤</span>حسابي
+    </button>
+  </nav>
+</div>
+
+<!-- SHEETS -->
+<div class="sheet-overlay" id="sheetOverlay" onclick="closeAllSheets()"></div>
+
+<div class="sheet" id="reportSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2>الإبلاغ عن إعلان</h2><button class="sheet-close" onclick="closeAllSheets()">✕</button></div>
+  <div class="sheet-body">
+    <label class="report-reason"><input type="radio" name="reportReason" value="spam"> إعلان مزعج أو سبام</label>
+    <label class="report-reason"><input type="radio" name="reportReason" value="fraud"> احتيال أو تضليل</label>
+    <label class="report-reason"><input type="radio" name="reportReason" value="inappropriate"> محتوى غير لائق</label>
+    <label class="report-reason"><input type="radio" name="reportReason" value="duplicate"> إعلان مكرر</label>
+    <label class="report-reason"><input type="radio" name="reportReason" value="other"> سبب آخر</label>
+    <button class="btn-primary" style="margin-top:12px" onclick="submitReport()">إرسال البلاغ</button>
+  </div>
+</div>
+
+<div class="sheet" id="marketSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2>اختر السوق</h2><button class="sheet-close" onclick="closeAllSheets()">✕</button></div>
+  <div class="sheet-body">
+    <label class="market-option"><input type="radio" name="market" value="SA" onchange="setMarket('SA')"><span class="market-flag">🇸🇦</span> السعودية</label>
+    <label class="market-option"><input type="radio" name="market" value="AE" onchange="setMarket('AE')"><span class="market-flag">🇦🇪</span> الإمارات</label>
+    <label class="market-option"><input type="radio" name="market" value="EG" onchange="setMarket('EG')"><span class="market-flag">🇪🇬</span> مصر</label>
+  </div>
+</div>
+
+<div class="sheet" id="profileEditSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2>تعديل الملف الشخصي</h2><button class="sheet-close" onclick="closeAllSheets()">✕</button></div>
+  <div class="sheet-body">
+    <div class="form-group"><label>الاسم</label><input type="text" id="editName" maxlength="40"></div>
+    <div class="form-group"><label>نبذة</label><textarea id="editBio" maxlength="160" rows="3"></textarea></div>
+    <div class="form-group"><label>المدينة</label><input type="text" id="editCity" maxlength="30"></div>
+    <div class="form-group"><label>رقم الجوال</label><input type="tel" id="editPhone" maxlength="15"></div>
+    <button class="btn-primary" onclick="saveProfile()">حفظ التغييرات</button>
+  </div>
+</div>
+
+<div class="sheet" id="postsSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2>منشور حر</h2><button class="sheet-close" onclick="closeAllSheets()">✕</button></div>
+  <div class="sheet-body">
+    <div class="form-group"><label>ماذا تريد أن تقول؟</label><textarea id="postText" maxlength="280" rows="4" placeholder="اكتب منشورك الحر هنا..."></textarea></div>
+    <button class="btn-primary" onclick="publishPost()">نشر</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+'use strict';
+
+const STORAGE = {
+  ads: 'e3lani_ads',
+  saved: 'e3lani_saved',
+  posts: 'e3lani_posts',
+  profile: 'e3lani_profile',
+  notifications: 'e3lani_notifications',
+  market: 'e3lani_market'
+};
+
+const MARKETS = {
+  SA: { flag: '🇸🇦', name: 'السعودية', cities: ['الرياض', 'جدة', 'الدمام', 'مكة', 'المدينة', 'الخبر', 'تبوك', 'أبها'] },
+  AE: { flag: '🇦🇪', name: 'الإمارات', cities: ['دبي', 'أبوظبي', 'الشارقة', 'عجمان', 'رأس الخيمة', 'الفجيرة'] },
+  EG: { flag: '🇪🇬', name: 'مصر', cities: ['القاهرة', 'الإسكندرية', 'الجيزة', 'شرم الشيخ', 'الأقصر', 'بورسعيد'] }
+};
+
+const CATEGORIES = [
+  { id: 'cars', icon: '🚗', name: 'سيارات' },
+  { id: 'realestate', icon: '🏠', name: 'عقارات' },
+  { id: 'electronics', icon: '📱', name: 'إلكترونيات' },
+  { id: 'furniture', icon: '🛋️', name: 'أثاث' },
+  { id: 'jobs', icon: '💼', name: 'وظائف' },
+  { id: 'services', icon: '🔧', name: 'خدمات' },
+  { id: 'fashion', icon: '👗', name: 'أزياء' },
+  { id: 'food', icon: '🍔', name: 'مطاعم ومقاهي' },
+  { id: 'pets', icon: '🐾', name: 'حيوانات' },
+  { id: 'sports', icon: '⚽', name: 'رياضة' },
+  { id: 'education', icon: '📚', name: 'تعليم' },
+  { id: 'other', icon: '📦', name: 'أخرى' }
+];
+
+let state = {
+  currentScreen: 'home',
+  feedTab: 'forYou',
+  profileTab: 'ads',
+  scope: 'local',
+  market: 'SA',
+  ads: [],
+  saved: [],
+  posts: [],
+  profile: {},
+  notifications: [],
+  reportAdId: null,
+  mediaData: null,
+  mediaType: null,
+  searchCategory: null
+};
+
+function load(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch { return fallback; }
+}
+function save(key, data) {
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+function initStorage() {
+  state.ads = load(STORAGE.ads, null);
+  if (!state.ads) {
+    state.ads = getSeedAds();
+    save(STORAGE.ads, state.ads);
+  }
+  state.saved = load(STORAGE.saved, []);
+  state.posts = load(STORAGE.posts, []);
+  state.profile = load(STORAGE.profile, {
+    name: 'مستخدم إعلاني',
+    bio: 'مرحباً بك في إعلاني',
+    city: 'الرياض',
+    phone: '0500000000',
+    avatar: 'م'
+  });
+  state.notifications = load(STORAGE.notifications, getSeedNotifications());
+  state.market = load(STORAGE.market, 'SA');
+}
+
+function getSeedAds() {
+  const now = Date.now();
+  return [
+    {
+      id: 'seed-car-1',
+      title: 'تويوتا كامري 2022 — حالة ممتازة',
+      description: 'سيارة تويوتا كامري موديل 2022، فل كامل، لون أبيض لؤلؤي، ممشى 35,000 كم فقط. صيانة دورية في الوكالة. بدون حوادث.',
+      category: 'cars',
+      country: 'SA',
+      city: 'الرياض',
+      scope: 'local',
+      contact: '0551234567',
+      price: '95,000 ريال',
+      media: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=800&q=80',
+      mediaType: 'image',
+      owner: 'أحمد العتيبي',
+      ownerAvatar: 'أ',
+      createdAt: now - 3600000,
+      views: 234,
+      featured: true
+    },
+    {
+      id: 'seed-cafe-1',
+      title: 'مقهى للتقبيل — موقع مميز بجدة',
+      description: 'مقهى متكامل للبيع في موقع حيوي بجدة. مساحة 120 م²، ديكور عصري، قاعدة عملاء ثابتة. إيجار منخفض. فرصة استثمارية ممتازة.',
+      category: 'food',
+      country: 'SA',
+      city: 'جدة',
+      scope: 'local',
+      contact: '0549876543',
+      price: '350,000 ريال',
+      media: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&q=80',
+      mediaType: 'image',
+      owner: 'سارة الحربي',
+      ownerAvatar: 'س',
+      createdAt: now - 7200000,
+      views: 156,
+      featured: false
+    },
+    {
+      id: 'seed-villa-1',
+      title: 'فيلا فاخرة — نخلة جميرا دبي',
+      description: 'فيلا استثنائية في نخلة جميرا بدبي. 5 غرف نوم، مسبح خاص، إطلالة بحرية خلابة. تشطيب سوبر ديلوكس. جاهزة للسكن الفوري.',
+      category: 'realestate',
+      country: 'AE',
+      city: 'دبي',
+      scope: 'national',
+      contact: '0501234567',
+      price: '12,500,000 درهم',
+      media: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&q=80',
+      mediaType: 'image',
+      owner: 'محمد الشامسي',
+      ownerAvatar: 'م',
+      createdAt: now - 10800000,
+      views: 489,
+      featured: true
+    }
+  ];
+}
+
+function getSeedNotifications() {
+  const now = Date.now();
+  return [
+    { id: 'n1', icon: '🔔', title: 'مرحباً بك في إعلاني!', text: 'ابدأ بنشر إعلانك الأول مجاناً', time: now - 86400000, read: false },
+    { id: 'n2', icon: '❤️', title: 'إعلانك حصل على إعجاب', text: 'شخص ما أعجب بإعلانك', time: now - 43200000, read: false },
+    { id: 'n3', icon: '📢', title: 'عرض خاص', text: 'انشر 3 إعلانات واحصل على تمييز مجاني', time: now - 172800000, read: true }
+  ];
+}
+
+function getCategoryName(id) {
+  const c = CATEGORIES.find(x => x.id === id);
+  return c ? c.name : 'أخرى';
+}
+function getCategoryIcon(id) {
+  const c = CATEGORIES.find(x => x.id === id);
+  return c ? c.icon : '📦';
+}
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'الآن';
+  if (mins < 60) return `منذ ${mins} دقيقة`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `منذ ${hrs} ساعة`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `منذ ${days} يوم`;
+  return `منذ ${Math.floor(days / 30)} شهر`;
+}
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function navigateTo(screen) {
+  state.currentScreen = screen;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('screen-' + screen);
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.screen === screen);
+  });
+  if (screen === 'home') renderFeed();
+  if (screen === 'categories') renderCategories();
+  if (screen === 'saved') renderSaved();
+  if (screen === 'profile') renderProfile();
+  if (screen === 'create') initCreateForm();
+  if (screen === 'notifications') renderNotifications();
+}
+window.navigateTo = navigateTo;
+
+function switchFeedTab(tab) {
+  state.feedTab = tab;
+  document.querySelectorAll('.feed-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.feed === tab);
+  });
+  renderFeed();
+}
+window.switchFeedTab = switchFeedTab;
+
+function rankForYou(ads) {
+  return [...ads].sort((a, b) => {
+    const scoreA = (a.featured ? 100 : 0) + (a.views || 0) * 0.1 + (state.saved.includes(a.id) ? 50 : 0);
+    const scoreB = (b.featured ? 100 : 0) + (b.views || 0) * 0.1 + (state.saved.includes(b.id) ? 50 : 0);
+    return scoreB - scoreA;
+  });
+}
+function rankNearby(ads) {
+  const userCity = state.profile.city || MARKETS[state.market].cities[0];
+  const userCountry = state.market;
+  return [...ads].sort((a, b) => {
+    const distA = (a.country === userCountry ? 0 : 100) + (a.city === userCity ? 0 : 50);
+    const distB = (b.country === userCountry ? 0 : 100) + (b.city === userCity ? 0 : 50);
+    if (distA !== distB) return distA - distB;
+    return b.createdAt - a.createdAt;
+  });
+}
+function rankLatest(ads) {
+  return [...ads].sort((a, b) => b.createdAt - a.createdAt);
+}
+function getFeedAds() {
+  let ads = state.ads.filter(a => a.country === state.market || a.scope === 'global');
+  if (state.feedTab === 'forYou') return rankForYou(ads);
+  if (state.feedTab === 'nearby') return rankNearby(ads);
+  return rankLatest(ads);
+}
+
+function renderFeed() {
+  const container = document.getElementById('feedContainer');
+  const ads = getFeedAds();
+  if (!ads.length) {
+    container.innerHTML = `<div class="feed-empty"><div class="feed-empty-icon">📭</div><div>لا توجد إعلانات حالياً</div><button class="btn-primary" style="width:auto;padding:10px 24px" onclick="navigateTo('create')">أنشئ إعلانك الأول</button></div>`;
+    return;
+  }
+  container.innerHTML = ads.map(ad => {
+    const isSaved = state.saved.includes(ad.id);
+    const mediaHtml = ad.mediaType === 'video'
+      ? `<video src="${ad.media}" autoplay muted loop playsinline></video>`
+      : ad.media
+        ? `<img src="${ad.media}" alt="${escHtml(ad.title)}" loading="lazy">`
+        : `<div class="ad-media-placeholder">${getCategoryIcon(ad.category)}</div>`;
+    return `
+    <div class="ad-card" data-id="${ad.id}">
+      <div class="ad-media">
+        ${mediaHtml}
+        <div class="ad-gradient"></div>
+        <div class="ad-badges">
+          ${ad.featured ? '<span class="badge yellow">مميز</span>' : ''}
+          <span class="badge">${getCategoryIcon(ad.category)} ${getCategoryName(ad.category)}</span>
+          <span class="badge">${MARKETS[ad.country]?.flag || ''} ${ad.city}</span>
+          ${ad.price ? `<span class="badge green">${escHtml(ad.price)}</span>` : ''}
+        </div>
+      </div>
+      <div class="ad-actions">
+        <div>
+          <button class="ad-action-btn ${isSaved ? 'saved' : ''}" onclick="toggleSaved('${ad.id}')" aria-label="حفظ">❤️</button>
+          <div class="ad-action-label">${isSaved ? 'محفوظ' : 'حفظ'}</div>
+        </div>
+        <div>
+          <button class="ad-action-btn" onclick="shareAd('${ad.id}')" aria-label="مشاركة">↗️</button>
+          <div class="ad-action-label">مشاركة</div>
+        </div>
+        <div>
+          <button class="ad-action-btn" onclick="openReport('${ad.id}')" aria-label="إبلاغ">🚩</button>
+          <div class="ad-action-label">إبلاغ</div>
+        </div>
+      </div>
+      <div class="ad-info">
+        <div class="ad-owner">
+          <div class="ad-avatar">${escHtml(ad.ownerAvatar || ad.owner?.[0] || '?')}</div>
+          <div>
+            <div class="ad-owner-name">${escHtml(ad.owner)}</div>
+            <div class="ad-owner-meta">${timeAgo(ad.createdAt)} · ${ad.views || 0} مشاهدة</div>
+          </div>
+        </div>
+        <div class="ad-title">${escHtml(ad.title)}</div>
+        <div class="ad-desc">${escHtml(ad.description)}</div>
+        <button class="ad-cta" onclick="openContact('${ad.id}')">📞 تواصل الآن</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.renderFeed = renderFeed;
+
+function toggleSaved(id) {
+  const idx = state.saved.indexOf(id);
+  if (idx >= 0) {
+    state.saved.splice(idx, 1);
+    showToast('تم إزالة الإعلان من المحفوظات');
+  } else {
+    state.saved.push(id);
+    showToast('تم حفظ الإعلان ❤️');
+  }
+  save(STORAGE.saved, state.saved);
+  if (state.currentScreen === 'home') renderFeed();
+  if (state.currentScreen === 'saved') renderSaved();
+  if (state.currentScreen === 'profile') renderProfile();
+  updateProfileStats();
+}
+window.toggleSaved = toggleSaved;
+
+function openContact(id) {
+  const ad = state.ads.find(a => a.id === id);
+  if (!ad) return;
+  ad.views = (ad.views || 0) + 1;
+  save(STORAGE.ads, state.ads);
+  if (navigator.userAgent.match(/Mobile|Android|iPhone/i)) {
+    window.location.href = 'tel:' + ad.contact;
+  } else {
+    showToast('رقم التواصل: ' + ad.contact);
+  }
+}
+window.openContact = openContact;
+
+function shareAd(id) {
+  const ad = state.ads.find(a => a.id === id);
+  if (!ad) return;
+  const text = `${ad.title}\n${ad.description}\n\nعبر تطبيق إعلاني`;
+  if (navigator.share) {
+    navigator.share({ title: ad.title, text }).catch(() => {});
+  } else {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => showToast('تم نسخ الإعلان'));
+    } else {
+      showToast('شارك: ' + ad.title);
+    }
+  }
+}
+window.shareAd = shareAd;
+
+function openReport(id) {
+  state.reportAdId = id;
+  openSheet('reportSheet');
+}
+window.openReport = openReport;
+
+function submitReport() {
+  const reason = document.querySelector('input[name="reportReason"]:checked');
+  if (!reason) { showToast('اختر سبب الإبلاغ'); return; }
+  closeAllSheets();
+  showToast('تم إرسال البلاغ. شكراً لك!');
+  state.reportAdId = null;
+  document.querySelectorAll('input[name="reportReason"]').forEach(r => r.checked = false);
+}
+window.submitReport = submitReport;
+
+function renderCategories() {
+  updateMarketUI();
+  const grid = document.getElementById('categoriesGrid');
+  grid.innerHTML = CATEGORIES.map(c => {
+    const count = state.ads.filter(a => a.category === c.id && (a.country === state.market || a.scope === 'global')).length;
+    return `<div class="cat-item" onclick="filterByCategory('${c.id}')">
+      <div class="cat-icon">${c.icon}</div>
+      <div class="cat-name">${c.name}</div>
+      <div style="font-size:10px;color:#aaa;margin-top:4px">${count} إعلان</div>
+    </div>`;
+  }).join('');
+}
+
+function filterByCategory(catId) {
+  state.searchCategory = catId;
+  openSearch();
+  document.getElementById('searchInput').value = '';
+  performSearch();
+}
+window.filterByCategory = filterByCategory;
+
+function updateMarketUI() {
+  const m = MARKETS[state.market];
+  document.getElementById('marketFlag').textContent = m.flag;
+  document.getElementById('marketLabel').textContent = m.name;
+  const radio = document.querySelector(`input[name="market"][value="${state.market}"]`);
+  if (radio) radio.checked = true;
+}
+
+function setMarket(code) {
+  state.market = code;
+  save(STORAGE.market, state.market);
+  updateMarketUI();
+  renderCategories();
+  closeAllSheets();
+  showToast('تم تغيير السوق إلى ' + MARKETS[code].name);
+}
+window.setMarket = setMarket;
+
+function openMarketSheet() { openSheet('marketSheet'); }
+window.openMarketSheet = openMarketSheet;
+
+function initCreateForm() {
+  const sel = document.getElementById('adCategory');
+  sel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  document.getElementById('adCountry').value = state.market;
+  updateCities();
+  state.scope = 'local';
+  document.querySelectorAll('.scope-opt').forEach(o => o.classList.toggle('active', o.dataset.scope === 'local'));
+}
+window.initCreateForm = initCreateForm;
+
+function updateCities() {
+  const country = document.getElementById('adCountry').value;
+  const sel = document.getElementById('adCity');
+  sel.innerHTML = MARKETS[country].cities.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+window.updateCities = updateCities;
+
+function selectScope(scope) {
+  state.scope = scope;
+  document.querySelectorAll('.scope-opt').forEach(o => o.classList.toggle('active', o.dataset.scope === scope));
+}
+window.selectScope = selectScope;
+
+function compressImage(file, maxW, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxW) { h = (h * maxW) / w; w = maxW; }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function handleMediaSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.type.startsWith('video/')) {
+    if (file.size > 10 * 1024 * 1024) { showToast('حجم الفيديو كبير جداً (الحد 10MB)'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      state.mediaData = ev.target.result;
+      state.mediaType = 'video';
+      document.getElementById('mediaPreview').innerHTML = `<video src="${state.mediaData}" style="max-height:200px;border-radius:12px" controls></video>`;
+    };
+    reader.readAsDataURL(file);
+  } else if (file.type.startsWith('image/')) {
+    compressImage(file, 1200, 0.75).then(data => {
+      state.mediaData = data;
+      state.mediaType = 'image';
+      document.getElementById('mediaPreview').innerHTML = `<img src="${data}" alt="preview">`;
+    }).catch(() => showToast('فشل تحميل الصورة'));
+  }
+}
+window.handleMediaSelect = handleMediaSelect;
+
+function publishAd(e) {
+  e.preventDefault();
+  const btn = document.getElementById('publishBtn');
+  btn.disabled = true;
+  const ad = {
+    id: 'ad-' + Date.now(),
+    title: document.getElementById('adTitle').value.trim(),
+    description: document.getElementById('adDesc').value.trim(),
+    category: document.getElementById('adCategory').value,
+    country: document.getElementById('adCountry').value,
+    city: document.getElementById('adCity').value,
+    scope: state.scope,
+    contact: document.getElementById('adContact').value.trim(),
+    price: document.getElementById('adPrice').value.trim() || null,
+    media: state.mediaData || null,
+    mediaType: state.mediaType || 'image',
+    owner: state.profile.name,
+    ownerAvatar: state.profile.avatar || state.profile.name[0],
+    createdAt: Date.now(),
+    views: 0,
+    featured: false
+  };
+  state.ads.unshift(ad);
+  save(STORAGE.ads, state.ads);
+  state.notifications.unshift({
+    id: 'n-' + Date.now(),
+    icon: '✅',
+    title: 'تم نشر إعلانك',
+    text: ad.title,
+    time: Date.now(),
+    read: false
+  });
+  save(STORAGE.notifications, state.notifications);
+  document.getElementById('createForm').reset();
+  state.mediaData = null;
+  state.mediaType = null;
+  document.getElementById('mediaPreview').innerHTML = '<div class="media-upload-icon">📷</div><div class="media-upload-text">اضغط لرفع صورة أو فيديو</div>';
+  btn.disabled = false;
+  showToast('تم نشر إعلانك بنجاح! 🎉');
+  navigateTo('home');
+}
+window.publishAd = publishAd;
+
+function renderSaved() {
+  const container = document.getElementById('savedList');
+  const savedAds = state.saved.map(id => state.ads.find(a => a.id === id)).filter(Boolean);
+  if (!savedAds.length) {
+    container.innerHTML = `<div class="feed-empty" style="min-height:300px"><div class="feed-empty-icon">❤️</div><div>لا توجد إعلانات محفوظة</div></div>`;
+    return;
+  }
+  container.innerHTML = savedAds.map(ad => listCardHtml(ad, true)).join('');
+  bindListCardClicks(container);
+}
+window.renderSaved = renderSaved;
+
+function listCardHtml(ad, showUnsave) {
+  const img = ad.media ? `<img class="list-card-img" src="${ad.media}" alt="">` : `<div class="list-card-img" style="display:flex;align-items:center;justify-content:center;font-size:32px">${getCategoryIcon(ad.category)}</div>`;
+  return `<div class="list-card" data-id="${ad.id}">
+    ${img}
+    <div class="list-card-body">
+      <div class="list-card-title">${escHtml(ad.title)}</div>
+      <div class="list-card-meta">${getCategoryName(ad.category)} · ${ad.city} · ${timeAgo(ad.createdAt)}</div>
+      ${ad.price ? `<div class="list-card-price">${escHtml(ad.price)}</div>` : ''}
+    </div>
+    ${showUnsave ? `<button class="list-card-save" onclick="event.stopPropagation();toggleSaved('${ad.id}')">❤️</button>` : ''}
+  </div>`;
+}
+
+function bindListCardClicks(container) {
+  container.querySelectorAll('.list-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const ad = state.ads.find(a => a.id === card.dataset.id);
+      if (ad) {
+        navigateTo('home');
+        setTimeout(() => {
+          const el = document.querySelector(`.ad-card[data-id="${ad.id}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    });
+  });
+}
+
+function renderProfile() {
+  document.getElementById('profileAvatar').textContent = state.profile.avatar || state.profile.name[0];
+  document.getElementById('profileName').textContent = state.profile.name;
+  document.getElementById('profileBio').textContent = state.profile.bio;
+  updateProfileStats();
+  document.querySelectorAll('.profile-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.ptab === state.profileTab);
+  });
+  const container = document.getElementById('profileContent');
+  if (state.profileTab === 'ads') {
+    const myAds = state.ads.filter(a => a.owner === state.profile.name);
+    container.innerHTML = myAds.length
+      ? myAds.map(ad => listCardHtml(ad, false)).join('')
+      : `<div class="feed-empty" style="min-height:200px"><div class="feed-empty-icon">📭</div><div>لم تنشر أي إعلان بعد</div></div>`;
+  } else {
+    const myPosts = state.posts.filter(p => p.author === state.profile.name);
+    container.innerHTML = myPosts.length
+      ? myPosts.map(p => `<div class="list-card" style="flex-direction:column;cursor:default">
+        <div style="font-size:14px;line-height:1.6">${escHtml(p.text)}</div>
+        <div style="font-size:11px;color:#aaa;margin-top:8px">${timeAgo(p.createdAt)}</div>
+      </div>`).join('')
+      : `<div class="feed-empty" style="min-height:200px"><div class="feed-empty-icon">💬</div><div>لا توجد منشورات</div></div>`;
+  }
+  if (state.profileTab === 'ads') bindListCardClicks(container);
+}
+window.renderProfile = renderProfile;
+
+function updateProfileStats() {
+  document.getElementById('statAds').textContent = state.ads.filter(a => a.owner === state.profile.name).length;
+  document.getElementById('statPosts').textContent = state.posts.filter(p => p.author === state.profile.name).length;
+  document.getElementById('statSaved').textContent = state.saved.length;
+}
+
+function switchProfileTab(tab) {
+  state.profileTab = tab;
+  renderProfile();
+}
+window.switchProfileTab = switchProfileTab;
+
+function openProfileEdit() {
+  document.getElementById('editName').value = state.profile.name;
+  document.getElementById('editBio').value = state.profile.bio;
+  document.getElementById('editCity').value = state.profile.city;
+  document.getElementById('editPhone').value = state.profile.phone;
+  openSheet('profileEditSheet');
+}
+window.openProfileEdit = openProfileEdit;
+
+function saveProfile() {
+  state.profile.name = document.getElementById('editName').value.trim() || state.profile.name;
+  state.profile.bio = document.getElementById('editBio').value.trim();
+  state.profile.city = document.getElementById('editCity').value.trim();
+  state.profile.phone = document.getElementById('editPhone').value.trim();
+  state.profile.avatar = state.profile.name[0];
+  save(STORAGE.profile, state.profile);
+  closeAllSheets();
+  renderProfile();
+  showToast('تم حفظ الملف الشخصي');
+}
+window.saveProfile = saveProfile;
+
+function openPostsSheet() { openSheet('postsSheet'); }
+window.openPostsSheet = openPostsSheet;
+
+function publishPost() {
+  const text = document.getElementById('postText').value.trim();
+  if (!text) { showToast('اكتب شيئاً أولاً'); return; }
+  state.posts.unshift({
+    id: 'post-' + Date.now(),
+    text,
+    author: state.profile.name,
+    createdAt: Date.now()
+  });
+  save(STORAGE.posts, state.posts);
+  document.getElementById('postText').value = '';
+  closeAllSheets();
+  showToast('تم نشر المنشور');
+  if (state.currentScreen === 'profile') renderProfile();
+}
+window.publishPost = publishPost;
+
+function openSearch() {
+  document.getElementById('screen-searchScreen').classList.add('active');
+  document.getElementById('bottomNav').style.display = 'none';
+  renderSearchFilters();
+  performSearch();
+  setTimeout(() => document.getElementById('searchInput').focus(), 200);
+}
+window.openSearch = openSearch;
+
+function closeSearch() {
+  document.getElementById('screen-searchScreen').classList.remove('active');
+  document.getElementById('bottomNav').style.display = '';
+  state.searchCategory = null;
+}
+window.closeSearch = closeSearch;
+
+function renderSearchFilters() {
+  const filters = document.getElementById('searchFilters');
+  filters.innerHTML = `<button class="filter-chip ${!state.searchCategory ? 'active' : ''}" onclick="setSearchFilter(null)">الكل</button>` +
+    CATEGORIES.map(c => `<button class="filter-chip ${state.searchCategory === c.id ? 'active' : ''}" onclick="setSearchFilter('${c.id}')">${c.icon} ${c.name}</button>`).join('');
+}
+
+function setSearchFilter(cat) {
+  state.searchCategory = cat;
+  renderSearchFilters();
+  performSearch();
+}
+window.setSearchFilter = setSearchFilter;
+
+function performSearch() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  let results = state.ads.filter(a => a.country === state.market || a.scope === 'global');
+  if (state.searchCategory) results = results.filter(a => a.category === state.searchCategory);
+  if (q) {
+    results = results.filter(a =>
+      a.title.toLowerCase().includes(q) ||
+      a.description.toLowerCase().includes(q) ||
+      a.city.toLowerCase().includes(q) ||
+      getCategoryName(a.category).includes(q)
+    );
+  }
+  const container = document.getElementById('searchResults');
+  if (!results.length) {
+    container.innerHTML = `<div class="feed-empty" style="min-height:200px"><div class="feed-empty-icon">🔍</div><div>لا توجد نتائج</div></div>`;
+    return;
+  }
+  container.innerHTML = results.map(ad => listCardHtml(ad, true)).join('');
+  bindListCardClicks(container);
+}
+window.performSearch = performSearch;
+
+function renderNotifications() {
+  const container = document.getElementById('notifList');
+  if (!state.notifications.length) {
+    container.innerHTML = `<div class="feed-empty" style="min-height:300px"><div class="feed-empty-icon">🔔</div><div>لا توجد إشعارات</div></div>`;
+    return;
+  }
+  container.innerHTML = state.notifications.map(n => `
+    <div class="notif-item ${n.read ? '' : 'unread'}" onclick="readNotif('${n.id}')">
+      <div class="notif-icon">${n.icon}</div>
+      <div class="notif-body">
+        <div class="notif-title">${escHtml(n.title)}</div>
+        <div class="notif-text">${escHtml(n.text)}</div>
+        <div class="notif-time">${timeAgo(n.time)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+window.renderNotifications = renderNotifications;
+
+function readNotif(id) {
+  const n = state.notifications.find(x => x.id === id);
+  if (n) { n.read = true; save(STORAGE.notifications, state.notifications); renderNotifications(); }
+}
+window.readNotif = readNotif;
+
+function markAllRead() {
+  state.notifications.forEach(n => n.read = true);
+  save(STORAGE.notifications, state.notifications);
+  renderNotifications();
+  showToast('تم قراءة جميع الإشعارات');
+}
+window.markAllRead = markAllRead;
+
+function openSheet(id) {
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById(id).classList.add('open');
+}
+function closeAllSheets() {
+  document.getElementById('sheetOverlay').classList.remove('open');
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));
+}
+window.closeAllSheets = closeAllSheets;
+
+document.getElementById('screen-home').addEventListener('dblclick', () => navigateTo('notifications'));
+
+initStorage();
+updateMarketUI();
+renderFeed();
+renderCategories();
+updateProfileStats();
+
+})();
+</script>
+</body>
+</html>
