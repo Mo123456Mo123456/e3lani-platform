@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, minHeight: 50, color: BRAND.black, fontSize: 14, lineHeight: 20 },
   card: {
-    flex: 1,
+    width: "31.5%",
     minHeight: 105,
     borderWidth: 1,
     borderColor: BRAND.border,

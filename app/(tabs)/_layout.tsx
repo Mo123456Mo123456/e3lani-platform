@@ -69,10 +69,15 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND.yellow,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: BRAND.black,
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 7,
+    ...Platform.select({
+      web: { boxShadow: "0 7px 20px rgba(0,0,0,.2)" },
+      default: {
+        shadowColor: BRAND.black,
+        shadowOffset: { width: 0, height: 7 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        elevation: 7,
+      },
+    }),
   },
 });
