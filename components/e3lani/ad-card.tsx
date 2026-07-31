@@ -204,18 +204,7 @@ export function AdCard({
   );
 
   return (
-    <Pressable
-      accessible
-      accessibilityRole="link"
-      accessibilityLabel={ad.title}
-      accessibilityHint={locale === "ar" ? "يفتح تفاصيل الإعلان" : "Opens ad details"}
-      onPress={() => router.push({ pathname: "/ad/[id]", params: { id: ad.id } } as never)}
-      style={({ pressed }) => [
-        styles.card,
-        immersive && styles.immersive,
-        { height, opacity: pressed ? 0.96 : 1 },
-      ]}
-    >
+    <View style={[styles.card, immersive && styles.immersive, { height }]}>
       <MediaView media={ad.media[0]} active={active} muted={muted} accessibilityLabel={ad.title} />
       <View accessible={false} style={styles.scrim} />
 
@@ -251,7 +240,17 @@ export function AdCard({
       </View>
 
       <View style={[styles.copy, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-        <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`${owner}: ${ad.title}`}
+          accessibilityHint={locale === "ar" ? "يفتح تفاصيل الإعلان" : "Opens ad details"}
+          onPress={() => router.push({ pathname: "/ad/[id]", params: { id: ad.id } } as never)}
+          style={({ pressed }) => [
+            styles.brandRow,
+            { flexDirection: isRTL ? "row-reverse" : "row" },
+            pressed && styles.actionPressed,
+          ]}
+        >
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{avatar}</Text>
           </View>
@@ -261,7 +260,7 @@ export function AdCard({
           {ad.verified ? (
             <MaterialIcons accessible={false} name="verified" size={18} color={BRAND.yellow} />
           ) : null}
-        </View>
+        </Pressable>
         <Text numberOfLines={2} style={[styles.adTitle, { textAlign: isRTL ? "right" : "left" }]}>
           {ad.title}
         </Text>
@@ -326,7 +325,7 @@ export function AdCard({
           </View>
         </View>
       </Modal>
-    </Pressable>
+    </View>
   );
 }
 
@@ -418,9 +417,9 @@ const styles = StyleSheet.create({
   notice: {
     position: "absolute",
     zIndex: 30,
-    left: 78,
-    right: 16,
-    bottom: 20,
+    top: 145,
+    left: 20,
+    right: 20,
     minHeight: 44,
     borderRadius: 12,
     paddingHorizontal: 12,
