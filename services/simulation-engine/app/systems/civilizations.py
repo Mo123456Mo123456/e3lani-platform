@@ -187,11 +187,11 @@ def _decide(state: dict[str, Any], civ: dict[str, Any], rng: Rng, log: EventLog,
             threat = sum(1 for w in state["wars"].values() if w["active"])
             actions.append(((rel["trust"] + 0.1 * threat) * 2.2, "ally", {"other": other["id"]}))
 
-    if civ.get("starveYears", 0.0) >= 2:
+    if civ.get("starveYears", 0.0) >= 2 and state["meta"]["tick"] - civ.get("lastMigrateTick", -99) >= 5:
         actions.append((3.5, "migrate", {}))
     if any(d["active"] for d in state["diseases"].values() if civ["id"] in d.get("civs", [])):
         actions.append((3.0, "heal", {}))
-    if civ["stability"] < 0.3:
+    if civ["stability"] < 0.3 and state["meta"]["tick"] - civ.get("lastGovernTick", -99) >= 10:
         actions.append((2.2, "govern", {}))
 
     actions.sort(key=lambda a: a[0], reverse=True)
@@ -279,6 +279,7 @@ def _execute(state: dict[str, Any], civ: dict[str, Any], kind: str, data: dict[s
                     "fromCell": worst_city["cellId"], "toCell": best, "size": movers, "tick": tick,
                 })
                 worst_city["population"] -= movers
+                civ["lastMigrateTick"] = tick
                 log.emit(tick, MIGRATION_STARTED, importance=2, cell_id=best, civ_ids=[civ["id"]],
                          payload={"size": movers, "reason": "environmental_stress"})
 
@@ -293,6 +294,7 @@ def _execute(state: dict[str, Any], civ: dict[str, Any], kind: str, data: dict[s
         options.remove(old)
         civ["government"] = rng.choice(options)
         civ["stability"] = clamp(civ["stability"] + 0.12)
+        civ["lastGovernTick"] = tick
         log.emit(tick, GOVERNMENT_CHANGED, importance=3, civ_ids=[civ["id"]],
                  payload={"from": old, "to": civ["government"], "cause": "instability"})
 

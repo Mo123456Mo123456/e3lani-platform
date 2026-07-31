@@ -62,6 +62,7 @@ export interface CausalNodeView {
 
 export interface CausalChain {
   root: WorldEvent | null;
+  event: WorldEvent;
   ancestors: WorldEvent[];
   descendants: WorldEvent[];
 }

@@ -18,9 +18,9 @@ from ..events import (
 )
 from ..rng import Rng
 
-EMISSION_PER_CAPITA = 0.000012
-ABSORPTION_PER_VEG = 0.0000009
-CO2_MIN, CO2_MAX = 0.6, 3.0
+EMISSION_PER_CAPITA = 0.000004
+ABSORPTION_PER_VEG = 0.000002
+CO2_MIN, CO2_MAX = 0.6, 2.5
 
 
 def apply_climate(state: dict[str, Any]) -> None:
@@ -40,7 +40,7 @@ def apply_climate(state: dict[str, Any]) -> None:
     absorption = sum(c["vegetation"] for c in cells) * ABSORPTION_PER_VEG
     old_co2 = meta["co2"]
     meta["co2"] = clamp(old_co2 + (emissions - absorption) * dt, CO2_MIN, CO2_MAX)
-    new_shift = (meta["co2"] - 1.0) * 6.0
+    new_shift = (meta["co2"] - 1.0) * 2.6
     if abs(new_shift - meta["globalTempShift"]) >= 0.5:
         log.emit(tick, CLIMATE_CHANGED, importance=4, payload={
             "driver": "co2",

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, Query, UsePipes } from "@nestjs/common";
+import { Controller, Get, Param, ParseIntPipe, Query } from "@nestjs/common";
 import { eventFeedSchema, paginationSchema } from "@planet/validation";
 import { Public } from "../common/auth.guard";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -25,6 +25,22 @@ export class PlanetsController {
   }
 
   @Public()
+  @Get(":id/regions")
+  regions(
+    @Param("id") id: string,
+    @Query("biome") biome?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.planets.regionsList(id, biome || undefined, Number(limit ?? 60));
+  }
+
+  @Public()
+  @Get(":id/resources")
+  resources(@Param("id") id: string) {
+    return this.planets.resourcesList(id);
+  }
+
+  @Public()
   @Get(":id/regions/:cellId")
   region(@Param("id") id: string, @Param("cellId", ParseIntPipe) cellId: number) {
     return this.planets.region(id, cellId);
@@ -32,9 +48,10 @@ export class PlanetsController {
 
   @Public()
   @Get(":id/maps/:layer")
-  async mapLayer(@Param("id") id: string, @Param("layer") layer: string) {
-    const { png, tick } = await this.simulation.getMapLayer(id, layer);
-    return { layer, tick, pngBase64: png.toString("base64") };
+  async mapLayer(@Param("id") id: string, @Param("layer") layer: string, @Query("tick") tick?: string) {
+    const atTick = tick !== undefined ? Number(tick) : undefined;
+    const { png, tick: renderedTick } = await this.simulation.getMapLayer(id, layer, atTick);
+    return { layer, tick: renderedTick, pngBase64: png.toString("base64") };
   }
 
   @Public()
@@ -57,15 +74,13 @@ export class PlanetsController {
 
   @Public()
   @Get(":id/species")
-  @UsePipes(new ZodValidationPipe(paginationSchema))
-  species(@Param("id") id: string, @Query() query: { page: number; pageSize: number }) {
+  species(@Param("id") id: string, @Query(new ZodValidationPipe(paginationSchema)) query: { page: number; pageSize: number }) {
     return this.planets.species(id, query.page, query.pageSize);
   }
 
   @Public()
   @Get(":id/plants")
-  @UsePipes(new ZodValidationPipe(paginationSchema))
-  plants(@Param("id") id: string, @Query() query: { page: number; pageSize: number }) {
+  plants(@Param("id") id: string, @Query(new ZodValidationPipe(paginationSchema)) query: { page: number; pageSize: number }) {
     return this.planets.plants(id, query.page, query.pageSize);
   }
 
@@ -117,8 +132,7 @@ export class PlanetsController {
 
   @Public()
   @Get(":id/events")
-  @UsePipes(new ZodValidationPipe(eventFeedSchema))
-  events(@Param("id") id: string, @Query() query: {
+  events(@Param("id") id: string, @Query(new ZodValidationPipe(eventFeedSchema)) query: {
     page: number; pageSize: number; types?: string; minImportance?: number;
     civId?: string; contributionId?: string; fromTick?: number; toTick?: number;
   }) {

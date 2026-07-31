@@ -119,6 +119,11 @@ export function createApiClient(opts: ApiClientOptions) {
       refreshState.refreshToken = token;
     },
 
+    /** escape hatch for one-off endpoints */
+    get,
+    post,
+    patch,
+
     // ---- auth ----
     register: (input: { email: string; password: string; displayName: string; locale?: string }) =>
       post<AuthResponse>("/auth/register", input),

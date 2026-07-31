@@ -1,0 +1,19 @@
+{
+  "name": "كوكب يولد أمامك",
+  "short_name": "كوكب",
+  "description": "عالمك، قرارك، أثر لا ينتهي — كوكب حي ثلاثي الأبعاد يتطور بقراراتك",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/ar",
+  "display": "standalone",
+  "background_color": "#050a16",
+  "theme_color": "#050a16",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

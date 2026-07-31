@@ -53,8 +53,8 @@ async function main(): Promise<void> {
   for (const biome of BIOME_CATALOG) {
     await db
       .insertInto("biomes")
-      .values({ name: biome.name, palette: biome.palette, vegetation_capacity: biome.vegetation_capacity })
-      .onConflict((oc) => oc.column("name").doUpdateSet({ palette: biome.palette, vegetation_capacity: biome.vegetation_capacity }))
+      .values({ name: biome.name, palette: JSON.stringify(biome.palette), vegetation_capacity: biome.vegetation_capacity })
+      .onConflict((oc) => oc.column("name").doUpdateSet({ palette: JSON.stringify(biome.palette), vegetation_capacity: biome.vegetation_capacity }))
       .execute();
   }
 
@@ -170,9 +170,9 @@ async function persistEvents(db: Kysely<Database>, planetId: string, events: Eng
         type: e.type,
         importance: e.importance,
         cell_id: e.cellId,
-        civ_ids: e.civIds ?? [],
-        species_ids: e.speciesIds ?? [],
-        plant_ids: e.plantIds ?? [],
+        civ_ids: JSON.stringify(e.civIds ?? []),
+        species_ids: JSON.stringify(e.speciesIds ?? []),
+        plant_ids: JSON.stringify(e.plantIds ?? []),
         cause_event_id: e.causeEventId,
         contribution_id: null,
         confidence: e.confidence,

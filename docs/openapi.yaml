@@ -1,0 +1,396 @@
+openapi: 3.0.3
+info:
+  title: Planet Born API — واجهة «كوكب يولد أمامك»
+  version: 0.1.0
+  description: |
+    REST API for the living planet platform. Auth via Bearer JWT (short-lived)
+    + rotated refresh tokens. Realtime deltas over Socket.IO (see docs/WEBSOCKETS.md).
+servers:
+  - url: http://localhost:4000
+tags:
+  - name: auth
+  - name: users
+  - name: planets
+  - name: contributions
+  - name: notifications
+  - name: analytics
+  - name: admin
+
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": { description: OK }
+  /ready:
+    get:
+      summary: Readiness (DB + simulation engine)
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
+
+  /auth/register:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterInput" }
+      responses:
+        "200": { description: AuthResponse, content: { application/json: { schema: { $ref: "#/components/schemas/AuthResponse" } } } }
+        "409": { description: Email already registered }
+        "429": { description: Rate limited }
+  /auth/login:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200": { description: AuthResponse, content: { application/json: { schema: { $ref: "#/components/schemas/AuthResponse" } } } }
+        "401": { description: Invalid credentials }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200": { description: Rotated token pair, content: { application/json: { schema: { $ref: "#/components/schemas/AuthResponse" } } } }
+        "401": { description: Invalid / expired / reuse-detected }
+  /auth/logout:
+    post:
+      tags: [auth]
+      security: []
+      responses:
+        "200": { description: Refresh token revoked }
+  /auth/oauth:
+    post:
+      tags: [auth]
+      security: []
+      description: Google/Apple sign-in. 400 `oauth_not_configured` when keys are absent (documented sandbox behavior).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, idToken]
+              properties:
+                provider: { type: string, enum: [google, apple] }
+                idToken: { type: string }
+      responses:
+        "200": { description: AuthResponse }
+        "400": { description: oauth_not_configured }
+
+  /users/me:
+    get:
+      tags: [users]
+      responses:
+        "200": { description: Current user }
+    patch:
+      tags: [users]
+      responses:
+        "200": { description: Updated user }
+  /users/me/dashboard:
+    get:
+      tags: [users]
+      responses:
+        "200": { description: Impact dashboard stats }
+
+  /planets/current:
+    get:
+      tags: [planets]
+      security: []
+      responses:
+        "200": { description: PlanetSummary, content: { application/json: { schema: { $ref: "#/components/schemas/PlanetSummary" } } } }
+        "404": { description: no_planet (run db:seed) }
+  /planets/{id}/regions:
+    get:
+      tags: [planets]
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: biome, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 60 } }
+      responses:
+        "200": { description: Regions list }
+  /planets/{id}/regions/{cellId}:
+    get:
+      tags: [planets]
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: cellId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: RegionInfo }
+  /planets/{id}/maps/{layer}:
+    get:
+      tags: [planets]
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: layer, in: path, required: true, schema: { type: string, enum: [height, biome, temperature, moisture, pollution, political, vegetation, nightlights] } }
+        - { name: tick, in: query, schema: { type: integer }, description: Latest layer at or before this tick (era viewing) }
+      responses:
+        "200": { description: "{ layer, tick, pngBase64 }" }
+  /planets/{id}/overlays:
+    get:
+      tags: [planets]
+      security: []
+      responses:
+        "200": { description: Cities, trade routes, wars, migrations }
+  /planets/{id}/civilizations:
+    get:
+      tags: [planets]
+      security: []
+      responses:
+        "200": { description: Civilization list }
+  /planets/{id}/civilizations/{civId}:
+    get:
+      tags: [planets]
+      security: []
+      responses:
+        "200": { description: Civilization detail with cities + relationships + memory }
+  /planets/{id}/species:
+    get:
+      tags: [planets]
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+      responses:
+        "200": { description: Paginated species }
+  /planets/{id}/plants:
+    get:
+      tags: [planets]
+      security: []
+      responses:
+        "200": { description: Paginated plants }
+  /planets/{id}/technologies:
+    get: { tags: [planets], security: [], responses: { "200": { description: Technologies } } }
+  /planets/{id}/alliances:
+    get: { tags: [planets], security: [], responses: { "200": { description: Alliances } } }
+  /planets/{id}/wars:
+    get: { tags: [planets], security: [], responses: { "200": { description: Wars with structured causes } } }
+  /planets/{id}/trade-routes:
+    get: { tags: [planets], security: [], responses: { "200": { description: Trade routes with cell paths } } }
+  /planets/{id}/resources:
+    get: { tags: [planets], security: [], responses: { "200": { description: Resources with aggregated deposits } } }
+  /planets/{id}/timeline:
+    get: { tags: [planets], security: [], responses: { "200": { description: Era buckets with event counts } } }
+  /planets/{id}/snapshots:
+    get: { tags: [planets], security: [], responses: { "200": { description: Timeline snapshots } } }
+  /planets/{id}/snapshots/compare:
+    get:
+      tags: [planets]
+      security: []
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: integer } }
+        - { name: to, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: Metric deltas between two snapshots }
+  /planets/{id}/events:
+    get:
+      tags: [planets]
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20 } }
+        - { name: types, in: query, schema: { type: string }, description: CSV of event types }
+        - { name: minImportance, in: query, schema: { type: integer, minimum: 1, maximum: 5 } }
+        - { name: civId, in: query, schema: { type: string } }
+        - { name: contributionId, in: query, schema: { type: string } }
+        - { name: fromTick, in: query, schema: { type: integer } }
+        - { name: toTick, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: Paginated world events }
+  /planets/{id}/events/{eventId}/chain:
+    get:
+      tags: [planets]
+      security: []
+      responses:
+        "200": { description: Causal chain (root, event, ancestors, descendants) }
+
+  /contributions/drafts:
+    post:
+      tags: [contributions]
+      description: Step 1-2 of the wizard. Rate limited 20/hour.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContributionDraftInput" }
+      responses:
+        "200": { description: Draft contribution }
+        "422": { description: moderation_blocked }
+  /contributions/mine:
+    get:
+      tags: [contributions]
+      responses:
+        "200": { description: My contributions with impact stats }
+  /contributions/{id}/analyze:
+    post:
+      tags: [contributions]
+      description: AI parse -> structured traits -> balance -> causal prior.
+      responses:
+        "200": { description: "{ contribution, balance, graph, provider, sandbox }" }
+        "422": { description: moderation_blocked }
+  /contributions/{id}/assess:
+    post:
+      tags: [contributions]
+      description: Algorithmic success/biome/risk assessment on live state.
+      responses:
+        "200": { description: ContributionAssessment }
+  /contributions/{id}/preview:
+    post:
+      tags: [contributions]
+      description: Queue Monte-Carlo futures (background job; WS notifies).
+      responses:
+        "200": { description: "{ jobId }" }
+    get:
+      tags: [contributions]
+      responses:
+        "200": { description: "{ status, report }" }
+  /contributions/{id}/confirm:
+    post:
+      tags: [contributions]
+      description: Inject into the world; narration strictly from produced events.
+      responses:
+        "200": { description: "{ contribution, narrative, events }" }
+  /contributions/{id}:
+    get:
+      tags: [contributions]
+      responses:
+        "200": { description: Contribution DTO }
+  /contributions/{id}/impact:
+    get:
+      tags: [contributions]
+      responses:
+        "200": { description: Descendant events, spread cells, affected civs }
+
+  /notifications:
+    get:
+      tags: [notifications]
+      responses:
+        "200": { description: Latest 50 notifications }
+  /notifications/{id}/read:
+    post:
+      tags: [notifications]
+      responses:
+        "200": { description: Marked read }
+
+  /analytics/batch:
+    post:
+      tags: [analytics]
+      security: []
+      responses:
+        "200": { description: "{ accepted }" }
+
+  /admin/metrics:
+    get: { tags: [admin], responses: { "200": { description: Ops metrics }, "403": { description: insufficient_role } } }
+  /admin/users:
+    get: { tags: [admin], responses: { "200": { description: Paginated users } } }
+  /admin/users/{id}:
+    patch: { tags: [admin], responses: { "200": { description: Role/suspension updated } } }
+  /admin/planets/{id}/simulation:
+    post:
+      tags: [admin]
+      description: pause | resume | tick {ticks} | rollback {tick}
+      responses:
+        "200": { description: "{ status, tick }" }
+  /admin/planets/{id}/maps/render:
+    post: { tags: [admin], responses: { "200": { description: Maps re-rendered } } }
+  /admin/ai-requests:
+    get: { tags: [admin], responses: { "200": { description: AI call accounting } } }
+  /admin/ai-usage-daily:
+    get: { tags: [admin], responses: { "200": { description: Daily AI usage (30d) } } }
+  /admin/ai-providers:
+    get: { tags: [admin], responses: { "200": { description: Provider status incl. sandbox } } }
+  /admin/audit-logs:
+    get: { tags: [admin], responses: { "200": { description: Audit logs } } }
+  /admin/moderation:
+    get: { tags: [admin], responses: { "200": { description: Moderation review queue } } }
+  /admin/moderation/{id}/review:
+    post: { tags: [admin], responses: { "200": { description: Reviewed } } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RegisterInput:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 10 }
+        displayName: { type: string, minLength: 2, maxLength: 60 }
+        locale: { type: string, enum: [ar, en] }
+    AuthResponse:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        tokens:
+          type: object
+          properties:
+            accessToken: { type: string }
+            refreshToken: { type: string }
+            expiresIn: { type: integer }
+            tokenType: { type: string, example: Bearer }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        displayName: { type: string }
+        role: { type: string, enum: [visitor, user, explorer, life_maker, civ_builder, historian, moderator, sim_manager, admin, super_admin] }
+        locale: { type: string }
+    PlanetSummary:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        seed: { type: integer }
+        tick: { type: integer }
+        status: { type: string, enum: [running, paused] }
+        civilizations: { type: integer }
+        cities: { type: integer }
+        species: { type: integer }
+        plants: { type: integer }
+        technologies: { type: integer }
+        activeWars: { type: integer }
+        eventCount: { type: integer }
+        globalTempShift: { type: number }
+    ContributionDraftInput:
+      type: object
+      required: [planetId, text]
+      properties:
+        planetId: { type: string }
+        text: { type: string, minLength: 2, maxLength: 1200 }
+        category: { type: string, enum: [creature, plant, resource, civilization, invention, natural_phenomenon, disease, culture, world_law, custom] }
+
+security:
+  - bearerAuth: []

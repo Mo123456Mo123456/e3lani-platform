@@ -86,7 +86,7 @@ export async function materializeState(
     education: c.education as number,
     personality: c.personality as Record<string, number>,
     relationships: c.relationships as Record<string, unknown>,
-    memory: c.memory as string[],
+    memory: JSON.stringify(c.memory as string[]),
     extinct: c.extinct as boolean,
     contribution_id: (c.contributionId as string | null) ?? null,
     updated_tick: tick,
@@ -164,7 +164,7 @@ export async function materializeState(
     city_a: r.cityA as string,
     city_b: r.cityB as string,
     commodity: r.commodity as string,
-    path: r.path as number[],
+    path: JSON.stringify(r.path as number[]),
     volume: r.volume as number,
     active: r.active as boolean,
     created_tick: r.createdTick as number,
@@ -174,7 +174,7 @@ export async function materializeState(
   await upsertInChunks(db, "alliances", alliances.map((a) => ({
     planet_id: planetId,
     id: a.id as string,
-    members: a.members as string[],
+    members: JSON.stringify(a.members as string[]),
     formed_tick: a.formedTick as number,
     active: a.active as boolean,
   })), ["planet_id", "id"]);
@@ -187,8 +187,8 @@ export async function materializeState(
     defender: w.defender as string,
     start_tick: w.startTick as number,
     end_tick: w.active ? null : tick,
-    fronts: w.fronts as number[],
-    causes: (w.causes ?? []) as Array<{ factor: string; weight: number }>,
+    fronts: JSON.stringify(w.fronts as number[]),
+    causes: JSON.stringify((w.causes ?? []) as Array<{ factor: string; weight: number }>),
     active: w.active as boolean,
   })), ["planet_id", "id"]);
 
@@ -199,7 +199,7 @@ export async function materializeState(
     origin_cell: (d.originCell as number | null) ?? null,
     severity: d.severity as number,
     transmission: d.transmission as number,
-    civs: (d.civs ?? []) as string[],
+    civs: JSON.stringify((d.civs ?? []) as string[]),
     start_tick: d.startTick as number,
     active: d.active as boolean,
     contribution_id: (d.contributionId as string | null) ?? null,

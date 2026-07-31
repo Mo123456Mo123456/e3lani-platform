@@ -1,0 +1,154 @@
+name: planet-born
+
+# Full local stack: postgres(+postgis/pgvector), redis, nats, minio,
+# simulation engine, ai orchestrator, api, web, admin.
+#   docker compose up -d
+#   docker compose exec api pnpm run db:seed
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: planet
+      POSTGRES_PASSWORD: planet
+      POSTGRES_DB: planet_born
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planet -d planet_born"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  nats:
+    image: nats:2-alpine
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz || exit 1"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: planetminio
+      MINIO_ROOT_PASSWORD: planetminio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  simulation-engine:
+    build:
+      context: .
+      dockerfile: infra/docker/simulation-engine.Dockerfile
+    environment:
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health')\""]
+      interval: 10s
+      retries: 12
+
+  ai-orchestrator:
+    build:
+      context: .
+      dockerfile: infra/docker/ai-orchestrator.Dockerfile
+    environment:
+      PYTHONUNBUFFERED: "1"
+      AI_PROVIDER_DEFAULT: ${AI_PROVIDER_DEFAULT:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS:-2048}
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8002/health')\""]
+      interval: 10s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      MIGRATE_ON_BOOT: "true"
+      DATABASE_URL: postgres://planet:planet@postgres:5432/planet_born
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
+      SIMULATION_ENGINE_URL: http://simulation-engine:8001
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8002
+      API_PORT: "4000"
+      WEB_URL: http://localhost:3000
+      ADMIN_URL: http://localhost:3001
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret-dev-only}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-dev-only}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-2592000}
+      SIM_TICK_SECONDS: ${SIM_TICK_SECONDS:-5}
+      SIM_AUTO_RUN: ${SIM_AUTO_RUN:-false}
+      SEED_SUPER_ADMIN_EMAIL: ${SEED_SUPER_ADMIN_EMAIL:-admin@planet.local}
+      SEED_SUPER_ADMIN_PASSWORD: ${SEED_SUPER_ADMIN_PASSWORD:-PlanetAdmin!234}
+      SEED_DEMO_USER_EMAIL: ${SEED_DEMO_USER_EMAIL:-demo@planet.local}
+      SEED_DEMO_USER_PASSWORD: ${SEED_DEMO_USER_PASSWORD:-PlanetDemo!234}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      simulation-engine:
+        condition: service_healthy
+      ai-orchestrator:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-http://localhost:4000}
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-http://localhost:4000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  admin:
+    build:
+      context: .
+      dockerfile: infra/docker/admin.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    ports:
+      - "3001:3001"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  miniodata:

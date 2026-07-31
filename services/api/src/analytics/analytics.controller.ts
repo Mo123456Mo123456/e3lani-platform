@@ -1,4 +1,4 @@
-import { Body, Controller, Inject, Post, UsePipes } from "@nestjs/common";
+import { Body, Controller, Inject, Post } from "@nestjs/common";
 import type { Kysely } from "kysely";
 import { analyticsBatchSchema } from "@planet/validation";
 import type { AccessClaims } from "../auth/jwt.util";
@@ -13,10 +13,9 @@ export class AnalyticsController {
 
   @Public()
   @Post("batch")
-  @UsePipes(new ZodValidationPipe(analyticsBatchSchema))
   async batch(
     @CurrentUser() user: AccessClaims | null,
-    @Body() body: { events: Array<{ name: string; props?: Record<string, unknown>; at?: string }> },
+    @Body(new ZodValidationPipe(analyticsBatchSchema)) body: { events: Array<{ name: string; props?: Record<string, unknown>; at?: string }> },
   ) {
     if (!body.events.length) return { accepted: 0 };
     await this.db

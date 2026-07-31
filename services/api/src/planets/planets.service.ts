@@ -87,6 +87,78 @@ export class PlanetsService {
     return Number(row.c);
   }
 
+  async regionsList(planetId: string, biome: string | undefined, limit: number): Promise<RegionInfo[]> {
+    let q = this.db
+      .selectFrom("planet_regions")
+      .selectAll()
+      .where("planet_id", "=", planetId);
+    if (biome) q = q.where("biome", "=", biome);
+    const rows = await q
+      .orderBy("fertility", "desc")
+      .limit(Math.min(limit, 200))
+      .execute();
+    const civIds = [...new Set(rows.map((r) => r.owner_civ_id).filter(Boolean))] as string[];
+    const civNames = new Map(
+      civIds.length
+        ? (
+            await this.db
+              .selectFrom("civilizations")
+              .select(["id", "name"])
+              .where("planet_id", "=", planetId)
+              .where("id", "in", civIds)
+              .execute()
+          ).map((c) => [c.id, c.name])
+        : [],
+    );
+    const planet = await this.simulation.getPlanet(planetId);
+    const cells = (planet.current_state as { cells: Array<Record<string, unknown>> }).cells;
+    return rows.map((row) => ({
+      cellId: row.cell_id,
+      lat: row.lat,
+      lon: row.lon,
+      biome: row.biome as RegionInfo["biome"],
+      temp: (cells[row.cell_id]?.temp as number) ?? 0,
+      moisture: (cells[row.cell_id]?.moisture as number) ?? 0,
+      fertility: row.fertility,
+      pollution: row.pollution,
+      vegetation: row.vegetation,
+      freshwater: row.freshwater,
+      ownerCivId: row.owner_civ_id,
+      ownerCivName: row.owner_civ_id ? civNames.get(row.owner_civ_id) ?? null : null,
+      cityId: row.city_id,
+      cityName: null,
+      deposits: row.deposits as Record<string, number>,
+      presentPlants: row.present_plants,
+      presentSpecies: row.present_species,
+    }));
+  }
+
+  async resourcesList(planetId: string) {
+    const resources = await this.db
+      .selectFrom("resources")
+      .selectAll()
+      .where("planet_id", "=", planetId)
+      .execute();
+    const deposits = await sql<{ id: string; total: string; count: string }>`
+      SELECT key AS id, COALESCE(SUM((value)::numeric), 0)::text AS total, COUNT(*)::text AS count
+      FROM planet_regions, jsonb_each_text(deposits)
+      WHERE planet_id = ${planetId}
+      GROUP BY key
+    `.execute(this.db);
+    const byId = new Map(deposits.rows.map((r) => [r.id, r]));
+    return resources.map((r) => ({
+      id: r.id,
+      name: r.name,
+      kind: r.kind,
+      baseValue: r.base_value,
+      regen: r.regen,
+      envImpact: r.env_impact,
+      totalQuantity: Number(byId.get(r.id)?.total ?? 0),
+      deposits: Number(byId.get(r.id)?.count ?? 0),
+      contributionId: r.contribution_id,
+    }));
+  }
+
   async region(planetId: string, cellId: number): Promise<RegionInfo> {
     const row = await this.db
       .selectFrom("planet_regions")

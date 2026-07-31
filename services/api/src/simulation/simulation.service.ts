@@ -164,9 +164,9 @@ export class SimulationService implements OnModuleInit, OnModuleDestroy {
             type: e.type,
             importance: e.importance,
             cell_id: e.cellId,
-            civ_ids: e.civIds ?? [],
-            species_ids: e.speciesIds ?? [],
-            plant_ids: e.plantIds ?? [],
+            civ_ids: JSON.stringify(e.civIds ?? []),
+            species_ids: JSON.stringify(e.speciesIds ?? []),
+            plant_ids: JSON.stringify(e.plantIds ?? []),
             cause_event_id: e.causeEventId,
             contribution_id: isUuid(e.contributionId) ? e.contributionId : null,
             confidence: e.confidence,
@@ -268,15 +268,16 @@ export class SimulationService implements OnModuleInit, OnModuleDestroy {
     return tick;
   }
 
-  async getMapLayer(planetId: string, layer: string): Promise<{ png: Buffer; tick: number }> {
-    const row = await this.db
+  async getMapLayer(planetId: string, layer: string, atTick?: number): Promise<{ png: Buffer; tick: number }> {
+    let q = this.db
       .selectFrom("planet_map_layers")
       .select(["png", "tick"])
       .where("planet_id", "=", planetId)
-      .where("layer", "=", layer)
-      .orderBy("tick", "desc")
-      .limit(1)
-      .executeTakeFirst();
+      .where("layer", "=", layer);
+    if (atTick !== undefined) {
+      q = q.where("tick", "<=", atTick);
+    }
+    const row = await q.orderBy("tick", "desc").limit(1).executeTakeFirst();
     if (!row) {
       const tick = await this.renderMaps(planetId, true);
       const fresh = await this.db

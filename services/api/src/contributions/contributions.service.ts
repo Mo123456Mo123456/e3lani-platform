@@ -9,7 +9,7 @@ import {
   OnModuleInit,
   UnprocessableEntityException,
 } from "@nestjs/common";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type {
   ContributionAssessment,
   StructuredContribution,
@@ -364,10 +364,10 @@ export class ContributionsService implements OnModuleInit, OnModuleDestroy {
       await this.db.insertInto("roles").values({ user_id: userId, role }).onConflict((oc) => oc.doNothing()).execute();
       await this.db
         .updateTable("profiles")
-        .set((eb) => ({
-          achievements: eb.fn("jsonb_append", [eb.ref("achievements"), eb.val(JSON.stringify([achievement]))]) as never,
+        .set({
+          achievements: sql`achievements || ${JSON.stringify([achievement])}::jsonb` as never,
           updated_at: new Date(),
-        }))
+        })
         .where("user_id", "=", userId)
         .execute();
       await this.notifications.create(userId, "achievement", "إنجاز جديد", achievement, { role });

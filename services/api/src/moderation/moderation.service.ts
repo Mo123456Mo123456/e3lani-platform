@@ -54,7 +54,7 @@ export class ModerationService {
         kind,
         text: text.slice(0, 2000),
         status: verdict.status,
-        reasons: verdict.reasons,
+        reasons: JSON.stringify(verdict.reasons),
         review_status: verdict.status === "flag" ? "pending" : "none",
       })
       .returning("id")

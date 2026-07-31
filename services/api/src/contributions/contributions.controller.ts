@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards, UsePipes } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import {
   contributionConfirmSchema,
   contributionDraftSchema,
@@ -18,8 +18,10 @@ export class ContributionsController {
   @MinRole("user")
   @UseGuards(RateLimitGuard)
   @RateLimit(20, 3600)
-  @UsePipes(new ZodValidationPipe(contributionDraftSchema))
-  createDraft(@CurrentUser() user: AccessClaims, @Body() body: { planetId: string; text: string; category?: string }) {
+  createDraft(
+    @CurrentUser() user: AccessClaims,
+    @Body(new ZodValidationPipe(contributionDraftSchema)) body: { planetId: string; text: string; category?: string },
+  ) {
     return this.contributions.createDraft(user.sub, body);
   }
 
@@ -44,7 +46,7 @@ export class ContributionsController {
   preview(
     @CurrentUser() user: AccessClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(scenarioRequestSchema)) body: { horizons?: number[]; runs?: number },
+    @Body(new ZodValidationPipe(scenarioRequestSchema)) body: { horizons?: number[]; runs?: number; targetCellId?: number | null },
   ) {
     return this.contributions.requestPreview(user.sub, id, body);
   }
@@ -59,11 +61,10 @@ export class ContributionsController {
   @MinRole("user")
   @UseGuards(RateLimitGuard)
   @RateLimit(10, 3600)
-  @UsePipes(new ZodValidationPipe(contributionConfirmSchema))
   confirm(
     @CurrentUser() user: AccessClaims,
     @Param("id") id: string,
-    @Body() body: { targetCellId?: number | null; finalName?: string; finalTraits?: Record<string, number | string> },
+    @Body(new ZodValidationPipe(contributionConfirmSchema)) body: { targetCellId?: number | null; finalName?: string; finalTraits?: Record<string, number | string> },
   ) {
     return this.contributions.confirm(user.sub, id, body);
   }

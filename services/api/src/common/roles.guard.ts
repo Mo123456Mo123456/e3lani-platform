@@ -6,7 +6,9 @@ import { ROLES_KEY, type AuthedRequest } from "./auth.guard";
 @Injectable()
 export class RolesGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const minRole = Reflect.getMetadata(ROLES_KEY, context.getHandler()) as Role | undefined;
+    const minRole =
+      (Reflect.getMetadata(ROLES_KEY, context.getHandler()) as Role | undefined) ??
+      (Reflect.getMetadata(ROLES_KEY, context.getClass()) as Role | undefined);
     if (!minRole) return true;
     const req = context.switchToHttp().getRequest<AuthedRequest>();
     const user = req.user;

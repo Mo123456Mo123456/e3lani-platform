@@ -23,6 +23,7 @@ import type { Database } from "../db/kysely.types";
 import { ModerationService } from "../moderation/moderation.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { SimulationService } from "../simulation/simulation.service";
+import { AiService } from "../ai/ai.service";
 
 @Controller("admin")
 @MinRole("admin")
@@ -33,6 +34,7 @@ export class AdminController {
     private readonly moderation: ModerationService,
     private readonly gateway: RealtimeGateway,
     private readonly audit: AuditService,
+    private readonly ai: AiService,
   ) {}
 
   @Get("metrics")
@@ -86,8 +88,7 @@ export class AdminController {
   }
 
   @Get("users")
-  @UsePipes(new ZodValidationPipe(paginationSchema))
-  async users(@Query() query: { page: number; pageSize: number }) {
+  async users(@Query(new ZodValidationPipe(paginationSchema)) query: { page: number; pageSize: number }) {
     const total = await this.db.selectFrom("users").select((eb) => eb.fn.countAll<number>().as("c")).executeTakeFirstOrThrow();
     const rows = await this.db
       .selectFrom("users")
@@ -126,11 +127,10 @@ export class AdminController {
   }
 
   @Patch("users/:id")
-  @UsePipes(new ZodValidationPipe(adminUserUpdateSchema))
   async updateUser(
     @CurrentUser() actor: AccessClaims,
     @Param("id") id: string,
-    @Body() body: { role?: string; suspended?: boolean },
+    @Body(new ZodValidationPipe(adminUserUpdateSchema)) body: { role?: string; suspended?: boolean },
     @Ip() ip: string,
   ) {
     if (body.role && id === actor.sub && body.role !== "super_admin" && actor.role === "super_admin") {
@@ -161,11 +161,10 @@ export class AdminController {
   }
 
   @Post("planets/:id/simulation")
-  @UsePipes(new ZodValidationPipe(simControlSchema))
   async simControl(
     @CurrentUser() actor: AccessClaims,
     @Param("id") id: string,
-    @Body() body: { action: "pause" | "resume" | "tick" | "rollback" | "restart_era"; ticks?: number; snapshotId?: string; tick?: number },
+    @Body(new ZodValidationPipe(simControlSchema)) body: { action: "pause" | "resume" | "tick" | "rollback" | "restart_era"; ticks?: number; snapshotId?: string; tick?: number },
     @Ip() ip: string,
   ) {
     let result: { status: string; tick: number };
@@ -211,8 +210,7 @@ export class AdminController {
   }
 
   @Get("ai-requests")
-  @UsePipes(new ZodValidationPipe(paginationSchema))
-  async aiRequests(@Query() query: { page: number; pageSize: number }) {
+  async aiRequests(@Query(new ZodValidationPipe(paginationSchema)) query: { page: number; pageSize: number }) {
     const total = await this.db.selectFrom("ai_requests").select((eb) => eb.fn.countAll<number>().as("c")).executeTakeFirstOrThrow();
     const rows = await this.db
       .selectFrom("ai_requests")
@@ -240,6 +238,11 @@ export class AdminController {
     };
   }
 
+  @Get("ai-providers")
+  aiProviders() {
+    return this.ai.providerStatus();
+  }
+
   @Get("ai-usage-daily")
   async aiUsageDaily() {
     const rows = await sql<{ day: string; cost: string; requests: string; latency: string }>`
@@ -260,8 +263,7 @@ export class AdminController {
   }
 
   @Get("audit-logs")
-  @UsePipes(new ZodValidationPipe(paginationSchema))
-  async auditLogs(@Query() query: { page: number; pageSize: number }) {
+  async auditLogs(@Query(new ZodValidationPipe(paginationSchema)) query: { page: number; pageSize: number }) {
     const total = await this.db.selectFrom("audit_logs").select((eb) => eb.fn.countAll<number>().as("c")).executeTakeFirstOrThrow();
     const rows = await this.db
       .selectFrom("audit_logs")
@@ -294,11 +296,10 @@ export class AdminController {
   }
 
   @Post("moderation/:id/review")
-  @UsePipes(new ZodValidationPipe(moderationReviewSchema))
   async moderationReview(
     @CurrentUser() actor: AccessClaims,
     @Param("id") id: string,
-    @Body() body: { decision: "approve" | "reject"; note?: string },
+    @Body(new ZodValidationPipe(moderationReviewSchema)) body: { decision: "approve" | "reject"; note?: string },
     @Ip() ip: string,
   ) {
     await this.moderation.review(id, actor.sub, body.decision, body.note);
