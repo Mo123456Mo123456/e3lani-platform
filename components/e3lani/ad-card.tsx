@@ -439,21 +439,15 @@ function FeedAdCard({
   );
 }
 
-export function AdCard({
+function CompactAdCard({
   ad,
   height = 540,
   active = false,
-  variant = "card",
 }: {
   ad: Ad;
   height?: number;
   active?: boolean;
-  variant?: "feed" | "card";
 }) {
-  if (variant === "feed") {
-    return <FeedAdCard ad={ad} height={height} active={active} />;
-  }
-
   const { locale, isRTL, t } = useI18n();
   const { brand, savedIds, toggleSave, recordMetric, metrics } = useE3lani();
   const productData = useProductData();
@@ -636,6 +630,24 @@ export function AdCard({
         </View>
       </View>
     </Pressable>
+  );
+}
+
+export function AdCard({
+  ad,
+  height = 540,
+  active = false,
+  variant = "card",
+}: {
+  ad: Ad;
+  height?: number;
+  active?: boolean;
+  variant?: "feed" | "card";
+}) {
+  return variant === "feed" ? (
+    <FeedAdCard ad={ad} height={height} active={active} />
+  ) : (
+    <CompactAdCard ad={ad} height={height} active={active} />
   );
 }
 
