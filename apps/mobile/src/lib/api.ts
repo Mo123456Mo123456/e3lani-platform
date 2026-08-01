@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import type { AuthTokensDto } from '@e3lani/types';
@@ -23,20 +24,54 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * تخزين الرموز.
+ *
+ * على الأجهزة نستخدم المخزن الآمن (Keychain / Keystore)، وعلى الويب نستخدم
+ * تخزين المتصفح لأن expo-secure-store غير مدعوم هناك.
+ *
+ * كل العمليات لا ترمي استثناءات إطلاقًا: فشل التخزين يعني «لا توجد جلسة»
+ * ويستمر التطبيق كزائر — بدل أن تتعطّل الواجهة عند الإقلاع.
+ */
+const isWeb = Platform.OS === 'web';
+
+async function readToken(key: string): Promise<string | null> {
+  try {
+    if (isWeb) return globalThis.localStorage?.getItem(key) ?? null;
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    return null;
+  }
+}
+
+async function writeToken(key: string, value: string): Promise<void> {
+  try {
+    if (isWeb) globalThis.localStorage?.setItem(key, value);
+    else await SecureStore.setItemAsync(key, value);
+  } catch {
+    // تعذّر الحفظ: الجلسة تبقى في الذاكرة لهذه الجولة فقط
+  }
+}
+
+async function removeToken(key: string): Promise<void> {
+  try {
+    if (isWeb) globalThis.localStorage?.removeItem(key);
+    else await SecureStore.deleteItemAsync(key);
+  } catch {
+    // تجاهل
+  }
+}
+
 export const tokens = {
-  async access(): Promise<string | null> {
-    return SecureStore.getItemAsync(ACCESS_KEY);
-  },
-  async refresh(): Promise<string | null> {
-    return SecureStore.getItemAsync(REFRESH_KEY);
-  },
+  access: () => readToken(ACCESS_KEY),
+  refresh: () => readToken(REFRESH_KEY),
   async save(value: AuthTokensDto): Promise<void> {
-    await SecureStore.setItemAsync(ACCESS_KEY, value.accessToken);
-    await SecureStore.setItemAsync(REFRESH_KEY, value.refreshToken);
+    await writeToken(ACCESS_KEY, value.accessToken);
+    await writeToken(REFRESH_KEY, value.refreshToken);
   },
   async clear(): Promise<void> {
-    await SecureStore.deleteItemAsync(ACCESS_KEY);
-    await SecureStore.deleteItemAsync(REFRESH_KEY);
+    await removeToken(ACCESS_KEY);
+    await removeToken(REFRESH_KEY);
   },
 };
 

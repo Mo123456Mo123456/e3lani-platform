@@ -17,6 +17,9 @@ import { Avatar, Badge } from './ui';
 
 export { contactUrl };
 
+/** ارتفاع شريط إجراءات الإعلان داخل البطاقة. */
+const ACTIONS_HEIGHT = 78;
+
 export function AdFeedItem({
   ad,
   active,
@@ -110,7 +113,8 @@ export function AdFeedItem({
     await Linking.openURL(storeUrl).catch(() => undefined);
   };
 
-  const mediaHeight = height - 132;
+  // ارتفاع شريط الإجراءات فقط — الشريط السفلي للتنقّل محسوب أصلًا خارج البطاقة
+  const mediaHeight = height - ACTIONS_HEIGHT;
 
   return (
     <View style={[styles.container, { height }]}>
@@ -218,7 +222,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 132,
+    bottom: ACTIONS_HEIGHT,
     padding: 14,
     paddingBottom: 16,
     backgroundColor: 'rgba(0,0,0,0.38)',
@@ -254,14 +258,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 132,
+    height: ACTIONS_HEIGHT,
     backgroundColor: theme.colors.white,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 12,
-    paddingBottom: 56,
-    paddingTop: 12,
+    paddingVertical: 15,
   },
   contactButton: {
     flex: 1,

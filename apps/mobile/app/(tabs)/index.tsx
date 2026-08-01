@@ -41,7 +41,9 @@ export default function FeedScreen() {
   const seen = React.useRef(new Set<string>());
 
   const screenHeight = Dimensions.get('window').height;
-  const itemHeight = screenHeight - insets.top - 40 - 62 - 44;
+  // ارتفاع البطاقة = الشاشة ناقص: المنطقة الآمنة العلوية + الشريط الإعلاني +
+  // شريط التبويبات + شريط التنقّل السفلي (بمنطقته الآمنة)
+  const itemHeight = screenHeight - insets.top - 40 - 44 - (64 + insets.bottom);
 
   React.useEffect(() => {
     void api<{ enabled: boolean; logos: TickerLogoDto[] }>('/ticker')

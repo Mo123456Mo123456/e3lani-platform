@@ -1,11 +1,17 @@
 import * as React from 'react';
 import { View } from 'react-native';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/lib/theme';
 
 /** شريط التنقل السفلي مع زر «أضف إعلانًا» في المنتصف بلون أصفر واضح. */
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  // الارتفاع يُحسب من المنطقة الآمنة للجهاز، وإلا قُصّت التسميات على الأجهزة
+  // التي لا شريط إيماءات فيها
+  const barHeight = 64 + insets.bottom;
+
   return (
     <Tabs
       screenOptions={{
@@ -15,11 +21,13 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: theme.colors.white,
           borderTopColor: theme.colors.border,
-          height: 62,
-          paddingBottom: 8,
+          height: barHeight,
+          paddingBottom: insets.bottom + 6,
           paddingTop: 6,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        // النص العربي يحتاج ارتفاع سطر صريحًا، وإلا قُصّت الحروف ذات النزول
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', lineHeight: 16, marginTop: 1 },
+        tabBarIconStyle: { marginTop: 1 },
       }}
     >
       <Tabs.Screen
@@ -41,24 +49,24 @@ export default function TabsLayout() {
         options={{
           title: 'أضف إعلانًا',
           tabBarLabel: () => null,
+          // زر بارز داخل ارتفاع الشريط نفسه — لو تجاوزه لضغط بقية العناصر وقصّ تسمياتها
           tabBarIcon: () => (
             <View
               style={{
-                width: 52,
-                height: 52,
-                borderRadius: 26,
+                width: 46,
+                height: 46,
+                borderRadius: 23,
                 backgroundColor: theme.colors.primary,
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: 16,
                 shadowColor: '#111',
-                shadowOpacity: 0.2,
+                shadowOpacity: 0.22,
                 shadowRadius: 8,
                 shadowOffset: { width: 0, height: 4 },
                 elevation: 6,
               }}
             >
-              <Ionicons name="add" size={30} color={theme.colors.ink} />
+              <Ionicons name="add" size={28} color={theme.colors.ink} />
             </View>
           ),
         }}

@@ -24,17 +24,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<SessionUserDto | null>(null);
   const [loading, setLoading] = React.useState(true);
 
+  /**
+   * يستعيد الجلسة إن وُجدت.
+   * تنتهي حالة التحميل دائمًا مهما حدث — أي فشل هنا يعني «زائر» لا «تطبيق معلّق».
+   */
   const refresh = React.useCallback(async () => {
-    const token = await tokens.access();
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
     try {
+      const token = await tokens.access();
+      if (!token) {
+        setUser(null);
+        return;
+      }
       setUser(await api<SessionUserDto>('/auth/me', { auth: true }));
     } catch {
-      await tokens.clear();
+      await tokens.clear().catch(() => undefined);
       setUser(null);
     } finally {
       setLoading(false);

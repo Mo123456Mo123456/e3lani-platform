@@ -10,6 +10,8 @@ import { Logo } from './logo';
 const MARK_IN_MS = 520;
 const HOLD_MS = 900;
 const FADE_OUT_MS = 420;
+/** مهلة أمان: لا تبقى شاشة البداية ظاهرة بعدها مهما تعثّر التحضير. */
+const MAX_VISIBLE_MS = 5000;
 
 export interface AnimatedSplashProps {
   /** هل انتهى التطبيق من التحضير (تحميل الجلسة والخطوط)؟ */
@@ -70,9 +72,17 @@ export function AnimatedSplash({ isReady, onFinish }: AnimatedSplashProps) {
     taglineOpacity.value = withDelay(480, withTiming(1, { duration: 340 }));
   }, [motionChecked, reduceMotion, markOpacity, markScale, wordmarkOpacity, wordmarkShift, taglineOpacity]);
 
+  // شبكة أمان: تختفي الشاشة بعد المهلة القصوى حتى لو لم يبلغ التطبيق جاهزيته،
+  // فلا يمكن لأي تعثّر في استعادة الجلسة أن يحبس المستخدم في شاشة ثابتة.
+  const [timedOut, setTimedOut] = React.useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), MAX_VISIBLE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
   // الخروج: لا يبدأ قبل جاهزية التطبيق وانقضاء المدة الدنيا
   React.useEffect(() => {
-    if (!isReady || !motionChecked) return;
+    if ((!isReady && !timedOut) || !motionChecked) return;
 
     const holdFor = reduceMotion ? 300 : HOLD_MS;
     const timer = setTimeout(() => {
@@ -86,7 +96,7 @@ export function AnimatedSplash({ isReady, onFinish }: AnimatedSplashProps) {
     }, holdFor);
 
     return () => clearTimeout(timer);
-  }, [isReady, motionChecked, reduceMotion, screenOpacity, onFinish]);
+  }, [isReady, timedOut, motionChecked, reduceMotion, screenOpacity, onFinish]);
 
   const screenStyle = useAnimatedStyle(() => ({ opacity: screenOpacity.value }));
   const markStyle = useAnimatedStyle(() => ({
