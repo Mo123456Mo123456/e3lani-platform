@@ -35,6 +35,7 @@ const requiredColumns = {
   scoped_pricing_rules: [
     "publicId",
     "scopeType",
+    "scopeRef",
     "basePrice",
     "discountPrice",
     "currency",
@@ -71,7 +72,11 @@ const requiredIndexes = {
   ads: ["ads_publicId_unique", "ads_country_feed_idx", "ads_owner_idx"],
   ad_media: ["ad_media_asset_uq", "ad_media_order_uq"],
   countries: ["countries_code_unique"],
-  scoped_pricing_rules: ["scoped_pricing_rules_publicId_unique", "scoped_pricing_rules_active_idx"],
+  scoped_pricing_rules: [
+    "scoped_pricing_rules_publicId_unique",
+    "scoped_pricing_rules_active_idx",
+    "scoped_pricing_rules_scope_idx",
+  ],
   favorites: ["favorite_user_ad_uq"],
   auth_sessions: ["auth_sessions_tokenId_unique", "auth_sessions_user_active_idx"],
   auth_rate_limits: ["auth_rate_limits_scope_key_unique"],
