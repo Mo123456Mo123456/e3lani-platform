@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID.sa.e3lani.app"],
+        "components": [
+          { "/": "/ad/*", "comment": "صفحات الإعلانات" },
+          { "/": "/u/*", "comment": "صفحات المعلنين" }
+        ]
+      }
+    ]
+  }
+}

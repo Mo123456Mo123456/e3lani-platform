@@ -2,6 +2,10 @@ import * as React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import type { AdDto } from '@e3lani/types';
 import { theme } from '@/lib/theme';
@@ -19,17 +23,23 @@ export function AdFeedItem({
   height,
   isAuthed,
   onShare,
+  preload = false,
 }: {
   ad: AdDto;
   active: boolean;
   height: number;
   isAuthed: boolean;
   onShare: (ad: AdDto) => void;
+  preload?: boolean;
 }) {
   const [saved, setSaved] = React.useState(ad.isSaved);
   const [optionsVisible, setOptionsVisible] = React.useState(false);
   const contact = CONTACT_META[ad.contactMethod];
   const storeUrl = ad.owner.business?.storeUrl ?? null;
+
+  // أنيميشن القلب عند النقر المزدوج
+  const heartScale = useSharedValue(0);
+  const heartOpacity = useSharedValue(0);
 
   const openContact = async () => {
     const url = contactUrl(ad);
@@ -39,7 +49,7 @@ export function AdFeedItem({
     await Linking.openURL(url).catch(() => undefined);
   };
 
-  const toggleSave = async () => {
+  const toggleSave = React.useCallback(async () => {
     if (!isAuthed) {
       router.push('/login');
       return;
@@ -52,7 +62,47 @@ export function AdFeedItem({
     } catch {
       setSaved(!next);
     }
-  };
+  }, [ad.id, isAuthed, saved]);
+
+  const playHeart = React.useCallback(() => {
+    heartOpacity.value = withSequence(
+      withTiming(1, { duration: 130 }),
+      withDelay(420, withTiming(0, { duration: 260 })),
+    );
+    heartScale.value = withSequence(
+      withTiming(1.25, { duration: 190, easing: Easing.out(Easing.back(2)) }),
+      withTiming(1, { duration: 140 }),
+      withDelay(360, withTiming(0.85, { duration: 260 })),
+    );
+  }, [heartOpacity, heartScale]);
+
+  /** النقر المزدوج على الإعلان = حفظ فوري، تمامًا كما يتوقّعه مستخدم الفيديو القصير. */
+  const onDoubleTap = React.useCallback(() => {
+    if (!isAuthed) {
+      router.push('/login');
+      return;
+    }
+    playHeart();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    // النقر المزدوج يحفظ فقط ولا يلغي الحفظ — حتى لا يفقد المستخدم إعلانًا بالخطأ
+    if (!saved) void toggleSave();
+  }, [isAuthed, playHeart, saved, toggleSave]);
+
+  const doubleTapGesture = React.useMemo(
+    () =>
+      Gesture.Tap()
+        .numberOfTaps(2)
+        .maxDuration(280)
+        .onEnd((_event, success) => {
+          if (success) runOnJS(onDoubleTap)();
+        }),
+    [onDoubleTap],
+  );
+
+  const heartStyle = useAnimatedStyle(() => ({
+    opacity: heartOpacity.value,
+    transform: [{ scale: heartScale.value }],
+  }));
 
   const openStore = async () => {
     if (!storeUrl) return;
@@ -64,7 +114,15 @@ export function AdFeedItem({
 
   return (
     <View style={[styles.container, { height }]}>
-      <AdMedia media={ad.media} active={active} height={mediaHeight} />
+      <GestureDetector gesture={doubleTapGesture}>
+        <View>
+          <AdMedia media={ad.media} active={active} height={mediaHeight} preload={preload} />
+
+          <Animated.View style={[styles.heart, { top: mediaHeight / 2 - 46 }, heartStyle]} pointerEvents="none">
+            <Ionicons name="bookmark" size={92} color={theme.colors.primary} />
+          </Animated.View>
+        </View>
+      </GestureDetector>
 
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={styles.badges}>
@@ -155,6 +213,7 @@ export function AdFeedItem({
 
 const styles = StyleSheet.create({
   container: { backgroundColor: '#000000' },
+  heart: { position: 'absolute', alignSelf: 'center' },
   overlay: {
     position: 'absolute',
     left: 0,

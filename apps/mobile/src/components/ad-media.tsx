@@ -5,40 +5,43 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import type { MediaDto } from '@e3lani/types';
 import { theme } from '@/lib/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const PROGRESS_TICK_MS = 220;
 
-/**
- * عرض وسائط الإعلان داخل التطبيق:
- *  • تشغيل تلقائي بدون صوت عند ظهور الإعلان، وإيقاف فوري عند الانتقال.
- *  • زر تشغيل/إيقاف الصوت.
- *  • تحميل تدريجي مع Placeholder.
- *  • سحب أفقي للصور المتعددة مع مؤشر نقاط.
- *  • إخفاء عناصر التحكم بعد ثوانٍ.
- *  • يملأ المساحة دون تشويه ويدعم العمودي والمربع والأفقي.
- */
 export function AdMedia({
   media,
   active,
   height,
+  preload = false,
 }: {
   media: MediaDto[];
   active: boolean;
   height: number;
+  /** الإعلان التالي مباشرة: يُحمَّل مسبقًا وهو خارج الشاشة */
+  preload?: boolean;
 }) {
   const [index, setIndex] = React.useState(0);
   const [muted, setMuted] = React.useState(true);
   const [controlsVisible, setControlsVisible] = React.useState(true);
   const hideTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progress = useSharedValue(0);
 
   const video = media.find((item) => item.type === 'VIDEO');
 
   const player = useVideoPlayer(video?.url ?? null, (instance) => {
     instance.loop = true;
     instance.muted = true;
+    try {
+      // مخزن أمامي يكفي لبداية فورية دون استهلاك بيانات زائد
+      instance.bufferOptions = { preferredForwardBufferDuration: 6 };
+    } catch {
+      // بعض المنصات لا تدعم ضبط المخزن — التشغيل الافتراضي يكفي
+    }
   });
 
   React.useEffect(() => {
@@ -49,8 +52,26 @@ export function AdMedia({
     } else {
       player.pause();
       player.currentTime = 0;
+      progress.value = 0;
     }
-  }, [active, muted, player, video]);
+  }, [active, muted, player, video, progress]);
+
+  // شريط التقدّم: يقرأ موضع التشغيل دوريًا دون إعادة رسم الشجرة كلها
+  React.useEffect(() => {
+    if (!video || !active) return;
+    const timer = setInterval(() => {
+      try {
+        const duration = player.duration;
+        const current = player.currentTime;
+        progress.value = duration > 0 ? Math.min(1, Math.max(0, current / duration)) : 0;
+      } catch {
+        // المشغّل قد يكون تحرّر أثناء الانتقال
+      }
+    }, PROGRESS_TICK_MS);
+    return () => clearInterval(timer);
+  }, [active, video, player, progress]);
+
+  const progressStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
 
   const revealControls = React.useCallback(() => {
     setControlsVisible(true);
@@ -65,6 +86,15 @@ export function AdMedia({
     };
   }, [revealControls, active]);
 
+  // تجهيز الصور القادمة مسبقًا فتظهر فورًا عند الانتقال
+  React.useEffect(() => {
+    if (!preload && !active) return;
+    const sources = media
+      .map((item) => item.thumbnailUrl ?? item.url)
+      .filter((url): url is string => Boolean(url));
+    if (sources.length) void Image.prefetch(sources, { cachePolicy: 'memory-disk' });
+  }, [preload, active, media]);
+
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
     if (next !== index) setIndex(next);
@@ -72,14 +102,16 @@ export function AdMedia({
 
   if (video) {
     return (
-      <Pressable style={[styles.container, { height }]} onPress={revealControls}>
+      <View style={[styles.container, { height }]}>
         {video.thumbnailUrl ? (
           <Image
             source={{ uri: video.thumbnailUrl }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
+            cachePolicy="memory-disk"
           />
         ) : null}
+
         <VideoView
           player={player}
           style={[styles.media, { height }]}
@@ -87,6 +119,7 @@ export function AdMedia({
           nativeControls={false}
           allowsPictureInPicture={false}
         />
+
         {controlsVisible ? (
           <Pressable
             onPress={() => {
@@ -95,16 +128,22 @@ export function AdMedia({
             }}
             accessibilityLabel={muted ? 'تشغيل الصوت' : 'كتم الصوت'}
             style={styles.muteButton}
+            hitSlop={8}
           >
             <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={18} color="#FFFFFF" />
           </Pressable>
         ) : null}
-      </Pressable>
+
+        {/* شريط تقدّم رفيع يبيّن ما تبقّى من المقطع */}
+        <View style={styles.progressTrack} pointerEvents="none">
+          <Animated.View style={[styles.progressFill, progressStyle]} />
+        </View>
+      </View>
     );
   }
 
   return (
-    <Pressable style={[styles.container, { height }]} onPress={revealControls}>
+    <View style={[styles.container, { height }]}>
       <FlatList
         data={media}
         keyExtractor={(item) => item.id}
@@ -124,20 +163,15 @@ export function AdMedia({
           />
         )}
       />
+
       {media.length > 1 && controlsVisible ? (
-        <View style={styles.dots}>
+        <View style={styles.dots} pointerEvents="none">
           {media.map((item, dotIndex) => (
-            <View
-              key={item.id}
-              style={[
-                styles.dot,
-                dotIndex === index ? styles.dotActive : null,
-              ]}
-            />
+            <View key={item.id} style={[styles.dot, dotIndex === index ? styles.dotActive : null]} />
           ))}
         </View>
       ) : null}
-    </Pressable>
+    </View>
   );
 }
 
@@ -155,13 +189,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dots: {
+  progressTrack: {
     position: 'absolute',
-    bottom: 12,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: 5,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
+  progressFill: { height: 3, backgroundColor: theme.colors.primary },
+  dots: { position: 'absolute', bottom: 12, alignSelf: 'center', flexDirection: 'row', gap: 5 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.6)' },
   dotActive: { width: 18, backgroundColor: theme.colors.primary },
 });

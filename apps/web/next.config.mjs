@@ -16,6 +16,20 @@ const nextConfig = {
     ],
   },
   experimental: { optimizePackageImports: ['lucide-react'] },
+
+  // ملفات ربط التطبيق يجب أن تُقدَّم بنوع JSON وبلا تخزين مؤقت طويل،
+  // وإلا رفضها iOS و Android عند التحقق من الروابط العميقة.
+  async headers() {
+    return [
+      {
+        source: '/.well-known/:file(apple-app-site-association|assetlinks.json)',
+        headers: [
+          { key: 'Content-Type', value: 'application/json' },
+          { key: 'Cache-Control', value: 'public, max-age=300' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

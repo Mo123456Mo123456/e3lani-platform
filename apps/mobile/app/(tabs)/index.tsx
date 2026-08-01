@@ -11,6 +11,7 @@ import { api, buildQuery } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { track, flushEvents, getDeviceId } from '@/lib/track';
 import { theme } from '@/lib/theme';
+import { cacheAgeLabel, offlineCache } from '@/lib/offline-cache';
 import { TickerBar } from '@/components/ticker-bar';
 import { AdFeedItem } from '@/components/ad-feed-item';
 import { EmptyState, Loading } from '@/components/ui';
@@ -33,8 +34,10 @@ export default function FeedScreen() {
   const [hasMore, setHasMore] = React.useState(true);
   const [loading, setLoading] = React.useState(true);
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = React.useState(0);
   const [ticker, setTicker] = React.useState<TickerLogoDto[]>([]);
   const [coords, setCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+  const [offlineSince, setOfflineSince] = React.useState<number | null>(null);
   const seen = React.useRef(new Set<string>());
 
   const screenHeight = Dimensions.get('window').height;
@@ -42,8 +45,12 @@ export default function FeedScreen() {
 
   React.useEffect(() => {
     void api<{ enabled: boolean; logos: TickerLogoDto[] }>('/ticker')
-      .then((response) => setTicker(response.enabled ? response.logos : []))
-      .catch(() => undefined);
+      .then((response) => {
+        const logos = response.enabled ? response.logos : [];
+        setTicker(logos);
+        void offlineCache.saveTicker(logos);
+      })
+      .catch(async () => setTicker(await offlineCache.readTicker()));
     return () => {
       void flushEvents();
     };
@@ -67,10 +74,25 @@ export default function FeedScreen() {
         setItems((current) => (nextCursor ? [...current, ...page.items] : page.items));
         setCursor(page.nextCursor);
         setHasMore(page.hasMore);
-        if (!nextCursor) setActiveId(page.items[0]?.id ?? null);
+        setOfflineSince(null);
+        if (!nextCursor) {
+          setActiveId(page.items[0]?.id ?? null);
+          // نحتفظ بالصفحة الأولى لعرضها إذا انقطعت الشبكة لاحقًا
+          void offlineCache.saveFeed(nextTab, page.items);
+        }
       } catch {
-        if (!nextCursor) setItems([]);
         setHasMore(false);
+        if (nextCursor) return;
+
+        // فشل التحميل: نعرض آخر نسخة محفوظة بدل شاشة فارغة
+        const cached = await offlineCache.readFeed(nextTab);
+        if (cached) {
+          setItems(cached.items);
+          setActiveId(cached.items[0]?.id ?? null);
+          setOfflineSince(cached.savedAt);
+        } else {
+          setItems([]);
+        }
       } finally {
         setLoading(false);
       }
@@ -98,6 +120,7 @@ export default function FeedScreen() {
       const first = viewableItems[0]?.item as AdDto | undefined;
       if (!first) return;
       setActiveId(first.id);
+      setActiveIndex(viewableItems[0]?.index ?? 0);
       if (!seen.current.has(first.id)) {
         seen.current.add(first.id);
         track(first.id, 'IMPRESSION');
@@ -115,6 +138,15 @@ export default function FeedScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <TickerBar logos={ticker} />
+
+      {offlineSince ? (
+        <Pressable style={styles.offlineBar} onPress={() => void load(tab, null)}>
+          <Ionicons name="cloud-offline-outline" size={14} color={theme.colors.ink} />
+          <Text style={styles.offlineText}>
+            تتصفح نسخة محفوظة ({cacheAgeLabel(offlineSince)}) — اضغط للتحديث
+          </Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.header}>
         <View style={styles.tabs}>
@@ -164,10 +196,16 @@ export default function FeedScreen() {
           onEndReached={() => {
             if (hasMore && cursor) void load(tab, cursor);
           }}
-          renderItem={({ item }) => (
+          // نرسم عنصرين أمام الحالي حتى يبدأ تحميل وسائطهما قبل وصول المستخدم إليهما
+          initialNumToRender={2}
+          maxToRenderPerBatch={3}
+          windowSize={5}
+          removeClippedSubviews
+          renderItem={({ item, index }) => (
             <AdFeedItem
               ad={item}
               active={activeId === item.id}
+              preload={index === activeIndex + 1 || index === activeIndex + 2}
               height={itemHeight}
               isAuthed={Boolean(user)}
               onShare={shareAd}
@@ -196,4 +234,14 @@ const styles = StyleSheet.create({
   tabLabel: { fontSize: 13, fontWeight: '700', color: theme.colors.inkMuted },
   tabLabelActive: { color: theme.colors.white },
   headerActions: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  offlineBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3DC',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  offlineText: { fontSize: 12, fontWeight: '600', color: theme.colors.ink },
 });
