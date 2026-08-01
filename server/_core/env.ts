@@ -1,10 +1,24 @@
+const isProduction = process.env.NODE_ENV === "production";
+
+function configuredValue(name: string): string {
+  return process.env[name]?.trim() ?? "";
+}
+
+/**
+ * Local/test defaults keep tooling deterministic. Production code still fails
+ * closed in the SDK when required authentication secrets are not configured.
+ */
+const appId = configuredValue("VITE_APP_ID") || (isProduction ? "" : "e3lani-local");
+const cookieSecret =
+  configuredValue("JWT_SECRET") || (isProduction ? "" : "e3lani-local-session-secret");
+
 export const ENV = {
-  appId: process.env.VITE_APP_ID ?? "",
-  cookieSecret: process.env.JWT_SECRET ?? "",
-  databaseUrl: process.env.DATABASE_URL ?? "",
-  oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
-  ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
-  isProduction: process.env.NODE_ENV === "production",
-  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  appId,
+  cookieSecret,
+  databaseUrl: configuredValue("DATABASE_URL"),
+  oAuthServerUrl: configuredValue("OAUTH_SERVER_URL"),
+  ownerOpenId: configuredValue("OWNER_OPEN_ID"),
+  isProduction,
+  forgeApiUrl: configuredValue("BUILT_IN_FORGE_API_URL"),
+  forgeApiKey: configuredValue("BUILT_IN_FORGE_API_KEY"),
 };
