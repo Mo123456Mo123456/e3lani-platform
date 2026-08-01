@@ -50,6 +50,13 @@
       "when": 1785612000000,
       "tag": "0006_server_ads_country_otp",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1785615600000,
+      "tag": "0007_scoped_pricing_subjects",
+      "breakpoints": true
     }
   ]
 }
