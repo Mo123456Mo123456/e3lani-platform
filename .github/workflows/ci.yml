@@ -111,6 +111,9 @@ jobs:
       - name: Verify commercial schema and launch defaults
         run: node scripts/verify-commercial-schema.mjs
 
+      - name: Verify cross-account ad publishing flow
+        run: pnpm exec tsx scripts/verify-server-ad-flow.ts
+
       - name: Export fresh schema baseline
         run: |
           mysqldump -h 127.0.0.1 -uroot -proot --no-data --skip-comments --compact --set-gtid-purged=OFF e3lani > fresh-schema.sql
