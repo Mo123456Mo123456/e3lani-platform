@@ -1,4 +1,4 @@
-import { index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar, tinyint } from "drizzle-orm/mysql-core";
+import { index, int, json, mysqlEnum, mysqlTable, timestamp, uniqueIndex, varchar, tinyint } from "drizzle-orm/mysql-core";
 import { users } from "./accounts";
 import { ads } from "./content";
 
@@ -21,7 +21,6 @@ export const countries = mysqlTable("countries", {
   uniqueIndex("countries_code_unique").on(table.code),
 ]);
 
-/** Flexible admin-managed pricing rules (does not mutate historical ad snapshots). */
 export const scopedPricingRules = mysqlTable("scoped_pricing_rules", {
   id: int("id").autoincrement().primaryKey(),
   publicId: varchar("publicId", { length: 32 }).notNull(),
@@ -38,11 +37,12 @@ export const scopedPricingRules = mysqlTable("scoped_pricing_rules", {
   countryId: int("countryId").references(() => countries.id),
   categoryId: int("categoryId"),
   accountType: varchar("accountType", { length: 32 }),
+  scopeRef: varchar("scopeRef", { length: 64 }),
   adType: varchar("adType", { length: 32 }),
   basePrice: int("basePrice").notNull(),
   discountPrice: int("discountPrice"),
   currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
-  taxRate: int("taxRate").default(0).notNull(), // basis points
+  taxRate: int("taxRate").default(0).notNull(),
   startsAt: timestamp("startsAt"),
   endsAt: timestamp("endsAt"),
   isActive: tinyint("isActive").default(1).notNull(),
@@ -53,6 +53,7 @@ export const scopedPricingRules = mysqlTable("scoped_pricing_rules", {
 }, (table) => [
   uniqueIndex("scoped_pricing_rules_publicId_unique").on(table.publicId),
   index("scoped_pricing_rules_active_idx").on(table.isActive, table.priority),
+  index("scoped_pricing_rules_scope_idx").on(table.scopeType, table.scopeRef, table.isActive),
 ]);
 
 export const coupons = mysqlTable("coupons", {
