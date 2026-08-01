@@ -7,6 +7,7 @@ import {
   getPaymentProvider,
   paymentStatusForFreePublish,
   type PaymentEnvironment,
+  type PaymentStatus,
 } from "../../lib/payments/providers";
 import { ENV } from "../_core/env";
 import { getDb, getPublicProductConfig, requireDatabase } from "../db";
@@ -65,6 +66,10 @@ export async function createPaymentIntentForAd(input: {
     userId: String(input.userId),
   });
 
+  if (!created.externalId || created.status === "not_required") {
+    throw new Error("PAYMENT_PROVIDER_INVALID_RESPONSE");
+  }
+
   const environment: PaymentEnvironment = adapter.environment;
   const intentPublicId = publicId();
   const insert = await db.insert(paymentIntents).values({
@@ -75,7 +80,7 @@ export async function createPaymentIntentForAd(input: {
     environment,
     amount: quote.finalPrice,
     currency: quote.currency,
-    status: created.status === "not_required" ? "not_required" : "pending",
+    status: created.status,
     externalId: created.externalId,
     clientSecret: created.clientSecret,
     webhookVerified: 0,
@@ -97,53 +102,120 @@ export async function createPaymentIntentForAd(input: {
   };
 }
 
+function transitionAllowed(current: PaymentStatus, next: PaymentStatus): boolean {
+  if (current === next) return true;
+  if (current === "refunded") return false;
+  if (current === "cancelled" || current === "failed") return false;
+  if (current === "paid") {
+    return next === "refunded" || next === "partially_refunded";
+  }
+  if (current === "partially_refunded") {
+    return next === "refunded";
+  }
+  return next !== "not_required";
+}
+
+function adPaymentStatus(status: PaymentStatus) {
+  if (status === "cancelled") return "failed" as const;
+  if (status === "processing") return "pending" as const;
+  if (status === "not_required") return "not_required" as const;
+  return status;
+}
+
 export async function handlePaymentWebhook(input: {
   providerId: string;
   rawBody: string;
   signature: string | null;
   headers: Record<string, string | undefined>;
-  externalId: string;
-  markPaid: boolean;
+  /** Legacy client fields are deliberately ignored. */
+  externalId?: string;
+  markPaid?: boolean;
 }) {
   const adapter = getPaymentProvider(input.providerId);
   if (!adapter) throw new Error("PAYMENT_PROVIDER_NOT_READY");
+
   const verified = await adapter.verifyWebhook({
     rawBody: input.rawBody,
     signature: input.signature,
     headers: input.headers,
   });
-  if (!verified.ok) throw new Error("PAYMENT_WEBHOOK_INVALID");
+  if (!verified.ok || !verified.externalId || !verified.status) {
+    throw new Error("PAYMENT_WEBHOOK_INVALID");
+  }
 
   const db = requireDatabase(await getDb());
   const intents = await db
     .select()
     .from(paymentIntents)
-    .where(eq(paymentIntents.externalId, input.externalId))
+    .where(eq(paymentIntents.externalId, verified.externalId))
     .limit(1);
   const intent = intents[0];
   if (!intent) throw new Error("PAYMENT_INTENT_NOT_FOUND");
-
-  await db
-    .update(paymentIntents)
-    .set({
-      webhookVerified: 1,
-      status: input.markPaid ? "paid" : intent.status,
-      paidAt: input.markPaid ? new Date() : intent.paidAt,
-    })
-    .where(eq(paymentIntents.id, intent.id));
-
-  if (input.markPaid && intent.adId) {
-    const now = new Date();
-    await db
-      .update(ads)
-      .set({
-        paymentStatus: "paid",
-        adStatus: "active",
-        activatedAt: now,
-        expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-      })
-      .where(eq(ads.id, intent.adId));
+  if (intent.provider !== adapter.id || intent.environment !== adapter.environment) {
+    throw new Error("PAYMENT_WEBHOOK_PROVIDER_MISMATCH");
   }
 
-  return { ok: true as const, eventId: verified.eventId };
+  const currentStatus = intent.status as PaymentStatus;
+  const nextStatus = verified.status;
+  if (currentStatus === nextStatus) {
+    return { ok: true as const, eventId: verified.eventId, deduped: true as const };
+  }
+  if (!transitionAllowed(currentStatus, nextStatus)) {
+    throw new Error("PAYMENT_STATUS_TRANSITION_INVALID");
+  }
+
+  await db.transaction(async (tx) => {
+    const now = new Date();
+    await tx
+      .update(paymentIntents)
+      .set({
+        webhookVerified: 1,
+        status: nextStatus,
+        paidAt: nextStatus === "paid" ? now : intent.paidAt,
+        metadata: {
+          ...(intent.metadata && typeof intent.metadata === "object" ? intent.metadata : {}),
+          lastWebhookEventId: verified.eventId,
+          lastWebhookStatus: nextStatus,
+        },
+      })
+      .where(eq(paymentIntents.id, intent.id));
+
+    if (!intent.adId) return;
+
+    if (nextStatus === "paid") {
+      await tx
+        .update(ads)
+        .set({
+          paymentStatus: "paid",
+          adStatus: "active",
+          activatedAt: now,
+          expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        })
+        .where(eq(ads.id, intent.adId));
+      return;
+    }
+
+    if (nextStatus === "refunded") {
+      await tx
+        .update(ads)
+        .set({ paymentStatus: "refunded", adStatus: "paused", pausedAt: now })
+        .where(eq(ads.id, intent.adId));
+      return;
+    }
+
+    if (nextStatus === "partially_refunded") {
+      await tx
+        .update(ads)
+        .set({ paymentStatus: "partially_refunded" })
+        .where(eq(ads.id, intent.adId));
+      return;
+    }
+
+    await tx
+      .update(ads)
+      .set({ paymentStatus: adPaymentStatus(nextStatus) })
+      .where(eq(ads.id, intent.adId));
+  });
+
+  return { ok: true as const, eventId: verified.eventId, deduped: false as const };
 }
