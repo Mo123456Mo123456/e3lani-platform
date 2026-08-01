@@ -1,12 +1,23 @@
 import { isPublishingFree, type LaunchPolicy } from "../launch-policy";
 
+export type PricingScopeType =
+  | "global"
+  | "country"
+  | "category"
+  | "account_type"
+  | "user"
+  | "brand"
+  | "campaign";
+
 export type ScopedPricingRule = {
   id: string;
   name: string;
-  scopeType: "global" | "country" | "category" | "account_type" | "user" | "brand" | "campaign";
+  scopeType: PricingScopeType;
   countryId?: string | null;
   categoryId?: string | null;
   accountType?: string | null;
+  /** User, brand or campaign reference, depending on scopeType. */
+  scopeRef?: string | null;
   adType?: string | null;
   basePrice: number;
   discountPrice?: number | null;
@@ -36,6 +47,10 @@ export type ResolveQuoteInput = {
   countryId?: string;
   categoryId?: string;
   accountType?: string;
+  userId?: string;
+  brandId?: string;
+  campaignId?: string;
+  adType?: string;
   nowIso?: string;
 };
 
@@ -46,14 +61,31 @@ function ruleActive(rule: ScopedPricingRule, now: Date): boolean {
   return true;
 }
 
+function same(left: string | undefined | null, right: string | undefined | null): boolean {
+  return Boolean(left && right && left === right);
+}
+
 function matchesScope(rule: ScopedPricingRule, input: ResolveQuoteInput): boolean {
-  if (rule.scopeType === "global") return true;
-  if (rule.scopeType === "country") return Boolean(input.countryId && rule.countryId === input.countryId);
-  if (rule.scopeType === "category") return Boolean(input.categoryId && rule.categoryId === input.categoryId);
-  if (rule.scopeType === "account_type") {
-    return Boolean(input.accountType && rule.accountType === input.accountType);
+  if (rule.adType && !same(rule.adType, input.adType)) return false;
+
+  switch (rule.scopeType) {
+    case "global":
+      return true;
+    case "country":
+      return same(rule.countryId?.toUpperCase(), input.countryId?.toUpperCase());
+    case "category":
+      return same(rule.categoryId, input.categoryId);
+    case "account_type":
+      return same(rule.accountType, input.accountType);
+    case "user":
+      return same(rule.scopeRef, input.userId);
+    case "brand":
+      return same(rule.scopeRef, input.brandId);
+    case "campaign":
+      return same(rule.scopeRef, input.campaignId);
+    default:
+      return false;
   }
-  return false;
 }
 
 export function pickPricingRule(input: ResolveQuoteInput): ScopedPricingRule | null {
