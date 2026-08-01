@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
+import { formatCountryLabel } from "@/lib/countries";
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
@@ -17,9 +18,10 @@ const rows = [
 ] as const;
 
 export default function Profile() {
-  const { user, logout } = useE3lani();
+  const { user, logout, accountCountry } = useE3lani();
   const { locale, t, toggleLocale } = useI18n();
   const staff = Boolean(user && ["reviewer", "finance", "support", "admin", "owner"].includes(user.role));
+  const countryLabel = formatCountryLabel(user?.countryCode ?? accountCountry, locale === "ar" ? "ar" : "en");
 
   return (
     <ScreenContainer className="px-4">
@@ -35,6 +37,7 @@ export default function Profile() {
           </View>
           <Text style={styles.name}>{user?.name ?? t("welcome")}</Text>
           <Text style={styles.help}>{user?.phone ?? t("loginHelp")}</Text>
+          <Text style={styles.country}>{countryLabel}</Text>
           {!user ? (
             <View style={styles.full}>
               <PrimaryButton label={t("signIn")} icon="login" onPress={() => router.push("/login" as never)} />
@@ -126,6 +129,14 @@ const styles = StyleSheet.create({
   },
   name: { marginTop: 13, color: BRAND.black, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   help: { marginTop: 4, color: BRAND.muted, fontSize: 13, lineHeight: 20, textAlign: "center" },
+  country: {
+    marginTop: 8,
+    color: BRAND.black,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800",
+    textAlign: "center",
+  },
   full: { width: "100%", marginTop: 17 },
   row: {
     minHeight: 58,

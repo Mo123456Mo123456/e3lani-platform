@@ -98,6 +98,7 @@ export function useProductData() {
   return {
     catalog: catalogQuery.data,
     config: configQuery.data,
+    launchPolicy: configQuery.data?.launchPolicy,
     categories,
     cities,
     promotions,

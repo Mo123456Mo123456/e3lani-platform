@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -14,10 +16,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AdCard } from "@/components/e3lani/ad-card";
 import { BrandTicker } from "@/components/e3lani/brand-ticker";
-import { EmptyState } from "@/components/e3lani/ui";
+import { EmptyState, PrimaryButton } from "@/components/e3lani/ui";
 import { BRAND, type Ad } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
-import { rankFeedAds, type FeedMode } from "@/lib/feed/rank";
+import { getMarket, GLOBAL_MARKET, MARKETS, rankFeedAds, type FeedMode, type MarketCode } from "@/lib/feed/rank";
 import { useI18n } from "@/lib/i18n";
 import { useProductData } from "@/lib/use-product-data";
 
@@ -34,13 +36,18 @@ export default function Home() {
     recordMetric,
     metrics,
     marketCode,
+    forceCountryFilter,
     categoryFilter,
     setCategoryFilter,
+    setMarket,
+    launchPolicy,
+    accountCountry,
   } = useE3lani();
   const productData = useProductData();
-  const { isRTL, t } = useI18n();
+  const { isRTL, t, locale } = useI18n();
   const [tab, setTab] = useState<FeedMode>("forYou");
   const [active, setActive] = useState("");
+  const [marketOpen, setMarketOpen] = useState(false);
   const listRef = useRef<FlatList<Ad>>(null);
   const seen = useRef(new Set<string>());
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 65 }).current;
@@ -64,13 +71,19 @@ export default function Home() {
   }, [params.category, setCategoryFilter]);
 
   const itemHeight = Math.max(height - TAB_BAR - insets.bottom, 520);
+  const market = getMarket(marketCode);
 
   const cities = useMemo(
     () =>
       productData.cities.map((city) => ({
         id: city.id,
         region: city.region,
-        countryCode: "SA" as const,
+        countryCode:
+          city.id === "dubai" || city.id === "abu_dhabi" || city.id === "sharjah"
+            ? "AE"
+            : city.id === "cairo" || city.id === "giza" || city.id === "alexandria"
+              ? "EG"
+              : "SA",
       })),
     [productData.cities],
   );
@@ -79,13 +92,26 @@ export default function Home() {
     () =>
       rankFeedAds(ads, {
         mode: tab,
-        marketCode,
+        marketCode: tab === "nearby" && marketCode === GLOBAL_MARKET ? accountCountry : marketCode,
         categoryId: categoryFilter || undefined,
         cities,
         metrics,
         blockedOwners,
+        allCountriesVisibility: launchPolicy.allCountriesVisibility,
+        forceCountryFilter: tab === "nearby" ? true : forceCountryFilter,
       }),
-    [ads, blockedOwners, categoryFilter, cities, marketCode, metrics, tab],
+    [
+      ads,
+      blockedOwners,
+      categoryFilter,
+      cities,
+      marketCode,
+      forceCountryFilter,
+      metrics,
+      tab,
+      launchPolicy.allCountriesVisibility,
+      accountCountry,
+    ],
   );
 
   useEffect(() => {
@@ -146,7 +172,20 @@ export default function Home() {
       />
 
       <View pointerEvents="box-none" style={[styles.overlay, { paddingTop: insets.top }]}>
-        <BrandTicker />
+        {launchPolicy.topBannerEnabled ? <BrandTicker /> : null}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("market")}
+          onPress={() => setMarketOpen(true)}
+          style={styles.marketChip}
+        >
+          <Text style={styles.marketChipText}>
+            {market.flag} {locale === "ar" ? market.nameAr : market.nameEn}
+          </Text>
+          <MaterialIcons name="expand-more" size={18} color={BRAND.black} />
+        </Pressable>
+
         <View style={[styles.feedHead, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
           <Pressable
             accessibilityRole="button"
@@ -203,6 +242,41 @@ export default function Home() {
           </Pressable>
         ) : null}
       </View>
+
+      <Modal visible={marketOpen} transparent animationType="slide" onRequestClose={() => setMarketOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setMarketOpen(false)}>
+          <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
+            <View style={styles.handle} />
+            <Text style={styles.sheetTitle}>
+              {locale === "ar" ? "اختر السوق / الدولة" : "Choose market / country"}
+            </Text>
+            <Text style={styles.sheetHelp}>
+              {locale === "ar"
+                ? "الدولة معلومة تنظيمية فقط. الموجز الافتراضي عالمي ولا يُخفى إعلان بسبب دولة الحساب."
+                : "Country is organizational only. The default feed is global and never hidden by account country."}
+            </Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {MARKETS.map((item) => (
+                <Pressable
+                  key={item.code}
+                  style={[styles.option, marketCode === item.code && styles.optionActive]}
+                  onPress={() => {
+                    setMarket(item.code as MarketCode, item.code !== GLOBAL_MARKET);
+                    setMarketOpen(false);
+                  }}
+                >
+                  <Text style={styles.optionFlag}>{item.flag}</Text>
+                  <Text style={styles.optionName}>{locale === "ar" ? item.nameAr : item.nameEn}</Text>
+                  {marketCode === item.code ? (
+                    <MaterialIcons name="check" size={20} color={BRAND.black} />
+                  ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+            <PrimaryButton label={t("close")} onPress={() => setMarketOpen(false)} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -210,10 +284,19 @@ export default function Home() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BRAND.black },
   center: { alignItems: "center", justifyContent: "center" },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 20,
+  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20 },
+  marketChip: {
+    alignSelf: "center",
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: BRAND.yellow,
   },
+  marketChipText: { color: BRAND.black, fontSize: 12, fontWeight: "900" },
   feedHead: {
     marginTop: 8,
     paddingHorizontal: 12,
@@ -240,11 +323,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     gap: 2,
   },
-  tab: {
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
+  tab: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
   tabActive: { backgroundColor: BRAND.yellow },
   tabText: { color: "#eee", fontSize: 12, fontWeight: "900" },
   tabTextActive: { color: BRAND.black },
@@ -261,4 +340,35 @@ const styles = StyleSheet.create({
   },
   filterText: { color: BRAND.white, fontSize: 12, fontWeight: "800" },
   emptyWrap: { justifyContent: "center", paddingHorizontal: 24 },
+  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" },
+  sheet: {
+    padding: 18,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: BRAND.white,
+    gap: 10,
+  },
+  handle: {
+    width: 52,
+    height: 5,
+    borderRadius: 5,
+    backgroundColor: "#ddd",
+    alignSelf: "center",
+  },
+  sheetTitle: { color: BRAND.black, fontSize: 20, fontWeight: "900", textAlign: "right" },
+  sheetHelp: { color: BRAND.muted, fontSize: 12, lineHeight: 18, textAlign: "right" },
+  option: {
+    minHeight: 52,
+    marginBottom: 8,
+    paddingHorizontal: 13,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  optionActive: { borderColor: BRAND.yellowDark, backgroundColor: "#FFF8D9" },
+  optionFlag: { fontSize: 22 },
+  optionName: { flex: 1, color: BRAND.black, fontSize: 15, fontWeight: "800", textAlign: "right" },
 });

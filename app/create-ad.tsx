@@ -7,15 +7,16 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { MediaView } from "@/components/e3lani/ad-card";
 import { Field, OutlineButton, Pill, PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
+import { ACCOUNT_COUNTRIES } from "@/lib/countries";
 import {
   BRAND,
-  isPaymentFlowVisible,
   type AdContact,
   type AdMedia,
   type ContactType,
   type PromotionCode,
 } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
+import { shouldShowPaymentUi } from "@/lib/launch-policy";
 import { useI18n } from "@/lib/i18n";
 import {
   preferredMediaUrl,
@@ -43,10 +44,7 @@ export default function CreateAd() {
   const store = useE3lani();
   const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
-  const paymentVisible = isPaymentFlowVisible(
-    store.launchMode,
-    Boolean(productData.config?.paymentEnabled),
-  );
+  const paymentVisible = shouldShowPaymentUi(store.launchPolicy);
   const totalSteps = paymentVisible ? 5 : 4;
   const [step, setStep] = useState(1);
   const [media, setMedia] = useState<AdMedia[]>([]);
@@ -55,6 +53,8 @@ export default function CreateAd() {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [cityId, setCityId] = useState("");
+  const [customCity, setCustomCity] = useState("");
+  const [adCountry, setAdCountry] = useState(store.accountCountry);
   const [storeUrl, setStoreUrl] = useState("");
   const [whatsapp, setWhatsapp] = useState("+966");
   const [phone, setPhone] = useState("");
@@ -286,11 +286,14 @@ export default function CreateAd() {
       setStep((current) => current + 1);
       return;
     }
+    const resolvedCityId =
+      cityId === "other" ? `other:${customCity.trim() || "unspecified"}` : cityId;
     const ad = store.createAd({
       title: title.trim(),
       description: description.trim(),
       categoryId,
-      cityId,
+      cityId: resolvedCityId,
+      countryCode: adCountry,
       contacts,
       promotions: paymentVisible ? promotions : [],
       media,
@@ -307,7 +310,12 @@ export default function CreateAd() {
     ? productData.calculateQuote(promotions)
     : { items: [] as PromotionCode[], totalHalalas: 0, vatHalalas: 0 };
   const city = productData.cities.find((item) => item.id === cityId);
-  const cityName = locale === "ar" ? city?.ar : city?.en;
+  const cityName =
+    cityId === "other"
+      ? customCity.trim() || (locale === "ar" ? "مدينة أخرى" : "Other city")
+      : locale === "ar"
+        ? city?.ar
+        : city?.en;
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -389,10 +397,41 @@ export default function CreateAd() {
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
               {productData.categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={categoryId === item.id} onPress={() => setCategoryId(item.id)} />)}
             </ScrollView>
+            <Text style={styles.label}>{locale === "ar" ? "دولة الإعلان" : "Ad country"}</Text>
+            <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
+              {ACCOUNT_COUNTRIES.map((country) => (
+                <Pill
+                  key={country.code}
+                  label={`${country.flag} ${locale === "ar" ? country.nameAr : country.nameEn}`}
+                  active={adCountry === country.code}
+                  onPress={() => setAdCountry(country.code)}
+                />
+              ))}
+            </ScrollView>
             <Text style={styles.label}>{t("city")}</Text>
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
-              {productData.cities.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={cityId === item.id} onPress={() => setCityId(item.id)} />)}
+              {productData.cities.map((item) => (
+                <Pill
+                  key={item.id}
+                  label={locale === "ar" ? item.ar : item.en}
+                  active={cityId === item.id}
+                  onPress={() => setCityId(item.id)}
+                />
+              ))}
+              <Pill
+                label={locale === "ar" ? "مدينة أخرى" : "Other city"}
+                active={cityId === "other"}
+                onPress={() => setCityId("other")}
+              />
             </ScrollView>
+            {cityId === "other" ? (
+              <Field
+                label={locale === "ar" ? "اسم المدينة" : "City name"}
+                value={customCity}
+                onChangeText={setCustomCity}
+                maxLength={80}
+              />
+            ) : null}
           </View>
         ) : null}
 

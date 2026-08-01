@@ -36,6 +36,13 @@
       "when": 1785258647680,
       "tag": "0004_wild_cerebro",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1785608400000,
+      "tag": "0005_global_launch_pricing",
+      "breakpoints": true
     }
   ]
 }

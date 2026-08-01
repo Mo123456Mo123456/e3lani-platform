@@ -33,13 +33,17 @@ import {
   type ReportItem,
   type UserProfile,
 } from "./e3lani-data";
-import type { MarketCode } from "./feed/rank";
+import { GLOBAL_MARKET, type MarketCode } from "./feed/rank";
+import { DEFAULT_LAUNCH_POLICY, type LaunchPolicy } from "./launch-policy";
+import { scanAdContent } from "./moderation/ai-scan";
+import { resolvePublishQuote } from "./pricing/resolve-quote";
 
 type NewAd = {
   title: string;
   description: string;
   categoryId: string;
   cityId: string;
+  countryCode?: string;
   media: AdMedia[];
   contacts: AdContact[];
   promotions: PromotionCode[];
@@ -60,9 +64,14 @@ type State = {
   invoices: Invoice[];
   audit: AuditLog[];
   blockedOwners: string[];
+  /** Feed market filter. Defaults to ALL (global). */
   marketCode: MarketCode;
+  /** Account/home country — organizational only, never hides the global feed. */
+  accountCountry: string;
   launchMode: LaunchMode;
+  launchPolicy: LaunchPolicy;
   categoryFilter: string;
+  forceCountryFilter: boolean;
 };
 
 type Value = State & {
@@ -73,7 +82,10 @@ type Value = State & {
   requestVerification: () => void;
   createAd: (data: NewAd) => Ad;
   createPost: (data: { title: string; text: string; media?: AdMedia }) => ProfilePost;
-  setMarket: (code: MarketCode) => void;
+  setMarket: (code: MarketCode, forceFilter?: boolean) => void;
+  setAccountCountry: (code: string) => void;
+  setLaunchPolicy: (policy: Partial<LaunchPolicy>) => void;
+  hydrateLaunchPolicy: (policy: Partial<LaunchPolicy>) => void;
   setCategoryFilter: (categoryId: string) => void;
   toggleSave: (id: string) => void;
   recordMetric: (id: string, key: keyof Metrics) => void;
@@ -104,18 +116,23 @@ const initial: State = {
   posts: [],
   savedIds: [],
   blockedOwners: [],
-  marketCode: "SA",
+  marketCode: GLOBAL_MARKET,
+  accountCountry: "SA",
   launchMode: DEFAULT_LAUNCH_MODE,
+  launchPolicy: DEFAULT_LAUNCH_POLICY,
   categoryFilter: "",
+  forceCountryFilter: false,
   metrics: {
     AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
     AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
+    AD10003: { impressions: 18420, views: 15210, saves: 210, shares: 188, contacts: 96 },
+    AD10004: { impressions: 22110, views: 19880, saves: 260, shares: 140, contacts: 112 },
   },
   notifications: [
     {
       id: "N1",
       title: "مرحبًا بك في إعلاني",
-      body: "النشر مجاني حاليًا. اكتشف الإعلانات المرئية أو ابدأ نشر إعلانك.",
+      body: "النشر مجاني حاليًا بمناسبة إطلاق إعلاني. الموجز عالمي ويمكنك اختيار أي دولة.",
       read: false,
       createdAt: new Date().toISOString(),
       kind: "system",
@@ -143,9 +160,12 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         ...initial,
         ...stored,
         posts: stored.posts ?? [],
-        marketCode: stored.marketCode ?? "SA",
+        marketCode: stored.marketCode ?? GLOBAL_MARKET,
+        accountCountry: stored.accountCountry ?? "SA",
         launchMode: stored.launchMode ?? DEFAULT_LAUNCH_MODE,
+        launchPolicy: stored.launchPolicy ?? DEFAULT_LAUNCH_POLICY,
         categoryFilter: stored.categoryFilter ?? "",
+        forceCountryFilter: stored.forceCountryFilter ?? false,
         ready: true,
         loadError: null,
       });
@@ -170,19 +190,24 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       login: (profile) =>
-        setState((current) => ({
-          ...current,
-          user: {
-            id: "U1",
-            name: "معلن إعلاني",
-            phone: "+966500000000",
-            email: "owner@e3lani.sa",
-            cityId: "riyadh",
-            accountType: "brand",
-            role: "owner",
-            ...profile,
-          },
-        })),
+        setState((current) => {
+          const countryCode = profile?.countryCode ?? current.accountCountry ?? "SA";
+          return {
+            ...current,
+            accountCountry: countryCode,
+            user: {
+              id: "U1",
+              name: "معلن إعلاني",
+              phone: "+966500000000",
+              email: "owner@e3lani.sa",
+              cityId: "riyadh",
+              countryCode,
+              accountType: "brand",
+              role: "owner",
+              ...profile,
+            },
+          };
+        }),
       logout: () => setState((current) => ({ ...current, user: null })),
       updateProfile: (data) =>
         setState((current) => ({
@@ -214,31 +239,93 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         })),
       createAd: (data) => {
         const now = new Date().toISOString();
-        const lifecycle = resolveCreateStatus(state.launchMode, now);
+        const policy = state.launchPolicy;
+        const quote = resolvePublishQuote({
+          policy,
+          countryId: data.countryCode ?? state.accountCountry,
+          categoryId: data.categoryId,
+          accountType: state.user?.accountType,
+          nowIso: now,
+        });
+        const scan = policy.aiModeration
+          ? scanAdContent({
+              title: data.title,
+              description: data.description,
+              contactValue: data.contacts[0]?.value,
+              mediaKind: data.media[0]?.kind,
+            })
+          : { label: "SAFE" as const, reasons: [], autoAction: "keep_published" as const };
+
+        let lifecycle = resolveCreateStatus(
+          policy.instantPublishing && quote.paymentStatus === "not_required"
+            ? "FREE_LAUNCH"
+            : state.launchMode,
+          now,
+        );
+
+        if (scan.autoAction === "auto_pause") {
+          lifecycle = { status: "paused" };
+        } else if (policy.manualPreApproval) {
+          lifecycle = { status: "pending_review" };
+        }
+
         const ad: Ad = {
           id: uid("AD"),
           ownerId: state.user?.id ?? "U1",
           brandId: state.brand?.id,
           ...data,
+          countryCode: data.countryCode ?? state.accountCountry,
           ...lifecycle,
           revision: 1,
           verified: Boolean(state.brand?.verified),
           featured: data.promotions.length > 0,
           sponsored: data.promotions.length > 0,
           createdAt: now,
+          aiLabel: scan.label,
+          paymentStatus: quote.paymentStatus === "pending" ? "pending" : "not_required",
+          priceSnapshot: {
+            basePrice: quote.basePrice,
+            discount: quote.discount,
+            tax: quote.tax,
+            finalPrice: quote.finalPrice,
+            currency: quote.currency,
+            freeReason: quote.freeReason,
+          },
         };
+
         setState((current) => ({
           ...current,
           ads: [ad, ...current.ads],
           metrics: { ...current.metrics, [ad.id]: { ...zero } },
+          audit:
+            scan.label !== "SAFE"
+              ? [
+                  {
+                    id: uid("A"),
+                    actor: "ai.moderation",
+                    action: `ai.${scan.label.toLowerCase()}`,
+                    target: ad.id,
+                    reason: scan.reasons.join(", ") || scan.label,
+                    createdAt: now,
+                  },
+                  ...current.audit,
+                ]
+              : current.audit,
           notifications: [
             {
               id: uid("N"),
-              title: lifecycle.status === "active" ? "تم نشر إعلانك" : "تم إنشاء إعلانك",
+              title:
+                ad.status === "active"
+                  ? "تم نشر إعلانك"
+                  : ad.status === "paused"
+                    ? "تم إيقاف الإعلان تلقائيًا"
+                    : "تم إنشاء إعلانك",
               body:
-                lifecycle.status === "active"
-                  ? `${ad.title} أصبح ظاهرًا في الموجز المحلي.`
-                  : `${ad.title} بانتظار استكمال مسار النشر.`,
+                ad.status === "active"
+                  ? `${ad.title} أصبح ظاهرًا في الموجز العالمي.`
+                  : ad.status === "paused"
+                    ? `أوقفت المراجعة الآلية إعلانك: ${scan.reasons[0] ?? "مخالفة واضحة"}`
+                    : `${ad.title} بانتظار استكمال مسار النشر.`,
               read: false,
               createdAt: now,
               kind: "system",
@@ -260,7 +347,28 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         setState((current) => ({ ...current, posts: [post, ...current.posts] }));
         return post;
       },
-      setMarket: (code) => setState((current) => ({ ...current, marketCode: code })),
+      setMarket: (code, forceFilter = code !== GLOBAL_MARKET) =>
+        setState((current) => ({
+          ...current,
+          marketCode: code,
+          forceCountryFilter: code === GLOBAL_MARKET ? false : forceFilter,
+        })),
+      setAccountCountry: (code) =>
+        setState((current) => ({
+          ...current,
+          accountCountry: code,
+          user: current.user ? { ...current.user, countryCode: code } : current.user,
+        })),
+      setLaunchPolicy: (policy) =>
+        setState((current) => ({
+          ...current,
+          launchPolicy: { ...current.launchPolicy, ...policy },
+        })),
+      hydrateLaunchPolicy: (policy) =>
+        setState((current) => ({
+          ...current,
+          launchPolicy: { ...DEFAULT_LAUNCH_POLICY, ...current.launchPolicy, ...policy },
+        })),
       setCategoryFilter: (categoryId) =>
         setState((current) => ({ ...current, categoryFilter: categoryId })),
       toggleSave: (id) =>

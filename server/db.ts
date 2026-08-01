@@ -227,16 +227,56 @@ export async function getPublicProductConfig() {
   const adsPolicy = settings.get("ads.policy") ?? {};
   const mediaPolicy = normalizeMediaPolicy(settings.get("media.policy"), adsPolicy);
   const paymentPolicy = settings.get("payment.policy") ?? {};
+  const launchPolicyRaw = settings.get("launch.policy") ?? {};
   const paymentProviders = Array.isArray(paymentPolicy.paymentProviders)
     ? paymentPolicy.paymentProviders.filter((provider): provider is string => typeof provider === "string")
     : [];
-  const paymentEnabled = paymentPolicy.enabled === true;
+  const launchPaymentsEnabled = launchPolicyRaw.paymentsEnabled === true;
+  const paymentEnabled = paymentPolicy.enabled === true || launchPaymentsEnabled;
   const paymentProvider = paymentProviders[0] ?? null;
   const paymentMode = paymentEnabled
     ? paymentProvider === "sandbox"
       ? "sandbox"
       : "production"
     : "disabled";
+
+  const launchPolicy = {
+    globalFreeMode: launchPolicyRaw.globalFreeMode !== false,
+    globalPaidMode: launchPolicyRaw.globalPaidMode === true,
+    discountMode: launchPolicyRaw.discountMode === true,
+    countryPricing: launchPolicyRaw.countryPricing === true,
+    categoryPricing: launchPolicyRaw.categoryPricing === true,
+    firstAdFree: launchPolicyRaw.firstAdFree !== false,
+    freeAdsPerUser:
+      typeof launchPolicyRaw.freeAdsPerUser === "number" ? launchPolicyRaw.freeAdsPerUser : null,
+    couponSystem: launchPolicyRaw.couponSystem === true,
+    paymentRequired: launchPolicyRaw.paymentRequired === true,
+    paymentsEnabled: launchPaymentsEnabled,
+    taxEnabled: launchPolicyRaw.taxEnabled === true,
+    featuredAdsEnabled: launchPolicyRaw.featuredAdsEnabled !== false,
+    topBannerEnabled: launchPolicyRaw.topBannerEnabled !== false,
+    allCountriesVisibility: launchPolicyRaw.allCountriesVisibility !== false,
+    instantPublishing: launchPolicyRaw.instantPublishing !== false,
+    aiModeration: launchPolicyRaw.aiModeration !== false,
+    manualPreApproval: launchPolicyRaw.manualPreApproval === true,
+    postPublishReports: launchPolicyRaw.postPublishReports !== false,
+    defaultFeedMarket:
+      typeof launchPolicyRaw.defaultFeedMarket === "string"
+        ? launchPolicyRaw.defaultFeedMarket
+        : "ALL",
+    pricingMode:
+      launchPolicyRaw.pricingMode === "paid" || launchPolicyRaw.pricingMode === "discount"
+        ? launchPolicyRaw.pricingMode
+        : "free",
+    bannerMessageAr:
+      typeof launchPolicyRaw.bannerMessageAr === "string"
+        ? launchPolicyRaw.bannerMessageAr
+        : "النشر مجاني حاليًا بمناسبة إطلاق إعلاني.",
+    bannerMessageEn:
+      typeof launchPolicyRaw.bannerMessageEn === "string"
+        ? launchPolicyRaw.bannerMessageEn
+        : "Publishing is free right now for the E3lani launch.",
+  };
 
   return {
     appName: "إعلاني | E3lani",
@@ -253,8 +293,9 @@ export async function getPublicProductConfig() {
     paymentProvider,
     paymentDisclaimer:
       paymentMode === "disabled"
-        ? "Payment is disabled. Free profile publishing remains available."
+        ? "Payment is disabled. Free global publishing remains available."
         : "Payment requires server-side provider verification before activating distribution.",
+    launchPolicy,
     pricingRules: ruleRows,
     promotions: promotionRows,
   };
@@ -418,6 +459,61 @@ export async function getPublicMediaPolicy() {
       .limit(1),
   ]);
   return normalizeMediaPolicy(mediaRows[0]?.value, adsRows[0]?.value);
+}
+
+export async function upsertAppSetting(input: {
+  settingKey: string;
+  value: Record<string, unknown>;
+  isPublic?: number;
+  updatedBy?: number | null;
+}) {
+  const database = requireDatabase(await getDb());
+  const existing = await database
+    .select({ id: appSettings.id })
+    .from(appSettings)
+    .where(eq(appSettings.settingKey, input.settingKey))
+    .limit(1);
+
+  if (existing[0]) {
+    await database
+      .update(appSettings)
+      .set({
+        value: input.value,
+        isPublic: input.isPublic ?? 1,
+        updatedBy: input.updatedBy ?? null,
+      })
+      .where(eq(appSettings.id, existing[0].id));
+  } else {
+    await database.insert(appSettings).values({
+      settingKey: input.settingKey,
+      value: input.value,
+      isPublic: input.isPublic ?? 1,
+      updatedBy: input.updatedBy ?? null,
+    });
+  }
+
+  return { ok: true as const, settingKey: input.settingKey };
+}
+
+export async function updateLaunchPolicy(
+  patch: Record<string, unknown>,
+  updatedBy?: number | null,
+) {
+  const database = requireDatabase(await getDb());
+  const rows = await database
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.settingKey, "launch.policy"))
+    .limit(1);
+  const current = asObject(rows[0]?.value ?? {});
+  const next = { ...current, ...patch };
+  await upsertAppSetting({
+    settingKey: "launch.policy",
+    value: next,
+    isPublic: 1,
+    updatedBy,
+  });
+  return getPublicProductConfig();
 }
 
 export async function getOwnedMediaAssetByStorageKey(ownerId: number, storageKey: string) {

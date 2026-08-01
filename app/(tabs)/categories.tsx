@@ -37,7 +37,7 @@ export default function Categories() {
   }, [productData.categories, query]);
 
   const selectMarket = (code: MarketCode) => {
-    setMarket(code);
+    setMarket(code, code !== "ALL");
     setMarketOpen(false);
   };
 

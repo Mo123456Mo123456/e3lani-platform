@@ -3,10 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
 import * as db from "./db";
 import { completeMediaUpload, prepareMediaUpload } from "./media-service";
+import { normalizeLaunchPolicy } from "../lib/launch-policy";
 
 const mediaMetadataInput = z.object({
   fileName: z.string().trim().min(1).max(180),
@@ -90,6 +91,43 @@ export const appRouter = router({
   product: router({
     config: publicProcedure.query(() => db.getPublicProductConfig()),
     catalog: publicProcedure.query(() => db.getPublicCatalog()),
+    updateLaunchPolicy: adminProcedure
+      .input(
+        z
+          .object({
+            globalFreeMode: z.boolean().optional(),
+            globalPaidMode: z.boolean().optional(),
+            discountMode: z.boolean().optional(),
+            countryPricing: z.boolean().optional(),
+            categoryPricing: z.boolean().optional(),
+            firstAdFree: z.boolean().optional(),
+            freeAdsPerUser: z.number().int().nonnegative().nullable().optional(),
+            couponSystem: z.boolean().optional(),
+            paymentRequired: z.boolean().optional(),
+            paymentsEnabled: z.boolean().optional(),
+            taxEnabled: z.boolean().optional(),
+            featuredAdsEnabled: z.boolean().optional(),
+            topBannerEnabled: z.boolean().optional(),
+            allCountriesVisibility: z.boolean().optional(),
+            instantPublishing: z.boolean().optional(),
+            aiModeration: z.boolean().optional(),
+            manualPreApproval: z.boolean().optional(),
+            postPublishReports: z.boolean().optional(),
+            defaultFeedMarket: z.string().min(2).max(8).optional(),
+            pricingMode: z.enum(["free", "paid", "discount"]).optional(),
+            bannerMessageAr: z.string().max(240).optional(),
+            bannerMessageEn: z.string().max(240).optional(),
+          })
+          .refine((value) => Object.keys(value).length > 0, { message: "EMPTY_PATCH" }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const patch = Object.fromEntries(
+          Object.entries(input).filter(([, value]) => value !== undefined),
+        ) as Record<string, unknown>;
+        // Validate known keys against the canonical policy shape.
+        normalizeLaunchPolicy({ ...patch });
+        return db.updateLaunchPolicy(patch, ctx.user.id);
+      }),
   }),
   media: router({
     policy: publicProcedure.query(() => db.getPublicMediaPolicy()),

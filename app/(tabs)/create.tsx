@@ -1,22 +1,18 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { PrimaryButton } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
-import { BRAND, isPaymentFlowVisible } from "@/lib/e3lani-data";
+import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
+import { shouldShowPaymentUi } from "@/lib/launch-policy";
 import { useI18n } from "@/lib/i18n";
-import { useProductData } from "@/lib/use-product-data";
 
 export default function Create() {
-  const { user, launchMode } = useE3lani();
+  const { user, launchPolicy } = useE3lani();
   const { t, locale } = useI18n();
-  const productData = useProductData();
-  const paymentVisible = isPaymentFlowVisible(
-    launchMode,
-    Boolean(productData.config?.paymentEnabled),
-  );
+  const paymentVisible = shouldShowPaymentUi(launchPolicy);
 
   return (
     <ScreenContainer className="px-6">
@@ -29,9 +25,24 @@ export default function Create() {
         <View style={styles.notice}>
           <MaterialIcons name="check-circle" size={20} color={BRAND.yellowDark} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.noticeTitle}>{t("freePublish")}</Text>
+            <Text style={styles.noticeTitle}>
+              {locale === "ar" ? launchPolicy.bannerMessageAr : launchPolicy.bannerMessageEn}
+            </Text>
             <Text style={styles.noticeText}>{t("freePublishHelp")}</Text>
           </View>
+        </View>
+
+        <View style={styles.policy}>
+          <Text style={styles.policyText}>
+            {locale === "ar"
+              ? "يُمنع نشر المحتوى المخالف للقوانين أو سياسات المنصة. يتحمل المعلن مسؤولية محتواه، وقد يُحذف الإعلان أو يُوقف الحساب عند المخالفة."
+              : "Publishing illegal or policy-violating content is prohibited. Advertisers are responsible for their content; ads or accounts may be removed when violations occur."}
+          </Text>
+          <Pressable onPress={() => router.push("/policies/prohibited" as never)}>
+            <Text style={styles.policyLink}>
+              {locale === "ar" ? "المحتوى والإعلانات الممنوعة" : "Prohibited content & ads"}
+            </Text>
+          </Pressable>
         </View>
 
         <Text style={styles.text}>
@@ -39,8 +50,8 @@ export default function Create() {
           {paymentVisible
             ? `\n${t("basePrice")}: 59 ${t("sar")}`
             : locale === "ar"
-              ? "\nلا توجد شاشة دفع في وضع الإطلاق المجاني."
-              : "\nNo payment screen in free-launch mode."}
+              ? "\nيُنشر الإعلان مباشرة دون انتظار موافقة بشرية."
+              : "\nAds publish instantly without waiting for human approval."}
         </Text>
 
         <View style={styles.button}>
@@ -92,6 +103,25 @@ const styles = StyleSheet.create({
   },
   noticeTitle: { color: BRAND.black, fontSize: 13, fontWeight: "900", textAlign: "right" },
   noticeText: { marginTop: 4, color: BRAND.black, fontSize: 12, lineHeight: 18, textAlign: "right" },
+  policy: {
+    marginTop: 12,
+    width: "100%",
+    maxWidth: 420,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    backgroundColor: BRAND.surface,
+    gap: 8,
+  },
+  policyText: { color: BRAND.black, fontSize: 11, lineHeight: 17, textAlign: "right" },
+  policyLink: {
+    color: BRAND.yellowDark,
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "right",
+    textDecorationLine: "underline",
+  },
   text: {
     marginTop: 12,
     color: BRAND.muted,

@@ -1,11 +1,26 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useEffect } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
 
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
+import { normalizeLaunchPolicy } from "@/lib/launch-policy";
 import { useI18n } from "@/lib/i18n";
+import { useProductData } from "@/lib/use-product-data";
+
+function LaunchPolicyHydrator() {
+  const { hydrateLaunchPolicy } = useE3lani();
+  const productData = useProductData();
+
+  useEffect(() => {
+    if (!productData.launchPolicy) return;
+    hydrateLaunchPolicy(normalizeLaunchPolicy(productData.launchPolicy));
+  }, [hydrateLaunchPolicy, productData.launchPolicy]);
+
+  return null;
+}
 
 export function AppStateGate({ children }: { children: ReactNode }) {
   const { ready, loadError, retryLoad, continueWithFreshState } = useE3lani();
@@ -60,7 +75,12 @@ export function AppStateGate({ children }: { children: ReactNode }) {
     );
   }
 
-  return children;
+  return (
+    <>
+      <LaunchPolicyHydrator />
+      {children}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
