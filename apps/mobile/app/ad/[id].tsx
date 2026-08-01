@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { track } from '@/lib/track';
 import { theme } from '@/lib/theme';
 import { AdMedia } from '@/components/ad-media';
-import { contactUrl } from '@/components/ad-feed-item';
+import { AdOptionsSheet, contactUrl } from '@/components/ad-options-sheet';
 import { Avatar, Badge, Button, EmptyState, Loading } from '@/components/ui';
 
 export default function AdDetailsScreen() {
@@ -19,6 +19,7 @@ export default function AdDetailsScreen() {
   const [ad, setAd] = React.useState<AdDto | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState(false);
+  const [optionsVisible, setOptionsVisible] = React.useState(false);
 
   React.useEffect(() => {
     void api<AdDto>(`/ads/${id}`, { auth: Boolean(user) })
@@ -120,10 +121,22 @@ export default function AdDetailsScreen() {
         <Pressable style={styles.iconButton} onPress={share}>
           <Ionicons name="share-social-outline" size={20} color={theme.colors.ink} />
         </Pressable>
-        <Pressable style={styles.iconButton} onPress={() => router.push(`/report?adId=${ad.id}`)}>
-          <Ionicons name="flag-outline" size={19} color={theme.colors.inkMuted} />
+        <Pressable
+          style={styles.iconButton}
+          onPress={() => setOptionsVisible(true)}
+          accessibilityLabel="خيارات الإعلان"
+        >
+          <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.ink} />
         </Pressable>
       </View>
+
+      <AdOptionsSheet
+        ad={ad}
+        visible={optionsVisible}
+        saved={saved}
+        onClose={() => setOptionsVisible(false)}
+        onToggleSave={toggleSave}
+      />
     </View>
   );
 }

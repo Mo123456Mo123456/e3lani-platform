@@ -13,7 +13,9 @@
       "backgroundColor": "#FFC400",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "sa.e3lani.app",
@@ -22,28 +24,56 @@
         "NSCameraUsageDescription": "نحتاج الكاميرا لتصوير إعلانك مباشرة.",
         "NSLocationWhenInUseUsageDescription": "نستخدم موقعك لعرض الإعلانات القريبة منك فقط.",
         "CFBundleAllowMixedLocalizations": true
+      },
+      "splash": {
+        "backgroundColor": "#FFC400"
       }
     },
     "android": {
       "package": "sa.e3lani.app",
-      "adaptiveIcon": { "backgroundColor": "#FFC400" },
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "adaptiveIcon": {
+        "backgroundColor": "#FFC400"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "splash": {
+        "backgroundColor": "#FFC400"
+      }
     },
-    "web": { "bundler": "metro", "output": "single" },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-video",
       [
         "expo-image-picker",
-        { "photosPermission": "نحتاج الوصول إلى الصور لرفع وسائط إعلانك." }
+        {
+          "photosPermission": "نحتاج الوصول إلى الصور لرفع وسائط إعلانك."
+        }
       ],
       [
         "expo-location",
-        { "locationWhenInUsePermission": "نستخدم موقعك لعرض الإعلانات القريبة منك." }
+        {
+          "locationWhenInUsePermission": "نستخدم موقعك لعرض الإعلانات القريبة منك."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFC400",
+          "resizeMode": "contain",
+          "imageWidth": 180
+        }
       ]
     ],
-    "experiments": { "typedRoutes": false },
+    "experiments": {
+      "typedRoutes": false
+    },
     "extra": {
       "apiUrl": "http://localhost:4000/api",
       "siteUrl": "http://localhost:3000"

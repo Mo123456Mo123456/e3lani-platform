@@ -8,24 +8,10 @@ import { theme } from '@/lib/theme';
 import { api } from '@/lib/api';
 import { track } from '@/lib/track';
 import { AdMedia } from './ad-media';
+import { AdOptionsSheet, CONTACT_META, contactUrl } from './ad-options-sheet';
 import { Avatar, Badge } from './ui';
 
-const CONTACT: Record<AdDto['contactMethod'], { label: string; icon: any; event: string }> = {
-  WHATSAPP: { label: 'واتساب', icon: 'logo-whatsapp', event: 'CLICK_WHATSAPP' },
-  PHONE: { label: 'اتصال', icon: 'call', event: 'CLICK_CALL' },
-  STORE_LINK: { label: 'زيارة المتجر', icon: 'storefront', event: 'CLICK_STORE' },
-  PRODUCT_LINK: { label: 'عرض المنتج', icon: 'pricetag', event: 'CLICK_STORE' },
-  EXTERNAL_LINK: { label: 'فتح الرابط', icon: 'link', event: 'CLICK_LINK' },
-};
-
-export function contactUrl(ad: AdDto): string | null {
-  if (!ad.contactValue) return null;
-  if (ad.contactMethod === 'WHATSAPP') {
-    return `https://wa.me/${ad.contactValue}?text=${encodeURIComponent(`مرحبًا، بخصوص إعلان «${ad.title}»`)}`;
-  }
-  if (ad.contactMethod === 'PHONE') return `tel:+${ad.contactValue}`;
-  return ad.contactValue;
-}
+export { contactUrl };
 
 export function AdFeedItem({
   ad,
@@ -41,7 +27,9 @@ export function AdFeedItem({
   onShare: (ad: AdDto) => void;
 }) {
   const [saved, setSaved] = React.useState(ad.isSaved);
-  const contact = CONTACT[ad.contactMethod];
+  const [optionsVisible, setOptionsVisible] = React.useState(false);
+  const contact = CONTACT_META[ad.contactMethod];
+  const storeUrl = ad.owner.business?.storeUrl ?? null;
 
   const openContact = async () => {
     const url = contactUrl(ad);
@@ -64,6 +52,12 @@ export function AdFeedItem({
     } catch {
       setSaved(!next);
     }
+  };
+
+  const openStore = async () => {
+    if (!storeUrl) return;
+    track(ad.id, 'CLICK_STORE');
+    await Linking.openURL(storeUrl).catch(() => undefined);
   };
 
   const mediaHeight = height - 132;
@@ -93,13 +87,28 @@ export function AdFeedItem({
           <Text style={styles.meta}>{ad.viewsCount} مشاهدة</Text>
         </View>
 
-        <Pressable style={styles.owner} onPress={() => router.push(`/u/${ad.owner.id}`)}>
-          <Avatar uri={ad.owner.avatarUrl} name={ad.owner.name} size={30} />
-          <Text style={styles.ownerName}>{ad.owner.name}</Text>
-          {ad.owner.isVerified ? (
-            <Ionicons name="checkmark-circle" size={14} color={theme.colors.primary} />
+        {/* صف المعلن: مدخل واضح إلى صفحته لتصفّح بقية ما نشره */}
+        <View style={styles.ownerRow}>
+          <Pressable style={styles.owner} onPress={() => router.push(`/u/${ad.owner.id}`)}>
+            <Avatar uri={ad.owner.avatarUrl} name={ad.owner.name} size={30} />
+            <View>
+              <View style={styles.ownerNameRow}>
+                <Text style={styles.ownerName}>{ad.owner.name}</Text>
+                {ad.owner.isVerified ? (
+                  <Ionicons name="checkmark-circle" size={14} color={theme.colors.primary} />
+                ) : null}
+              </View>
+              <Text style={styles.ownerHint}>عرض صفحته ←</Text>
+            </View>
+          </Pressable>
+
+          {storeUrl ? (
+            <Pressable style={styles.storeChip} onPress={openStore} accessibilityLabel="زيارة المتجر">
+              <Ionicons name="storefront" size={13} color={theme.colors.ink} />
+              <Text style={styles.storeChipText}>المتجر</Text>
+            </Pressable>
           ) : null}
-        </Pressable>
+        </View>
       </View>
 
       <View style={styles.actions}>
@@ -126,12 +135,20 @@ export function AdFeedItem({
 
         <Pressable
           style={styles.iconButton}
-          onPress={() => router.push(`/report?adId=${ad.id}`)}
-          accessibilityLabel="إبلاغ"
+          onPress={() => setOptionsVisible(true)}
+          accessibilityLabel="خيارات الإعلان"
         >
-          <Ionicons name="flag-outline" size={18} color={theme.colors.inkMuted} />
+          <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.ink} />
         </Pressable>
       </View>
+
+      <AdOptionsSheet
+        ad={ad}
+        visible={optionsVisible}
+        saved={saved}
+        onClose={() => setOptionsVisible(false)}
+        onToggleSave={toggleSave}
+      />
     </View>
   );
 }
@@ -144,16 +161,35 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 132,
     padding: 14,
-    paddingBottom: 18,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    paddingBottom: 16,
+    backgroundColor: 'rgba(0,0,0,0.38)',
   },
   badges: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   title: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', marginTop: 8, textAlign: 'right' },
   metaRow: { flexDirection: 'row', gap: 12, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
   price: { color: theme.colors.primary, fontSize: 16, fontWeight: '800' },
   meta: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
-  owner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  ownerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    gap: 8,
+  },
+  owner: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  ownerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   ownerName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  ownerHint: { color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 1 },
+  storeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  storeChipText: { fontSize: 12, fontWeight: '800', color: theme.colors.ink },
   actions: {
     position: 'absolute',
     left: 0,

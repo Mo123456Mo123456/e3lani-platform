@@ -1,7 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Bookmark, Flag, MessageCircle, Phone, Share2, Store, ExternalLink } from 'lucide-react';
+import {
+  Bookmark, Flag, MessageCircle, Phone, Share2, Store, ExternalLink, UserRound,
+} from 'lucide-react';
+import Link from 'next/link';
 import type { AdDto } from '@e3lani/types';
 import { Button, cn } from '@e3lani/ui';
 import { apiFetch } from '@/lib/api';
@@ -43,6 +46,9 @@ export function AdActions({ ad, compact = false }: { ad: AdDto; compact?: boolea
   const contact = CONTACT_LABELS[ad.contactMethod];
   const href = contactHref(ad);
   const ContactIcon = contact.icon;
+  // متجر المعلن يظهر كخيار مستقل متى كان مختلفًا عن وسيلة التواصل نفسها
+  const storeUrl = ad.owner.business?.storeUrl ?? null;
+  const showStore = Boolean(storeUrl && storeUrl !== ad.contactValue);
 
   const toggleSave = async () => {
     if (!session.accessToken()) {
@@ -102,6 +108,29 @@ export function AdActions({ ad, compact = false }: { ad: AdDto; compact?: boolea
       >
         <Bookmark size={19} fill={saved ? 'currentColor' : 'none'} />
       </button>
+
+      {showStore ? (
+        <a
+          href={storeUrl as string}
+          target="_blank"
+          rel="noreferrer noopener"
+          onClick={() => track(ad.id, 'CLICK_STORE')}
+          aria-label="زيارة متجر المعلن"
+          title="زيارة متجر المعلن"
+          className="grid h-11 w-11 place-items-center rounded-lg border border-line bg-white text-ink"
+        >
+          <Store size={19} />
+        </a>
+      ) : null}
+
+      <Link
+        href={`/u/${ad.owner.id}`}
+        aria-label="صفحة المعلن"
+        title="صفحة المعلن — شاهد بقية إعلاناته ومنشوراته"
+        className="grid h-11 w-11 place-items-center rounded-lg border border-line bg-white text-ink-muted"
+      >
+        <UserRound size={19} />
+      </Link>
 
       <button
         type="button"
