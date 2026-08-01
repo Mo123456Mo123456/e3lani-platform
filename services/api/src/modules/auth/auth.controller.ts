@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   adminLoginSchema, completeProfileSchema, refreshTokenSchema, requestOtpSchema, verifyOtpSchema,
@@ -8,11 +8,9 @@ import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   ClientMeta, CurrentUser, Public, RateLimit, type AuthUser,
 } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('auth')
 @Controller('auth')
-@UseGuards(RateLimitGuard)
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
@@ -46,8 +44,9 @@ export class AuthController {
   async completeProfile(
     @CurrentUser() user: AuthUser,
     @Body(zodPipe(completeProfileSchema)) body: any,
+    @ClientMeta() meta: { ip: string; userAgent: string | null },
   ) {
-    return this.auth.completeProfile(user.id, body);
+    return this.auth.completeProfile(user.id, body, meta);
   }
 
   @Public()

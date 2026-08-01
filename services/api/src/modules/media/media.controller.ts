@@ -1,14 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { completeUploadSchema, createUploadSchema } from '@e3lani/types';
 import { MediaService } from './media.service';
 import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser, RateLimit, type AuthUser } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('media')
 @Controller('media')
-@UseGuards(RateLimitGuard)
 export class MediaController {
   constructor(private readonly media: MediaService) {}
 

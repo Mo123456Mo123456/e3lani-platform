@@ -11,6 +11,14 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/services/redis.service';
+
+/** يمسح عدّادات الحد من المعدل حتى لا تتسرّب حالة بين التشغيلات. */
+async function resetRateLimits(app: INestApplication): Promise<void> {
+  const redis = app.get(RedisService);
+  const keys = await redis.client.keys('rl:*');
+  if (keys.length) await redis.client.del(...keys);
+}
 
 for (const candidate of ['../../../.env', '../../.env', '.env']) {
   const path = resolve(__dirname, candidate);
@@ -28,6 +36,7 @@ describe('واجهات إعلاني العامة', () => {
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix(process.env.API_PREFIX ?? 'api');
     await app.init();
+    await resetRateLimits(app);
   }, 60_000);
 
   afterAll(async () => {
@@ -104,5 +113,100 @@ describe('واجهات إعلاني العامة', () => {
       .send({ phone: '0555000111' });
     expect(JSON.stringify(response.body)).not.toMatch(/"code"\s*:\s*"\d{4,6}"/);
     expect(response.body).not.toHaveProperty('debugCode');
+  });
+});
+
+describe('الميزات المضافة: الأسعار المؤرَّخة والخصوصية والفوترة', () => {
+  let app: INestApplication;
+  let adminToken: string;
+  const prefix = `/${process.env.API_PREFIX ?? 'api'}`;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    app.setGlobalPrefix(process.env.API_PREFIX ?? 'api');
+    await app.init();
+    await resetRateLimits(app);
+
+    const login = await request(app.getHttpServer())
+      .post(`${prefix}/auth/admin/login`)
+      .send({
+        email: process.env.SEED_SUPER_ADMIN_EMAIL,
+        password: process.env.SEED_SUPER_ADMIN_PASSWORD,
+      });
+    adminToken = login.body.accessToken;
+  }, 60_000);
+
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  const auth = () => ({ Authorization: `Bearer ${adminToken}` });
+
+  it('يعرض السعر النافذ مع خطه الزمني الكامل', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`${prefix}/admin/pricing`)
+      .set(auth())
+      .expect(200);
+
+    const standard = response.body.find((row: any) => row.key === 'AD_STANDARD');
+    expect(standard.current).toBeTruthy();
+    expect(standard.history.length).toBeGreaterThanOrEqual(1);
+    // لا يوجد أكثر من إصدار نافذ في اللحظة نفسها
+    expect(standard.history.filter((v: any) => v.status === 'ACTIVE')).toHaveLength(1);
+  });
+
+  it('يرفض إدراج سعر بأثر رجعي', async () => {
+    const response = await request(app.getHttpServer())
+      .post(`${prefix}/admin/pricing/versions`)
+      .set(auth())
+      .send({ key: 'AD_STANDARD', amountHalalas: 100, effectiveFrom: '2020-01-01T00:00:00Z' })
+      .expect(400);
+    expect(response.body.code).toBe('PRICING_PAST_DATE');
+  });
+
+  it('يجدول تغيير سعر مستقبلي دون المساس بالسعر النافذ', async () => {
+    const before = await request(app.getHttpServer()).get(`${prefix}/pricing`).expect(200);
+    const currentPrice = before.body.items.find((item: any) => item.key === 'HIGHLIGHT_3').amountSar;
+
+    const future = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    const created = await request(app.getHttpServer())
+      .post(`${prefix}/admin/pricing/versions`)
+      .set(auth())
+      .send({ key: 'HIGHLIGHT_3', amountHalalas: 4242, effectiveFrom: future, note: 'اختبار' })
+      .expect(201);
+
+    expect(created.body.status).toBe('SCHEDULED');
+
+    const after = await request(app.getHttpServer()).get(`${prefix}/pricing`).expect(200);
+    expect(after.body.items.find((item: any) => item.key === 'HIGHLIGHT_3').amountSar).toBe(
+      currentPrice,
+    );
+
+    // تنظيف: إلغاء الإصدار المجدول
+    await request(app.getHttpServer())
+      .delete(`${prefix}/admin/pricing/versions/${created.body.id}`)
+      .set(auth())
+      .expect(200);
+  });
+
+  it('يمنع غير المصرّح لهم من تعديل الأسعار أو الاطلاع على طلبات البيانات', async () => {
+    await request(app.getHttpServer())
+      .post(`${prefix}/admin/pricing/versions`)
+      .send({ key: 'AD_STANDARD', amountHalalas: 1 })
+      .expect(401);
+    await request(app.getHttpServer()).get(`${prefix}/admin/data-requests`).expect(401);
+  });
+
+  it('يحمي مسارات الخصوصية بتسجيل الدخول', async () => {
+    await request(app.getHttpServer()).get(`${prefix}/me/privacy/consents`).expect(401);
+    await request(app.getHttpServer()).post(`${prefix}/me/privacy/data-requests`).expect(401);
+  });
+
+  it('يرفض إصدار فاتورة لعملية غير موجودة', async () => {
+    await request(app.getHttpServer())
+      .get(`${prefix}/admin/payments/nonexistent-payment-id`)
+      .set(auth())
+      .expect(404);
   });
 });

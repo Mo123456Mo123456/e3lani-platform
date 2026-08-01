@@ -1,6 +1,5 @@
 import {
-  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards,
-} from '@nestjs/common';
+  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { adStatusFilterSchema, createAdSchema, paginationSchema, updateAdSchema } from '@e3lani/types';
@@ -9,7 +8,6 @@ import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   CurrentUser, OptionalAuth, Public, RateLimit, type AuthUser,
 } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 const myAdsQuerySchema = paginationSchema.extend({
   status: adStatusFilterSchema.optional(),
@@ -17,7 +15,6 @@ const myAdsQuerySchema = paginationSchema.extend({
 
 @ApiTags('ads')
 @Controller('ads')
-@UseGuards(RateLimitGuard)
 export class AdsController {
   constructor(private readonly ads: AdsService) {}
 
@@ -25,6 +22,11 @@ export class AdsController {
   @RateLimit({ limit: 20, windowSeconds: 3600, by: 'user' })
   async create(@CurrentUser() user: AuthUser, @Body(zodPipe(createAdSchema)) body: any) {
     return this.ads.create(user.id, body);
+  }
+
+  @Get(':id/revisions')
+  async revisions(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.ads.revisions(id, { userId: user.id });
   }
 
   @Get('mine')

@@ -304,16 +304,27 @@ export const checkoutSchema = z.object({
   returnUrl: z.string().url().optional(),
 });
 
-export const upsertPricingSchema = z.object({
+/** تعريف الخدمة القابلة للتسعير — لا يمس السعر نفسه. */
+export const upsertPricingItemSchema = z.object({
   key: z.string().trim().min(2).max(40),
   nameAr: z.string().trim().min(2).max(80),
   nameEn: z.string().trim().min(2).max(80),
   descriptionAr: z.string().trim().max(200).optional(),
-  amountHalalas: z.number().int().min(0).max(100_000_000),
-  durationDays: z.number().int().min(0).max(3650).nullable().optional(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(999).default(0),
 });
+
+/** إصدار سعر جديد: فوري (بدون تاريخ) أو مجدول (بتاريخ مستقبلي). */
+export const addPricingVersionSchema = z.object({
+  key: z.string().trim().min(2).max(40),
+  amountHalalas: z.number().int().min(0).max(100_000_000),
+  durationDays: z.number().int().min(0).max(3650).nullable().optional(),
+  effectiveFrom: z.coerce.date().optional(),
+  note: z.string().trim().max(300).optional(),
+});
+
+/** @deprecated استُبدل بـ upsertPricingItemSchema و addPricingVersionSchema */
+export const upsertPricingSchema = upsertPricingItemSchema;
 
 /* -------------------------------------------------------------------------- */
 /* الشريط الإعلاني العلوي                                                      */
@@ -429,3 +440,34 @@ export const sendNotificationSchema = z.object({
 });
 
 export const adStatusFilterSchema = z.enum(AD_STATUSES);
+
+
+/* -------------------------------------------------------------------------- */
+/* الخصوصية وحماية البيانات                                                    */
+/* -------------------------------------------------------------------------- */
+
+export const createDataRequestSchema = z.object({
+  type: z.enum(['EXPORT', 'DELETE']),
+  note: z.string().trim().max(500).optional(),
+});
+
+export const handleDataRequestSchema = z.object({
+  status: z.enum(['PROCESSING', 'COMPLETED', 'REJECTED']),
+  note: z.string().trim().max(500).optional(),
+});
+
+export const recordConsentSchema = z.object({
+  type: z.enum(['TERMS', 'PRIVACY', 'MARKETING']),
+  version: z.string().trim().min(1).max(20),
+  granted: z.boolean().default(true),
+});
+
+/* -------------------------------------------------------------------------- */
+/* الاستردادات                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export const createRefundSchema = z.object({
+  /** بالهللات — اتركه فارغًا لاسترداد كامل المبلغ المتبقي */
+  amountHalalas: z.number().int().positive().optional(),
+  reason: z.string().trim().min(5).max(500),
+});

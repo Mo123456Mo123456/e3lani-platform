@@ -1,17 +1,14 @@
 import {
-  Body, Controller, Get, Headers, HttpCode, Param, Post, Query, Req, UseGuards,
-} from '@nestjs/common';
+  Body, Controller, Get, Headers, HttpCode, Param, Post, Query, Req, } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { checkoutSchema, purchasePromotionSchema } from '@e3lani/types';
 import { PaymentsService } from './payments.service';
 import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser, Public, RateLimit, type AuthUser } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('payments')
 @Controller('payments')
-@UseGuards(RateLimitGuard)
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
@@ -45,9 +42,19 @@ export class PaymentsController {
     return this.payments.listMine(user.id, Math.min(Number(limit ?? 20) || 20, 100));
   }
 
+  @Get('invoices')
+  async invoices(@CurrentUser() user: AuthUser) {
+    return this.payments.myInvoices(user.id);
+  }
+
   @Get(':id')
   async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.payments.get(user.id, id);
+  }
+
+  @Get(':id/invoice')
+  async invoice(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.payments.invoice(user.id, id);
   }
 
   @Public()

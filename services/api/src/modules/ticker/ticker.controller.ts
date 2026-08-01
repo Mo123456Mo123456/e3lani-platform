@@ -1,14 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { createTickerRequestSchema } from '@e3lani/types';
 import { TickerService } from './ticker.service';
 import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser, Public, RateLimit, type AuthUser } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('ticker')
 @Controller('ticker')
-@UseGuards(RateLimitGuard)
 export class TickerController {
   constructor(private readonly ticker: TickerService) {}
 

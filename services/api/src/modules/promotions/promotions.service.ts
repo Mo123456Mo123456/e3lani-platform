@@ -102,6 +102,7 @@ export class PromotionsService {
         adId,
         type,
         amountHalalas: options.paymentId ? pricingItem.amountHalalas : 0,
+        pricingVersionId: pricingItem.versionId,
         paymentId: options.paymentId ?? null,
         startsAt: now,
         endsAt,

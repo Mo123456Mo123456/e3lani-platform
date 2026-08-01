@@ -1,14 +1,12 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { searchQuerySchema } from '@e3lani/types';
 import { SearchService, type SearchQuery } from './search.service';
 import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser, OptionalAuth, Public, RateLimit, type AuthUser } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('search')
 @Controller('search')
-@UseGuards(RateLimitGuard)
 export class SearchController {
   constructor(private readonly search: SearchService) {}
 

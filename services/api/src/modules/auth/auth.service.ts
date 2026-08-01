@@ -11,6 +11,7 @@ import { PrismaService } from '../../common/services/prisma.service';
 import { RedisService } from '../../common/services/redis.service';
 import { StorageService } from '../../common/services/storage.service';
 import { AuditService } from '../../common/services/audit.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { OTP_PROVIDER } from './providers/otp.factory';
 import type { OtpProvider } from './providers/otp-provider.interface';
 
@@ -31,6 +32,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly storage: StorageService,
     private readonly audit: AuditService,
+    private readonly privacy: PrivacyService,
     @Inject(OTP_PROVIDER) private readonly otp: OtpProvider,
   ) {}
 
@@ -236,6 +238,7 @@ export class AuthService {
       accountType: 'INDIVIDUAL' | 'STORE' | 'BRAND' | 'COMPANY';
       email?: string;
     },
+    context: RequestContext = {},
   ): Promise<SessionUserDto> {
     const city = await this.prisma.city.findFirst({
       where: { id: input.cityId, isActive: true },
@@ -273,6 +276,9 @@ export class AuthService {
         create: { userId, displayName: input.name },
       });
     }
+
+    // إثبات موافقة موثّق بإصدار المستند ووقته ومصدره (PDPL)
+    await this.privacy.recordInitialConsents(userId, context);
 
     await this.audit.record({
       action: 'user.profile_completed',

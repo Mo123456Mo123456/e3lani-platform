@@ -14,6 +14,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/appeals', label: 'الاعتراضات', permission: 'appeals.read' },
   { href: '/posts', label: 'المنشورات', permission: 'posts.read' },
   { href: '/users', label: 'المستخدمون', permission: 'users.read' },
+  { href: '/data-requests', label: 'طلبات البيانات', permission: 'users.read' },
   { href: '/ticker', label: 'الشريط العلوي', permission: 'ticker.read' },
   { href: '/catalog', label: 'الأقسام والمدن', permission: 'catalog.read' },
   { href: '/pricing', label: 'الأسعار', permission: 'pricing.read' },

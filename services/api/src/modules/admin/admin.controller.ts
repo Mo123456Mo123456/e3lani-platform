@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
-  adminListQuerySchema, adminModerateAdSchema, createAdminUserSchema, reviewTickerRequestSchema,
-  resolveReportSchema, sendNotificationSchema, updateSettingSchema, upsertCategorySchema,
-  upsertCitySchema, upsertPricingSchema,
+  addPricingVersionSchema, adminListQuerySchema, adminModerateAdSchema, createAdminUserSchema,
+  createRefundSchema, handleDataRequestSchema, resolveReportSchema, reviewTickerRequestSchema,
+  sendNotificationSchema, updateSettingSchema, upsertCategorySchema, upsertCitySchema,
+  upsertPricingItemSchema,
 } from '@e3lani/types';
 import { AdminService } from './admin.service';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -12,6 +13,9 @@ import { PricingService } from '../pricing/pricing.service';
 import { ReportsService } from '../moderation/reports.service';
 import { AppealsService } from '../moderation/appeals.service';
 import { TickerService } from '../ticker/ticker.service';
+import { AdsService } from '../ads/ads.service';
+import { PaymentsService } from '../payments/payments.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { AdminOnly, CurrentAdmin, RequirePermissions, type AuthAdmin } from '../../common/decorators';
@@ -44,6 +48,9 @@ export class AdminController {
     private readonly reports: ReportsService,
     private readonly appeals: AppealsService,
     private readonly ticker: TickerService,
+    private readonly ads: AdsService,
+    private readonly payments: PaymentsService,
+    private readonly privacy: PrivacyService,
   ) {}
 
   /* ------------------------------ نظرة عامة ---------------------------- */
@@ -128,7 +135,7 @@ export class AdminController {
 
   @Get('ads')
   @RequirePermissions('ads.read')
-  async ads(@Query(zodPipe(adminListQuerySchema)) query: any) {
+  async adsList(@Query(zodPipe(adminListQuerySchema)) query: any) {
     return this.admin.listAds(query);
   }
 
@@ -140,6 +147,12 @@ export class AdminController {
     @Body(zodPipe(adminModerateAdSchema)) body: any,
   ) {
     return this.admin.moderateAd(admin.id, id, body);
+  }
+
+  @Get('ads/:id/revisions')
+  @RequirePermissions('ads.read')
+  async adRevisions(@Param('id') id: string) {
+    return this.ads.revisions(id, { isAdmin: true });
   }
 
   @Get('ads/:id/analytics')
@@ -250,24 +263,100 @@ export class AdminController {
   @Get('pricing')
   @RequirePermissions('pricing.read')
   async pricingList() {
-    return this.pricing.list(true);
+    return this.pricing.listForAdmin();
   }
 
-  @Post('pricing')
+  @Get('pricing/:key/history')
+  @RequirePermissions('pricing.read')
+  async pricingHistory(@Param('key') key: string) {
+    return this.pricing.history(key);
+  }
+
+  /** تعديل تعريف الخدمة (الأسماء والتفعيل) — لا يمس السعر. */
+  @Post('pricing/items')
   @RequirePermissions('pricing.write')
-  async upsertPricing(
+  async upsertPricingItem(
     @CurrentAdmin() admin: AuthAdmin,
-    @Body(zodPipe(upsertPricingSchema)) body: any,
+    @Body(zodPipe(upsertPricingItemSchema)) body: any,
   ) {
-    return this.pricing.upsert(admin.id, body);
+    return this.pricing.upsertItem(admin.id, body);
+  }
+
+  /** إضافة إصدار سعر جديد: فوري أو مجدول بتاريخ مستقبلي. */
+  @Post('pricing/versions')
+  @RequirePermissions('pricing.write')
+  async addPricingVersion(
+    @CurrentAdmin() admin: AuthAdmin,
+    @Body(zodPipe(addPricingVersionSchema)) body: any,
+  ) {
+    const { key, ...rest } = body;
+    return this.pricing.addVersion(admin.id, key, rest);
+  }
+
+  @Delete('pricing/versions/:id')
+  @RequirePermissions('pricing.write')
+  async cancelPricingVersion(@CurrentAdmin() admin: AuthAdmin, @Param('id') id: string) {
+    await this.pricing.cancelScheduled(admin.id, id);
+    return { cancelled: true };
+  }
+
+  @Post('pricing/:key/rollback')
+  @RequirePermissions('pricing.write')
+  async rollbackPricing(@CurrentAdmin() admin: AuthAdmin, @Param('key') key: string) {
+    return this.pricing.rollback(admin.id, key);
+  }
+
+  @Patch('pricing/:key/active')
+  @RequirePermissions('pricing.write')
+  async togglePricing(
+    @CurrentAdmin() admin: AuthAdmin,
+    @Param('key') key: string,
+    @Body(zodPipe(z.object({ isActive: z.boolean() }))) body: { isActive: boolean },
+  ) {
+    return this.pricing.setActive(admin.id, key, body.isActive);
   }
 
   /* ------------------------------ المدفوعات ---------------------------- */
 
   @Get('payments')
   @RequirePermissions('payments.read')
-  async payments(@Query(zodPipe(adminListQuerySchema)) query: any) {
+  async paymentsList(@Query(zodPipe(adminListQuerySchema)) query: any) {
     return this.admin.listPayments(query);
+  }
+
+  /** كل تفاصيل العملية: المحاولات مع البوابة والاستردادات والفاتورة. */
+  @Get('payments/:id')
+  @RequirePermissions('payments.read')
+  async paymentDetails(@Param('id') id: string) {
+    return this.payments.detailsForAdmin(id);
+  }
+
+  @Post('payments/:id/refund')
+  @RequirePermissions('payments.refund')
+  async refundPayment(
+    @CurrentAdmin() admin: AuthAdmin,
+    @Param('id') id: string,
+    @Body(zodPipe(createRefundSchema)) body: { amountHalalas?: number; reason: string },
+  ) {
+    return this.payments.refund(admin.id, id, body);
+  }
+
+  /* ------------------------ طلبات بيانات المستخدم ---------------------- */
+
+  @Get('data-requests')
+  @RequirePermissions('users.read')
+  async dataRequests(@Query('status') status?: string) {
+    return this.privacy.listRequests(status);
+  }
+
+  @Post('data-requests/:id/handle')
+  @RequirePermissions('users.write')
+  async handleDataRequest(
+    @CurrentAdmin() admin: AuthAdmin,
+    @Param('id') id: string,
+    @Body(zodPipe(handleDataRequestSchema)) body: any,
+  ) {
+    return this.privacy.handleRequest(admin.id, id, body);
   }
 
   /* ------------------------------ الإشعارات ---------------------------- */

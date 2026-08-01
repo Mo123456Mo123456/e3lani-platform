@@ -12,6 +12,7 @@ import { PricingService } from '../pricing/pricing.service';
 import { PromotionsService, type PromotionKey } from '../promotions/promotions.service';
 import { AdsService } from '../ads/ads.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BillingService } from './billing.service';
 import { PAYMENT_PROVIDER } from './providers/payment.factory';
 import type { PaymentProvider } from './providers/payment-provider.interface';
 
@@ -36,6 +37,7 @@ export class PaymentsService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly billing: BillingService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
   ) {}
 
@@ -71,7 +73,11 @@ export class PaymentsService {
     });
 
     let total = 0;
-    const resolvedItems: (CheckoutItem & { amountHalalas: number; nameAr: string })[] = [];
+    const resolvedItems: (CheckoutItem & {
+      amountHalalas: number;
+      nameAr: string;
+      pricingVersionId: string;
+    })[] = [];
 
     for (const item of input.items) {
       const pricingItem = await this.pricing.require(item.pricingKey);
@@ -84,6 +90,8 @@ export class PaymentsService {
         ...item,
         amountHalalas: amount,
         nameAr: pricingItem.nameAr,
+        // تجميد إصدار السعر المطبَّق وقت الشراء
+        pricingVersionId: pricingItem.versionId,
       });
     }
 
@@ -103,6 +111,8 @@ export class PaymentsService {
         items: resolvedItems as any,
       },
     });
+
+    await this.billing.recordAttempt(payment.id, this.provider.name, { status: 'STARTED' });
 
     try {
       const checkout = await this.provider.createCheckout({
@@ -127,8 +137,17 @@ export class PaymentsService {
         },
       });
 
+      await this.billing.recordAttempt(payment.id, this.provider.name, {
+        status: 'SUCCEEDED',
+        providerRef: checkout.providerRef,
+      });
+
       return this.toDto(updated);
     } catch (error) {
+      await this.billing.recordAttempt(payment.id, this.provider.name, {
+        status: 'FAILED',
+        errorMessage: (error as Error).message,
+      });
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { status: 'FAILED', failureReason: (error as Error).message },
@@ -206,6 +225,11 @@ export class PaymentsService {
 
     await this.fulfil(payment);
 
+    // فاتورة ضريبية بترقيم تسلسلي — تُصدر مرة واحدة فقط لكل عملية
+    await this.billing.issueInvoice(payment.id).catch((error) =>
+      this.logger.error(`تعذّر إصدار الفاتورة للعملية ${payment.id}: ${error.message}`),
+    );
+
     await this.notifications.notify(payment.userId, 'PAYMENT_SUCCEEDED', {
       titleAr: 'تم استلام الدفع',
       titleEn: 'Payment received',
@@ -255,6 +279,42 @@ export class PaymentsService {
     const payment = await this.prisma.payment.findFirst({ where: { id: paymentId, userId } });
     if (!payment) throw new NotFoundException({ message: 'العملية غير موجودة', code: 'PAYMENT_NOT_FOUND' });
     return this.toDto(payment);
+  }
+
+  /** استرداد كلي أو جزئي — تنفّذه الإدارة عبر مزوّد الدفع نفسه. */
+  async refund(adminId: string, paymentId: string, input: { amountHalalas?: number; reason: string }) {
+    return this.billing.createRefund(adminId, paymentId, input, (providerRef, amount) =>
+      this.provider.refund(providerRef, amount),
+    );
+  }
+
+  /** كل تفاصيل العملية للإدارة: المحاولات والاستردادات والفاتورة. */
+  async detailsForAdmin(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        user: { select: { id: true, name: true, phone: true } },
+        ad: { select: { id: true, title: true } },
+        invoice: true,
+      },
+    });
+    if (!payment) throw new NotFoundException({ message: 'العملية غير موجودة', code: 'PAYMENT_NOT_FOUND' });
+
+    const [attempts, refunds, refundable] = await Promise.all([
+      this.billing.attemptsFor(paymentId),
+      this.billing.refundsFor(paymentId),
+      this.billing.refundableAmount(paymentId),
+    ]);
+
+    return { payment, attempts, refunds, refundableHalalas: refundable };
+  }
+
+  async invoice(userId: string, paymentId: string) {
+    return this.billing.invoiceFor(paymentId, userId);
+  }
+
+  async myInvoices(userId: string) {
+    return this.billing.listInvoices(userId);
   }
 
   /** تأكيد تجريبي للتطوير فقط — يرفض العمل خارج مزوّد sandbox. */

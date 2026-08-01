@@ -25,6 +25,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { TickerModule } from './modules/ticker/ticker.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -40,6 +41,7 @@ import { HealthModule } from './modules/health/health.module';
     }),
     CommonModule,
     NotificationsModule,
+    PrivacyModule,
     AuthModule,
     UsersModule,
     CatalogModule,
@@ -61,6 +63,7 @@ import { HealthModule } from './modules/health/health.module';
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // حارس واحد عام فقط — تسجيله مرة أخرى على المتحكمات يضاعف العدّ ويُنصّف الحدود
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],

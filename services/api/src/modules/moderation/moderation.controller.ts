@@ -1,15 +1,13 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { createAppealSchema, createReportSchema } from '@e3lani/types';
 import { ReportsService } from './reports.service';
 import { AppealsService } from './appeals.service';
 import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser, Public, RateLimit, type AuthUser } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('moderation')
 @Controller()
-@UseGuards(RateLimitGuard)
 export class ModerationController {
   constructor(
     private readonly reports: ReportsService,

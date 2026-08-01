@@ -137,15 +137,44 @@ async function seedCatalog() {
 }
 
 async function seedPricing() {
-  console.log('▶ بذر قائمة الأسعار (قابلة للتعديل من لوحة الإدارة)…');
+  console.log('▶ بذر قائمة الأسعار وإصداراتها الأولى…');
   for (const item of DEFAULT_PRICING) {
-    const existing = await prisma.pricingItem.findUnique({ where: { key: item.key } });
-    if (existing) continue; // لا نستبدل أسعارًا عدّلها المسؤولون
+    const existing = await prisma.pricingItem.findUnique({
+      where: { key: item.key },
+      include: { versions: true },
+    });
+
+    if (existing) {
+      // لا نستبدل أي سعر عدّله المسؤولون؛ نضيف الإصدار الأول فقط إن كان مفقودًا
+      if (existing.versions.length === 0) {
+        await prisma.pricingVersion.create({
+          data: {
+            itemId: existing.id,
+            amountHalalas: item.amountHalalas,
+            durationDays: item.durationDays,
+            effectiveFrom: new Date(),
+            note: 'الإصدار الأول',
+          },
+        });
+      }
+      continue;
+    }
+
     await prisma.pricingItem.create({
       data: {
-        key: item.key, nameAr: item.nameAr, nameEn: item.nameEn,
-        descriptionAr: item.descriptionAr, amountHalalas: item.amountHalalas,
-        durationDays: item.durationDays, sortOrder: item.sortOrder,
+        key: item.key,
+        nameAr: item.nameAr,
+        nameEn: item.nameEn,
+        descriptionAr: item.descriptionAr,
+        sortOrder: item.sortOrder,
+        versions: {
+          create: {
+            amountHalalas: item.amountHalalas,
+            durationDays: item.durationDays,
+            effectiveFrom: new Date(),
+            note: 'الإصدار الأول',
+          },
+        },
       },
     });
   }

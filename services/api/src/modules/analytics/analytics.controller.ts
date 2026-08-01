@@ -1,14 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { analyticsRangeSchema, trackEventsSchema } from '@e3lani/types';
 import { AnalyticsService } from './analytics.service';
 import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser, OptionalAuth, RateLimit, type AuthUser } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('analytics')
 @Controller()
-@UseGuards(RateLimitGuard)
 export class AnalyticsController {
   constructor(private readonly analytics: AnalyticsService) {}
 

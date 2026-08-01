@@ -8,6 +8,7 @@ import { SettingsService } from '../../common/services/settings.service';
 import { SerializerService } from '../../common/services/serializer.service';
 import { AuditService } from '../../common/services/audit.service';
 import { MediaService } from '../media/media.service';
+import { PricingService } from '../pricing/pricing.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { runAutomatedContentCheck } from '../../common/utils/moderation';
 import { encodeCursor, decodeCursor, type Paginated } from '../../common/utils/pagination';
@@ -36,6 +37,7 @@ export class AdsService {
     private readonly audit: AuditService,
     private readonly media: MediaService,
     private readonly notifications: NotificationsService,
+    private readonly pricing: PricingService,
   ) {}
 
   /* ------------------------------ إنشاء ------------------------------- */
@@ -169,10 +171,8 @@ export class AdsService {
   }
 
   async standardDurationDays(): Promise<number> {
-    const pricing = await this.prisma.pricingItem.findUnique({
-      where: { key: PRICING_KEYS.AD_STANDARD },
-      select: { durationDays: true },
-    });
+    // المدة تُقرأ من إصدار السعر النافذ الآن، لا من قيمة ثابتة في الكود
+    const pricing = await this.pricing.require(PRICING_KEYS.AD_STANDARD).catch(() => null);
     return pricing?.durationDays ?? AD_LIMITS.defaultDurationDays;
   }
 
@@ -229,6 +229,9 @@ export class AdsService {
         ...mediaUpdate,
       },
     });
+
+    const updated = await this.prisma.ad.findUniqueOrThrow({ where: { id: adId } });
+    await this.recordRevision(adId, ad, updated, { userId });
 
     await this.audit.record({
       action: 'ad.updated',
@@ -358,6 +361,90 @@ export class AdsService {
     });
   }
 
+
+  /* -------------------------- تاريخ التعديلات -------------------------- */
+
+  /** الحقول التي يُتتبَّع تغيّرها في تاريخ الإعلان. */
+  private static readonly TRACKED_FIELDS = [
+    'title', 'description', 'categoryId', 'subcategoryId', 'cityId', 'reachScope',
+    'price', 'contactMethod', 'contactValue', 'status',
+  ] as const;
+
+  /**
+   * يسجّل لقطة «قبل/بعد» لكل تعديل فعلي على الإعلان.
+   * لا يُنشئ سجلًا إذا لم يتغيّر شيء، ولا يُسقط العملية الأساسية عند الفشل.
+   */
+  async recordRevision(
+    adId: string,
+    before: Record<string, any>,
+    after: Record<string, any>,
+    actor: { userId?: string | null; adminId?: string | null; reason?: string | null } = {},
+  ): Promise<void> {
+    const changedFields: string[] = [];
+    const beforeSnapshot: Record<string, unknown> = {};
+    const afterSnapshot: Record<string, unknown> = {};
+
+    for (const field of AdsService.TRACKED_FIELDS) {
+      const previous = normalizeValue(before[field]);
+      const next = normalizeValue(after[field]);
+      if (next === undefined || previous === next) continue;
+      changedFields.push(field);
+      beforeSnapshot[field] = previous ?? null;
+      afterSnapshot[field] = next ?? null;
+    }
+
+    if (!changedFields.length) return;
+
+    try {
+      await this.prisma.adRevision.create({
+        data: {
+          adId,
+          editorUserId: actor.userId ?? null,
+          editorAdminId: actor.adminId ?? null,
+          reason: actor.reason ?? null,
+          changedFields,
+          before: beforeSnapshot as any,
+          after: afterSnapshot as any,
+        },
+      });
+    } catch {
+      // تاريخ التعديلات لا يجب أن يُسقط عملية التعديل نفسها
+    }
+  }
+
+  /** تاريخ تعديلات الإعلان — لصاحبه أو للإدارة. */
+  async revisions(adId: string, viewer: { userId?: string; isAdmin?: boolean }) {
+    const ad = await this.prisma.ad.findUnique({ where: { id: adId }, select: { userId: true } });
+    if (!ad) throw new NotFoundException({ message: 'الإعلان غير موجود', code: 'AD_NOT_FOUND' });
+    if (!viewer.isAdmin && ad.userId !== viewer.userId) {
+      throw new ForbiddenException({ message: 'غير مصرّح', code: 'FORBIDDEN' });
+    }
+
+    const rows = await this.prisma.adRevision.findMany({
+      where: { adId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        editorUser: { select: { id: true, name: true } },
+        editorAdmin: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      changedFields: row.changedFields,
+      before: row.before,
+      after: row.after,
+      reason: row.reason,
+      editor: row.editorAdmin
+        ? { kind: 'admin' as const, name: row.editorAdmin.name }
+        : row.editorUser
+          ? { kind: 'owner' as const, name: row.editorUser.name }
+          : { kind: 'system' as const, name: 'النظام' },
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
   /* ----------------------------- مساعدات ------------------------------ */
 
   private async assertProfileComplete(userId: string): Promise<void> {
@@ -399,4 +486,13 @@ export class AdsService {
     });
     if (!city) throw new BadRequestException({ message: 'المدينة غير صالحة', code: 'CITY_INVALID' });
   }
+}
+
+/** يوحّد القيم قبل المقارنة (Decimal و Date والقيم الفارغة). */
+function normalizeValue(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object' && value !== null && 'toString' in value) return String(value);
+  return String(value);
 }

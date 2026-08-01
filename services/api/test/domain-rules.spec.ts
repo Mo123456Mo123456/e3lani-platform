@@ -10,6 +10,7 @@ import { isAllowedLink, runAutomatedContentCheck } from '../src/common/utils/mod
 import { decodeCursor, encodeCursor } from '../src/common/utils/pagination';
 import { distanceKm } from '../src/common/utils/geo';
 import { dedupeAdjacent } from '../src/modules/ticker/ticker.service';
+import { splitVatInclusive } from '../src/modules/payments/billing.service';
 
 const cuid = (suffix: string) => `c${suffix.padEnd(24, 'x')}`;
 
@@ -214,5 +215,93 @@ describe('حساب المسافة الجغرافية', () => {
     const distance = distanceKm(24.7136, 46.6753, 21.4858, 39.1925);
     expect(distance).toBeGreaterThan(800);
     expect(distance).toBeLessThan(900);
+  });
+});
+
+/* ========================================================================== */
+/* الإضافات: تأريخ الأسعار، الضريبة، الاستردادات                              */
+/* ========================================================================== */
+
+describe('احتساب ضريبة القيمة المضافة (أسعار شاملة)', () => {
+  it('يستخرج الضريبة من الإجمالي ولا يضيفها عليه', () => {
+    const result = splitVatInclusive(5900, 1500);
+    expect(result.total).toBe(5900);
+    expect(result.subtotal).toBe(5130);
+    expect(result.vat).toBe(770);
+  });
+
+  it('الأساس + الضريبة يساوي الإجمالي دائمًا (بلا فقد هللات)', () => {
+    for (const total of [1, 99, 500, 1000, 1999, 5900, 7900, 123_456]) {
+      const result = splitVatInclusive(total, 1500);
+      expect(result.subtotal + result.vat).toBe(total);
+      expect(result.vat).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('يتعامل مع نسبة ضريبة مختلفة', () => {
+    expect(splitVatInclusive(1000, 0)).toEqual({ subtotal: 1000, vat: 0, total: 1000 });
+    expect(splitVatInclusive(11_000, 1000).subtotal).toBe(10_000);
+  });
+});
+
+describe('حالة إصدار السعر', () => {
+  const status = (from: Date, to: Date | null, now: Date) => {
+    if (from > now) return 'SCHEDULED';
+    if (to && to <= now) return 'EXPIRED';
+    return 'ACTIVE';
+  };
+
+  const now = new Date('2026-06-15T00:00:00Z');
+
+  it('يميّز النافذ والمجدول والمنتهي', () => {
+    expect(status(new Date('2026-01-01'), new Date('2026-06-01'), now)).toBe('EXPIRED');
+    expect(status(new Date('2026-06-01'), null, now)).toBe('ACTIVE');
+    expect(status(new Date('2026-06-01'), new Date('2026-07-01'), now)).toBe('ACTIVE');
+    expect(status(new Date('2026-07-01'), null, now)).toBe('SCHEDULED');
+  });
+
+  it('لا يتداخل إصداران في اللحظة نفسها', () => {
+    const timeline = [
+      { from: new Date('2026-01-01'), to: new Date('2026-06-01') },
+      { from: new Date('2026-06-01'), to: new Date('2026-07-01') },
+      { from: new Date('2026-07-01'), to: null },
+    ];
+    const active = timeline.filter((v) => status(v.from, v.to, now) === 'ACTIVE');
+    expect(active).toHaveLength(1);
+  });
+});
+
+describe('المبلغ القابل للاسترداد', () => {
+  const refundable = (paid: number, refunds: { amountHalalas: number; status: string }[]) => {
+    const used = refunds
+      .filter((r) => ['PENDING', 'COMPLETED'].includes(r.status))
+      .reduce((sum, r) => sum + r.amountHalalas, 0);
+    return Math.max(0, paid - used);
+  };
+
+  it('يخصم الاستردادات المكتملة والمعلّقة فقط', () => {
+    expect(refundable(5900, [])).toBe(5900);
+    expect(refundable(5900, [{ amountHalalas: 2000, status: 'COMPLETED' }])).toBe(3900);
+    expect(refundable(5900, [{ amountHalalas: 2000, status: 'FAILED' }])).toBe(5900);
+    expect(
+      refundable(5900, [
+        { amountHalalas: 2000, status: 'COMPLETED' },
+        { amountHalalas: 3900, status: 'COMPLETED' },
+      ]),
+    ).toBe(0);
+  });
+
+  it('لا يعيد قيمة سالبة أبدًا', () => {
+    expect(refundable(1000, [{ amountHalalas: 5000, status: 'COMPLETED' }])).toBe(0);
+  });
+});
+
+describe('ترقيم الفواتير', () => {
+  const format = (year: number, value: number) => `E3-${year}-${String(value).padStart(6, '0')}`;
+
+  it('يولّد رقمًا تسلسليًا متصلًا لكل سنة', () => {
+    expect(format(2026, 1)).toBe('E3-2026-000001');
+    expect(format(2026, 42)).toBe('E3-2026-000042');
+    expect(format(2027, 1)).toBe('E3-2027-000001');
   });
 });

@@ -7,6 +7,7 @@ import { AuditService } from '../../common/services/audit.service';
 import { StorageService } from '../../common/services/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CatalogService } from '../catalog/catalog.service';
+import { AdsService } from '../ads/ads.service';
 
 @Injectable()
 export class AdminService {
@@ -17,6 +18,7 @@ export class AdminService {
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
     private readonly catalog: CatalogService,
+    private readonly ads: AdsService,
   ) {}
 
   /* ----------------------------- المستخدمون ---------------------------- */
@@ -251,7 +253,7 @@ export class AdminService {
       REJECT: 'REJECTED',
     } as const;
 
-    await this.prisma.ad.update({
+    const updated = await this.prisma.ad.update({
       where: { id: adId },
       data: {
         status: statusMap[input.action],
@@ -259,6 +261,11 @@ export class AdminService {
         rejectionReason: input.action === 'REJECT' ? input.reason : null,
         suspendedAt: input.action === 'RESTORE' ? null : new Date(),
       },
+    });
+
+    await this.ads.recordRevision(adId, ad, updated, {
+      adminId,
+      reason: input.reason,
     });
 
     await this.audit.record({

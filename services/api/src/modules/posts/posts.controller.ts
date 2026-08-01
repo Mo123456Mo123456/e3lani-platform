@@ -1,6 +1,5 @@
 import {
-  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards,
-} from '@nestjs/common';
+  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { createPostSchema, updatePostSchema } from '@e3lani/types';
 import { PostsService } from './posts.service';
@@ -8,11 +7,9 @@ import { zodPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   CurrentUser, OptionalAuth, Public, RateLimit, type AuthUser,
 } from '../../common/decorators';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('posts')
 @Controller('posts')
-@UseGuards(RateLimitGuard)
 export class PostsController {
   constructor(private readonly posts: PostsService) {}
 

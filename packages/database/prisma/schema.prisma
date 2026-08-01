@@ -149,6 +149,36 @@ enum OtpPurpose {
   PHONE_CHANGE
 }
 
+enum ConsentType {
+  TERMS
+  PRIVACY
+  MARKETING
+}
+
+enum DataRequestType {
+  EXPORT
+  DELETE
+}
+
+enum DataRequestStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentAttemptStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+}
+
 // ---------------------------------------------------------------------------
 // الحسابات والمصادقة
 // ---------------------------------------------------------------------------
@@ -189,6 +219,9 @@ model User {
   tickerRequests   TickerRequest[]
   pushTokens       PushToken[]
   events           AdEvent[]
+  consents         ConsentRecord[]
+  dataRequests     UserDataRequest[]
+  adRevisions      AdRevision[]      @relation("AdRevisionUser")
 
   @@index([cityId])
   @@index([accountType, status])
@@ -280,9 +313,13 @@ model AdminUser {
   updatedAt    DateTime  @updatedAt
 
   auditLogs        AuditLog[]
-  resolvedReports  Report[]        @relation("ReportResolver")
-  decidedAppeals   Appeal[]        @relation("AppealDecider")
-  reviewedTickers  TickerRequest[] @relation("TickerReviewer")
+  resolvedReports  Report[]          @relation("ReportResolver")
+  decidedAppeals   Appeal[]          @relation("AppealDecider")
+  reviewedTickers  TickerRequest[]   @relation("TickerReviewer")
+  pricingVersions  PricingVersion[]  @relation("PricingAuthor")
+  adRevisions      AdRevision[]      @relation("AdRevisionAdmin")
+  handledRequests  UserDataRequest[] @relation("DataRequestHandler")
+  requestedRefunds Refund[]          @relation("RefundRequester")
 
   @@map("admin_users")
 }
@@ -427,6 +464,7 @@ model Ad {
   city        City       @relation(fields: [cityId], references: [id])
 
   media       AdMedia[]
+  revisions   AdRevision[]
   extraCities AdCity[]
   savedBy     SavedAd[]
   reports     Report[]
@@ -444,6 +482,26 @@ model Ad {
   @@index([expiresAt])
   @@index([topOfCategoryUntil])
   @@map("ads")
+}
+
+/// لقطة لكل تعديل على الإعلان — تاريخ كامل قابل للمراجعة.
+model AdRevision {
+  id            String   @id @default(cuid())
+  adId          String
+  editorUserId  String?
+  editorAdminId String?
+  reason        String?
+  changedFields String[]
+  before        Json
+  after         Json
+  createdAt     DateTime @default(now())
+
+  ad          Ad         @relation(fields: [adId], references: [id], onDelete: Cascade)
+  editorUser  User?      @relation("AdRevisionUser", fields: [editorUserId], references: [id], onDelete: SetNull)
+  editorAdmin AdminUser? @relation("AdRevisionAdmin", fields: [editorAdminId], references: [id], onDelete: SetNull)
+
+  @@index([adId, createdAt])
+  @@map("ad_revisions")
 }
 
 model AdMedia {
@@ -595,20 +653,44 @@ model Appeal {
 // الأسعار والمدفوعات والترويج
 // ---------------------------------------------------------------------------
 
+/// تعريف الخدمة القابلة للتسعير. السعر نفسه يعيش في PricingVersion.
 model PricingItem {
   id            String   @id @default(cuid())
   key           String   @unique
   nameAr        String
   nameEn        String
   descriptionAr String?
-  amountHalalas Int
-  durationDays  Int?
   isActive      Boolean  @default(true)
   sortOrder     Int      @default(0)
   updatedAt     DateTime @updatedAt
   createdAt     DateTime @default(now())
 
+  versions PricingVersion[]
+
   @@map("pricing_items")
+}
+
+/// إصدار سعر: سجل يُضاف إليه ولا يُعدَّل.
+/// السعر النافذ = الإصدار الذي يقع «الآن» داخل نطاق سريانه.
+model PricingVersion {
+  id            String    @id @default(cuid())
+  itemId        String
+  amountHalalas Int
+  durationDays  Int?
+  effectiveFrom DateTime
+  /// null تعني «سارٍ حتى إشعار آخر»
+  effectiveTo   DateTime?
+  note          String?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+
+  item       PricingItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdBy  AdminUser?  @relation("PricingAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  promotions Promotion[]
+
+  @@index([itemId, effectiveFrom])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("pricing_versions")
 }
 
 model Payment {
@@ -630,10 +712,13 @@ model Payment {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ad            Ad?            @relation(fields: [adId], references: [id], onDelete: SetNull)
-  tickerRequest TickerRequest? @relation(fields: [tickerRequestId], references: [id], onDelete: SetNull)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ad            Ad?              @relation(fields: [adId], references: [id], onDelete: SetNull)
+  tickerRequest TickerRequest?   @relation(fields: [tickerRequestId], references: [id], onDelete: SetNull)
   promotions    Promotion[]
+  attempts      PaymentAttempt[]
+  refunds       Refund[]
+  invoice       Invoice?
 
   @@unique([provider, providerRef])
   @@index([userId, createdAt])
@@ -646,18 +731,133 @@ model Promotion {
   adId          String
   type          PromotionType
   amountHalalas Int           @default(0)
+  /// إصدار السعر الذي طُبِّق فعليًا وقت الشراء
+  pricingVersionId String?
   paymentId     String?
   startsAt      DateTime      @default(now())
   endsAt        DateTime?
   metadata      Json?
   createdAt     DateTime      @default(now())
 
-  ad      Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
-  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  ad             Ad              @relation(fields: [adId], references: [id], onDelete: Cascade)
+  payment        Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  pricingVersion PricingVersion? @relation(fields: [pricingVersionId], references: [id], onDelete: SetNull)
 
   @@index([adId, type])
   @@index([endsAt])
   @@map("promotions")
+}
+
+/// كل محاولة تعامل مع بوابة الدفع، للتشخيص وتتبّع النزاعات.
+model PaymentAttempt {
+  id           String               @id @default(cuid())
+  paymentId    String
+  provider     String
+  providerRef  String?
+  status       PaymentAttemptStatus @default(STARTED)
+  errorCode    String?
+  errorMessage String?
+  payload      Json?
+  createdAt    DateTime             @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt])
+  @@map("payment_attempts")
+}
+
+/// استرداد كلي أو جزئي لعملية دفع.
+model Refund {
+  id                 String       @id @default(cuid())
+  paymentId          String
+  amountHalalas      Int
+  reason             String
+  status             RefundStatus @default(PENDING)
+  providerRef        String?
+  failureReason      String?
+  requestedByAdminId String?
+  createdAt          DateTime     @default(now())
+  completedAt        DateTime?
+
+  payment          Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  requestedByAdmin AdminUser? @relation("RefundRequester", fields: [requestedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+  @@index([status])
+  @@map("refunds")
+}
+
+/// فاتورة ضريبية بترقيم تسلسلي لا يتكرر.
+model Invoice {
+  id               String   @id @default(cuid())
+  paymentId        String   @unique
+  number           String   @unique
+  issuedAt         DateTime @default(now())
+  subtotalHalalas  Int
+  vatHalalas       Int
+  totalHalalas     Int
+  vatRateBps       Int      @default(1500)
+  buyerName        String?
+  buyerPhone       String
+  buyerVatNumber   String?
+  sellerName       String
+  sellerVatNumber  String?
+  lines            Json
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([issuedAt])
+  @@map("invoices")
+}
+
+/// عدّاد تسلسلي للفواتير لكل سنة — يضمن ترقيمًا متصلًا بلا فجوات.
+model InvoiceCounter {
+  year      Int      @id
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("invoice_counters")
+}
+
+// ---------------------------------------------------------------------------
+// الخصوصية وحماية البيانات (PDPL)
+// ---------------------------------------------------------------------------
+
+/// سجل موافقة موثّق بإصداره ووقته ومصدره.
+model ConsentRecord {
+  id        String      @id @default(cuid())
+  userId    String
+  type      ConsentType
+  version   String
+  granted   Boolean     @default(true)
+  ip        String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
+  @@map("consent_records")
+}
+
+/// طلب تصدير أو حذف البيانات الشخصية.
+model UserDataRequest {
+  id             String            @id @default(cuid())
+  userId         String
+  type           DataRequestType
+  status         DataRequestStatus @default(PENDING)
+  note           String?
+  resultKey      String?
+  handledById    String?
+  createdAt      DateTime          @default(now())
+  completedAt    DateTime?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  handledBy AdminUser? @relation("DataRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("user_data_requests")
 }
 
 // ---------------------------------------------------------------------------

@@ -57,6 +57,13 @@ export class StorageService {
     };
   }
 
+  /** رفع مباشر من الخادم (يُستخدم لملفات تصدير البيانات مثلًا). */
+  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
+    );
+  }
+
   async head(key: string): Promise<{ size: number; contentType: string | null } | null> {
     try {
       const result = await this.client.send(
