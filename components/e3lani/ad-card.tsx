@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   actionPressed: { opacity: 0.58, transform: [{ scale: 0.97 }] },
   actionText: { color: BRAND.white, fontSize: 8, lineHeight: 11, fontWeight: "800" },
   copy: { position: "absolute", left: 17, right: 58, bottom: 18 },
-  copyFullscreen: { right: 62, left: 12, bottom: 14 },
+  copyFullscreen: { right: 62, left: 12, bottom: 8 },
   brandRow: { alignItems: "center", gap: 6, maxWidth: "100%" },
   avatar: {
     width: 34,
