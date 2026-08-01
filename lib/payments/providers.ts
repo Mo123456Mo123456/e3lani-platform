@@ -43,6 +43,13 @@ export type WebhookVerificationInput = {
   headers: Record<string, string | undefined>;
 };
 
+export type WebhookVerificationResult = {
+  ok: boolean;
+  eventId: string | null;
+  externalId: string | null;
+  status: PaymentStatus | null;
+};
+
 export interface PaymentProviderAdapter {
   id: string;
   displayName: string;
@@ -51,7 +58,24 @@ export interface PaymentProviderAdapter {
   createPayment(input: CreatePaymentInput): Promise<PaymentResult>;
   confirmPayment(externalId: string): Promise<PaymentResult>;
   refundPayment(externalId: string, amount?: number): Promise<PaymentResult>;
-  verifyWebhook(input: WebhookVerificationInput): Promise<{ ok: boolean; eventId: string | null }>;
+  verifyWebhook(input: WebhookVerificationInput): Promise<WebhookVerificationResult>;
+}
+
+const PAYMENT_STATUSES = new Set<PaymentStatus>([
+  "not_required",
+  "pending",
+  "processing",
+  "paid",
+  "failed",
+  "cancelled",
+  "refunded",
+  "partially_refunded",
+]);
+
+function parsePaymentStatus(value: unknown): PaymentStatus | null {
+  return typeof value === "string" && PAYMENT_STATUSES.has(value as PaymentStatus)
+    ? (value as PaymentStatus)
+    : null;
 }
 
 export const sandboxPaymentAdapter: PaymentProviderAdapter = {
@@ -104,9 +128,29 @@ export const sandboxPaymentAdapter: PaymentProviderAdapter = {
       message: "Sandbox refund recorded.",
     };
   },
-  async verifyWebhook() {
+  async verifyWebhook(input) {
     if (isProductionRuntime()) throw new Error("SANDBOX_PAYMENT_FORBIDDEN_IN_PRODUCTION");
-    return { ok: true, eventId: `sandbox_evt_${Date.now()}` };
+    const expectedSignature =
+      process.env.PAYMENT_SANDBOX_WEBHOOK_SECRET?.trim() || "e3lani-sandbox-webhook-secret";
+    if (input.signature !== expectedSignature) {
+      return { ok: false, eventId: null, externalId: null, status: null };
+    }
+
+    try {
+      const payload = JSON.parse(input.rawBody) as Record<string, unknown>;
+      const externalId = typeof payload.externalId === "string" ? payload.externalId.trim() : "";
+      const status = parsePaymentStatus(payload.status);
+      const eventId =
+        typeof payload.eventId === "string" && payload.eventId.trim()
+          ? payload.eventId.trim()
+          : `sandbox_evt_${Date.now()}`;
+      if (!externalId || !status || status === "not_required") {
+        return { ok: false, eventId: null, externalId: null, status: null };
+      }
+      return { ok: true, eventId, externalId, status };
+    } catch {
+      return { ok: false, eventId: null, externalId: null, status: null };
+    }
   },
 };
 
