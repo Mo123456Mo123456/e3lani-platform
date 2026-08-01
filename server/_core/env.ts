@@ -4,13 +4,14 @@ function configuredValue(name: string): string {
   return process.env[name]?.trim() ?? "";
 }
 
-/**
- * Local/test defaults keep tooling deterministic. Production code still fails
- * closed in the SDK when required authentication secrets are not configured.
- */
+/** Local/test defaults keep tooling deterministic without weakening production. */
 const appId = configuredValue("VITE_APP_ID") || (isProduction ? "" : "e3lani-local");
 const cookieSecret =
   configuredValue("JWT_SECRET") || (isProduction ? "" : "e3lani-local-session-secret");
+
+if (isProduction && (!appId || !cookieSecret)) {
+  throw new Error("AUTH_ENV_NOT_CONFIGURED: VITE_APP_ID and JWT_SECRET are required");
+}
 
 export const ENV = {
   appId,
