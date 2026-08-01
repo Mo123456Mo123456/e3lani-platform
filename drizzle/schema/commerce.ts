@@ -161,6 +161,7 @@ export const adPromotions = mysqlTable("ad_promotions", {
 export const paymentIntents = mysqlTable("payment_intents", {
   id: int("id").autoincrement().primaryKey(),
   publicId: varchar("publicId", { length: 32 }).notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 160 }).notNull(),
   userId: int("userId").notNull().references(() => users.id),
   adId: int("adId").references(() => ads.id),
   provider: varchar("provider", { length: 64 }).notNull(),
@@ -186,6 +187,8 @@ export const paymentIntents = mysqlTable("payment_intents", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("payment_intents_publicId_unique").on(table.publicId),
+  uniqueIndex("payment_intents_idempotency_unique").on(table.idempotencyKey),
+  uniqueIndex("payment_intents_externalId_unique").on(table.externalId),
   index("payment_intents_ad_idx").on(table.adId, table.status),
 ]);
 
