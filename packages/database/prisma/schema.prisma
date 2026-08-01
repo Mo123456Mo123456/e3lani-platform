@@ -221,6 +221,7 @@ model User {
   events           AdEvent[]
   consents         ConsentRecord[]
   dataRequests     UserDataRequest[]
+  affinities       UserCategoryAffinity[]
   adRevisions      AdRevision[]      @relation("AdRevisionUser")
 
   @@index([cityId])
@@ -375,6 +376,7 @@ model Category {
   children      Category[] @relation("CategoryTree")
   ads           Ad[]       @relation("AdCategory")
   adsAsSubcategory Ad[]    @relation("AdSubcategory")
+  affinities    UserCategoryAffinity[]
 
   @@index([parentId])
   @@index([isActive, sortOrder])
@@ -473,6 +475,7 @@ model Ad {
   payments    Payment[]
   events      AdEvent[]
   dailyStats  AdDailyStat[]
+  score       AdScore?
 
   @@index([status, publishedAt])
   @@index([status, lastBumpedAt])
@@ -938,6 +941,43 @@ model AdEvent {
   @@index([adId, deviceId, type])
   @@index([createdAt])
   @@map("ad_events")
+}
+
+/// درجة جودة الإعلان — يعيد بناءها العامل دوريًا من جدول الأحداث.
+/// موجودة كجدول منفصل حتى لا يثقل حسابها استعلامات الموجز.
+model AdScore {
+  adId        String   @id
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  saves       Int      @default(0)
+  videoViews  Int      @default(0)
+  completions Int      @default(0)
+  /// درجة الجودة (٠ إلى ١) محسوبة بحدّ ويلسون الأدنى
+  quality     Float    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  ad Ad @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([quality])
+  @@map("ad_scores")
+}
+
+/// تقارب المستخدم مع كل قسم، مستخلص من تفاعلاته السابقة.
+model UserCategoryAffinity {
+  userId      String
+  categoryId  String
+  clicks      Int      @default(0)
+  saves       Int      @default(0)
+  impressions Int      @default(0)
+  score       Float    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([userId, categoryId])
+  @@index([userId, score])
+  @@map("user_category_affinities")
 }
 
 model AdDailyStat {

@@ -6,7 +6,7 @@ let cachedDeviceId: string | null = null;
 let buffer: Record<string, unknown>[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 
-async function deviceId(): Promise<string> {
+export async function getDeviceId(): Promise<string> {
   if (cachedDeviceId) return cachedDeviceId;
   let stored = await AsyncStorage.getItem(DEVICE_KEY);
   if (!stored) {
@@ -42,7 +42,7 @@ export async function flushEvents(): Promise<void> {
     await fetch(`${API_URL}/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId: await deviceId(), events }),
+      body: JSON.stringify({ deviceId: await getDeviceId(), events }),
     });
   } catch {
     // الأحداث غير حرجة — نتجاهل الفشل بصمت

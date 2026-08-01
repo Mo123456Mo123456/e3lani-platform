@@ -4,7 +4,7 @@ import * as React from 'react';
 import type { AdDto } from '@e3lani/types';
 import { EmptyState, Spinner } from '@e3lani/ui';
 import { getFeed } from '@/lib/api';
-import { track } from '@/lib/track';
+import { deviceId, track } from '@/lib/track';
 import { AdCard } from './ad-card';
 
 interface FeedClientProps {
@@ -45,7 +45,7 @@ export function FeedClient({
     if (!hasMore || loading || !cursor) return;
     setLoading(true);
     try {
-      const page = await getFeed({ tab, cursor, limit: 6, cityId });
+      const page = await getFeed({ tab, cursor, limit: 6, cityId, deviceId: deviceId() });
       setItems((current) => [...current, ...page.items]);
       setCursor(page.nextCursor);
       setHasMore(page.hasMore);

@@ -4,6 +4,7 @@ import type { AdDto } from '@e3lani/types';
 import { PrismaService } from '../../common/services/prisma.service';
 import { SerializerService } from '../../common/services/serializer.service';
 import { CatalogService } from '../catalog/catalog.service';
+import { RankingService } from './ranking.service';
 import { encodeCursor, decodeCursor, type Paginated } from '../../common/utils/pagination';
 import { AD_INCLUDE } from '../ads/ads.constants';
 
@@ -15,6 +16,7 @@ export interface FeedQuery {
   categoryId?: string;
   cursor?: string;
   limit: number;
+  deviceId?: string;
 }
 
 /**
@@ -27,6 +29,7 @@ export class FeedService {
     private readonly prisma: PrismaService,
     private readonly serializer: SerializerService,
     private readonly catalog: CatalogService,
+    private readonly ranking: RankingService,
   ) {}
 
   private activeWhere(now: Date): Prisma.AdWhereInput {
@@ -54,6 +57,11 @@ export class FeedService {
   async feed(query: FeedQuery, viewerId?: string | null): Promise<Paginated<AdDto> & { cityId?: string }> {
     const now = new Date();
     const cityId = query.tab === 'latest' ? query.cityId : await this.resolveCityId(query);
+
+    // تبويب «لك» يمرّ عبر محرّك الترتيب الداخلي عند تفعيله
+    if (query.tab === 'for-you' && (await this.ranking.isEnabled())) {
+      return this.rankedFeed(query, cityId, viewerId);
+    }
 
     const scope: Prisma.AdWhereInput[] = [this.activeWhere(now)];
     if (query.categoryId) scope.push({ categoryId: query.categoryId });
@@ -140,6 +148,68 @@ export class FeedService {
               id: last.row.id,
             })
           : null,
+      cityId,
+    };
+  }
+
+  /** موجز مرتّب بمحرّك الترتيب الداخلي، مع ترقيم ثابت فوق قائمة مثبّتة للجلسة. */
+  private async rankedFeed(
+    query: FeedQuery,
+    cityId: string | undefined,
+    viewerId?: string | null,
+  ): Promise<Paginated<AdDto> & { cityId?: string }> {
+    const now = new Date();
+    const scope: Prisma.AdWhereInput[] = [this.activeWhere(now)];
+    if (query.categoryId) scope.push({ categoryId: query.categoryId });
+    if (cityId) {
+      scope.push({
+        OR: [{ cityId }, { reachScope: 'KINGDOM' }, { extraCities: { some: { cityId } } }],
+      });
+    }
+
+    const region = cityId
+      ? await this.prisma.city.findUnique({ where: { id: cityId }, select: { regionId: true } })
+      : null;
+
+    const context = {
+      viewerId,
+      deviceId: query.deviceId,
+      cityId,
+      regionId: region?.regionId,
+    };
+
+    const cursor = decodeCursor(query.cursor);
+    const offset = cursor?.sort === 'rank' ? Math.max(0, Number(cursor.id) || 0) : 0;
+
+    const orderedIds = await this.ranking.orderedIds(context, { AND: scope });
+    const pageIds = orderedIds.slice(offset, offset + query.limit);
+
+    if (!pageIds.length) {
+      return { items: [], hasMore: false, nextCursor: null, cityId };
+    }
+
+    const rows = await this.prisma.ad.findMany({
+      where: { id: { in: pageIds }, ...this.activeWhere(now) },
+      include: AD_INCLUDE,
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    // نحافظ على ترتيب المحرّك ونتجاهل ما حُذف أو انتهى بعد بناء الترتيب
+    const ordered = pageIds
+      .map((id) => byId.get(id))
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+    const savedIds = await this.savedIdsFor(viewerId, ordered.map((row) => row.id));
+    const hasMore = offset + query.limit < orderedIds.length;
+
+    return {
+      items: ordered.map((row) =>
+        this.serializer.ad(row, { viewerId, isSaved: savedIds.has(row.id) }),
+      ),
+      hasMore,
+      nextCursor: hasMore
+        ? encodeCursor({ sort: 'rank', id: String(offset + query.limit) })
+        : null,
       cityId,
     };
   }

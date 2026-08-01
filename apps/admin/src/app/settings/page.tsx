@@ -6,11 +6,25 @@ import { Button, Card, Input, Select } from '@e3lani/ui';
 import { AdminShell, useCan } from '@/components/admin-shell';
 import { adminFetch } from '@/lib/admin-api';
 
+const RANKING_LABELS: Record<string, string> = {
+  quality: 'وزن جودة الإعلان',
+  affinity: 'وزن تقارب المستخدم مع القسم',
+  geo: 'وزن القرب الجغرافي',
+  freshness: 'وزن الحداثة',
+  promoted: 'دفعة الإعلان المدفوع',
+  seenPenalty: 'عقوبة تكرار العرض',
+  freshnessHalfLifeHours: 'نصف عمر الحداثة (ساعات)',
+  maxAdsPerAdvertiser: 'أقصى إعلانات لمعلن واحد',
+  sessionTtlSeconds: 'مدة تثبيت ترتيب الجلسة (ثوانٍ)',
+};
+
 const LABELS: Record<string, string> = {
   PUBLISHING_MODE: 'وضع النشر',
   PAYMENTS_ENABLED: 'تفعيل الدفع',
   AUTO_MODERATION_ENABLED: 'الفحص الآلي عند الرفع',
   TICKER_ENABLED: 'تفعيل الشريط العلوي',
+  PERSONALIZED_FEED_ENABLED: 'الترتيب الذكي لتبويب «لك»',
+  RANKING_WEIGHTS: 'أوزان محرّك الترتيب',
   MIN_APP_VERSION: 'أقل إصدار مدعوم للتطبيق',
   SUPPORT_WHATSAPP: 'واتساب الدعم',
   TERMS_VERSION: 'إصدار الشروط',
@@ -47,6 +61,9 @@ export default function AdminSettingsPage() {
           const value = settings[key];
           const isBoolean = typeof value === 'boolean';
           const isMode = key === 'PUBLISHING_MODE';
+
+          // أوزان الترتيب كائن مركّب — لها بطاقة خاصة أسفل الصفحة
+          if (key === 'RANKING_WEIGHTS') return null;
 
           return (
             <Card key={key} className="space-y-2 p-4">
@@ -87,6 +104,38 @@ export default function AdminSettingsPage() {
           );
         })}
       </div>
+
+      <Card className="mt-4 space-y-3 p-4">
+        <div>
+          <h2 className="font-extrabold">أوزان محرّك الترتيب</h2>
+          <p className="text-xs text-ink-muted">
+            الترتيب يعمل داخل الخادم بلا أي مزوّد خارجي. الدرجة النهائية لكل إعلان =
+            (جودة × وزنها) + (تقارب × وزنه) + (قرب × وزنه) + (حداثة × وزنها) + دفعة المدفوع −
+            عقوبة التكرار. رفع أي وزن يزيد تأثير إشارته على الموجز فورًا.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          {Object.entries(RANKING_LABELS).map(([field, label]) => (
+            <Input
+              key={field}
+              label={label}
+              type="number"
+              step="0.1"
+              min={0}
+              disabled={!canWrite || saving === 'RANKING_WEIGHTS'}
+              defaultValue={String((settings.RANKING_WEIGHTS as any)?.[field] ?? '')}
+              onBlur={(event) => {
+                const next = {
+                  ...(settings.RANKING_WEIGHTS as Record<string, number>),
+                  [field]: Number(event.target.value),
+                };
+                if (Number.isFinite(next[field])) void update('RANKING_WEIGHTS', next);
+              }}
+            />
+          ))}
+        </div>
+      </Card>
 
       {!canWrite ? (
         <p className="mt-4 text-sm text-ink-muted">لا تملك صلاحية تعديل الإعدادات.</p>

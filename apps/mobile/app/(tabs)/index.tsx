@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { AdDto, PaginatedDto, TickerLogoDto } from '@e3lani/types';
 import { api, buildQuery } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { track, flushEvents } from '@/lib/track';
+import { track, flushEvents, getDeviceId } from '@/lib/track';
 import { theme } from '@/lib/theme';
 import { TickerBar } from '@/components/ticker-bar';
 import { AdFeedItem } from '@/components/ad-feed-item';
@@ -60,6 +60,7 @@ export default function FeedScreen() {
             limit: 6,
             lat: nextTab === 'nearby' ? coords?.lat : undefined,
             lng: nextTab === 'nearby' ? coords?.lng : undefined,
+            deviceId: await getDeviceId(),
           })}`,
           { auth: Boolean(user) },
         );

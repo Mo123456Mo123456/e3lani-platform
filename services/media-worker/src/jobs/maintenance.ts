@@ -1,9 +1,12 @@
 import { Queue, Worker, type Job } from 'bullmq';
 import { prisma } from '@e3lani/database';
+import { affinityScore, qualityScore } from '@e3lani/config';
 import { config, QUEUE_NAMES } from '../config';
 import { logger } from '../lib/logger';
 
-type MaintenanceJob = { task: 'expire-ads' | 'expire-ticker' | 'rollup-stats' | 'cleanup' };
+type MaintenanceJob = {
+  task: 'expire-ads' | 'expire-ticker' | 'rollup-stats' | 'cleanup' | 'rebuild-ranking';
+};
 
 /** إنهاء الإعلانات المنتهية وإشعار أصحابها. */
 async function expireAds(): Promise<number> {
@@ -178,6 +181,118 @@ async function cleanupExpired(): Promise<void> {
   });
 }
 
+/**
+ * يعيد بناء درجات جودة الإعلانات وتقارب المستخدمين مع الأقسام.
+ *
+ * كل الحساب يجري داخل الخادم من جدول الأحداث — بلا أي مزوّد ذكاء اصطناعي خارجي
+ * وبلا خروج أي بيان خارج البنية التحتية للمنصة.
+ */
+async function rebuildRanking(): Promise<{ ads: number; users: number }> {
+  const since = new Date(Date.now() - 30 * 86_400_000);
+
+  /* ------------------------- درجات جودة الإعلانات ---------------------- */
+
+  const adEvents = await prisma.adEvent.groupBy({
+    by: ['adId', 'type'],
+    where: { createdAt: { gte: since } },
+    _count: { _all: true },
+  });
+
+  const perAd = new Map<
+    string,
+    { impressions: number; clicks: number; saves: number; videoViews: number; completions: number }
+  >();
+
+  const CLICKS = ['CLICK_WHATSAPP', 'CLICK_CALL', 'CLICK_STORE', 'CLICK_LINK'];
+
+  for (const row of adEvents) {
+    const entry =
+      perAd.get(row.adId) ??
+      { impressions: 0, clicks: 0, saves: 0, videoViews: 0, completions: 0 };
+    const count = row._count._all;
+
+    if (row.type === 'IMPRESSION') entry.impressions += count;
+    else if (row.type === 'SAVE') entry.saves += count;
+    else if (row.type === 'VIEW_START') entry.videoViews += count;
+    else if (row.type === 'VIEW_COMPLETE') entry.completions += count;
+    else if (CLICKS.includes(row.type)) entry.clicks += count;
+
+    perAd.set(row.adId, entry);
+  }
+
+  for (const [adId, signals] of perAd) {
+    const quality = qualityScore(signals);
+    await prisma.adScore
+      .upsert({
+        where: { adId },
+        update: { ...signals, quality },
+        create: { adId, ...signals, quality },
+      })
+      .catch(() => undefined); // الإعلان قد يكون حُذف بين الاستعلام والكتابة
+  }
+
+  /* --------------------- تقارب المستخدمين مع الأقسام ------------------- */
+
+  const userEvents = await prisma.adEvent.findMany({
+    where: { createdAt: { gte: since }, userId: { not: null } },
+    select: { userId: true, type: true, ad: { select: { categoryId: true } } },
+    take: 200_000,
+  });
+
+  type Bucket = { clicks: number; saves: number; impressions: number };
+  const perUser = new Map<string, Map<string, Bucket>>();
+  const totals = new Map<string, Bucket>();
+
+  for (const event of userEvents) {
+    const userId = event.userId!;
+    const categoryId = event.ad?.categoryId;
+    if (!categoryId) continue;
+
+    const categories = perUser.get(userId) ?? new Map<string, Bucket>();
+    const bucket = categories.get(categoryId) ?? { clicks: 0, saves: 0, impressions: 0 };
+    const total = totals.get(userId) ?? { clicks: 0, saves: 0, impressions: 0 };
+
+    if (event.type === 'IMPRESSION') {
+      bucket.impressions += 1;
+      total.impressions += 1;
+    } else if (event.type === 'SAVE') {
+      bucket.saves += 1;
+      total.saves += 1;
+    } else if (CLICKS.includes(event.type)) {
+      bucket.clicks += 1;
+      total.clicks += 1;
+    }
+
+    categories.set(categoryId, bucket);
+    perUser.set(userId, categories);
+    totals.set(userId, total);
+  }
+
+  for (const [userId, categories] of perUser) {
+    const total = totals.get(userId)!;
+    for (const [categoryId, bucket] of categories) {
+      const score = affinityScore({
+        categoryClicks: bucket.clicks,
+        categorySaves: bucket.saves,
+        categoryImpressions: bucket.impressions,
+        totalClicks: total.clicks,
+        totalSaves: total.saves,
+        totalImpressions: total.impressions,
+      });
+
+      await prisma.userCategoryAffinity
+        .upsert({
+          where: { userId_categoryId: { userId, categoryId } },
+          update: { ...bucket, score },
+          create: { userId, categoryId, ...bucket, score },
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  return { ads: perAd.size, users: perUser.size };
+}
+
 async function handle(job: Job<MaintenanceJob>): Promise<void> {
   switch (job.data.task) {
     case 'expire-ads': {
@@ -193,6 +308,11 @@ async function handle(job: Job<MaintenanceJob>): Promise<void> {
     case 'rollup-stats': {
       const count = await rollupStats();
       logger.info('maintenance', 'تجميع إحصائيات الأمس', { ads: count });
+      break;
+    }
+    case 'rebuild-ranking': {
+      const result = await rebuildRanking();
+      logger.info('maintenance', 'إعادة بناء درجات الترتيب', result);
       break;
     }
     case 'cleanup':
@@ -222,6 +342,10 @@ export async function startMaintenance(): Promise<Worker<MaintenanceJob>> {
   await queue.add('cleanup', { task: 'cleanup' }, {
     repeat: { pattern: '40 3 * * *' }, jobId: 'repeat:cleanup', removeOnComplete: true,
   });
+  // درجات الترتيب تُعاد كل ٣٠ دقيقة لتبقى قريبة من سلوك المستخدمين الفعلي
+  await queue.add('rebuild-ranking', { task: 'rebuild-ranking' }, {
+    repeat: { pattern: '*/30 * * * *' }, jobId: 'repeat:rebuild-ranking', removeOnComplete: true,
+  });
 
   const worker = new Worker<MaintenanceJob>(QUEUE_NAMES.MAINTENANCE, handle, {
     connection: { url: config.redisUrl } as any,
@@ -232,4 +356,4 @@ export async function startMaintenance(): Promise<Worker<MaintenanceJob>> {
   return worker;
 }
 
-export const __testing = { expireAds, expireTicker, rollupStats, cleanupExpired };
+export const __testing = { expireAds, expireTicker, rollupStats, cleanupExpired, rebuildRanking };

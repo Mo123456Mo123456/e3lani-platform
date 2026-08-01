@@ -210,6 +210,8 @@ export const updateAdSchema = z.object({
 
 export const feedQuerySchema = paginationSchema.extend({
   tab: z.enum(['for-you', 'nearby', 'latest']).default('for-you'),
+  /** معرّف الجهاز — يُستخدم لتخصيص الترتيب ومنع تكرار العرض للزائر */
+  deviceId: z.string().trim().max(120).optional(),
   cityId: cuidSchema.optional(),
   lat: z.coerce.number().min(-90).max(90).optional(),
   lng: z.coerce.number().min(-180).max(180).optional(),

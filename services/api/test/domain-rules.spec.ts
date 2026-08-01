@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ALLOWED_LINK_HOSTS, halalasToSar, normalizeSaudiPhone, permissionsForRole,
-  roleHasPermission, sarToHalalas,
+  ALLOWED_LINK_HOSTS, DEFAULT_RANKING_WEIGHTS, affinityScore, diversify, finalScore,
+  freshnessDecay, geoScore, halalasToSar, normalizeSaudiPhone, parseWeights, permissionsForRole,
+  qualityScore, roleHasPermission, sarToHalalas, wilsonLowerBound,
 } from '@e3lani/config';
 import {
   createAdSchema, createPostSchema, completeProfileSchema, requestOtpSchema,
@@ -303,5 +304,147 @@ describe('ترقيم الفواتير', () => {
     expect(format(2026, 1)).toBe('E3-2026-000001');
     expect(format(2026, 42)).toBe('E3-2026-000042');
     expect(format(2027, 1)).toBe('E3-2027-000001');
+  });
+});
+
+/* ========================================================================== */
+/* محرّك الترتيب الداخلي                                                       */
+/* ========================================================================== */
+
+describe('حدّ ويلسون الأدنى', () => {
+  it('يعاقب العيّنات الصغيرة بدل مكافأتها', () => {
+    // نقرة واحدة من ظهور واحد = ١٠٠٪ بالنسبة الساذجة، لكن ويلسون لا ينخدع
+    const tiny = wilsonLowerBound(1, 1);
+    const solid = wilsonLowerBound(300, 1000);
+    expect(tiny).toBeLessThan(solid);
+    expect(tiny).toBeLessThan(0.3);
+  });
+
+  it('يزداد بثبات مع تراكم الأدلة على النسبة نفسها', () => {
+    const small = wilsonLowerBound(3, 10);
+    const medium = wilsonLowerBound(30, 100);
+    const large = wilsonLowerBound(300, 1000);
+    expect(small).toBeLessThan(medium);
+    expect(medium).toBeLessThan(large);
+    expect(large).toBeLessThan(0.3);
+  });
+
+  it('يعيد صفرًا بلا بيانات ولا يخرج عن النطاق', () => {
+    expect(wilsonLowerBound(0, 0)).toBe(0);
+    expect(wilsonLowerBound(5, 0)).toBe(0);
+    expect(wilsonLowerBound(10, 5)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('درجة جودة الإعلان', () => {
+  it('إعلان بلا بيانات يحصل على صفر لا على أفضلية', () => {
+    expect(
+      qualityScore({ impressions: 0, clicks: 0, saves: 0, videoViews: 0, completions: 0 }),
+    ).toBe(0);
+  });
+
+  it('الإعلان الأعلى تفاعلًا يتفوّق دائمًا', () => {
+    const weak = qualityScore({ impressions: 1000, clicks: 5, saves: 1, videoViews: 100, completions: 5 });
+    const strong = qualityScore({ impressions: 1000, clicks: 200, saves: 90, videoViews: 500, completions: 300 });
+    expect(strong).toBeGreaterThan(weak);
+    expect(strong).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('تحلّل الحداثة', () => {
+  it('ينصّف الدرجة عند نصف العمر', () => {
+    expect(freshnessDecay(0, 72)).toBe(1);
+    expect(freshnessDecay(72, 72)).toBeCloseTo(0.5, 5);
+    expect(freshnessDecay(144, 72)).toBeCloseTo(0.25, 5);
+  });
+
+  it('يتناقص باستمرار ولا يصير سالبًا', () => {
+    expect(freshnessDecay(10_000, 72)).toBeGreaterThanOrEqual(0);
+    expect(freshnessDecay(-5, 72)).toBe(1);
+  });
+});
+
+describe('القرب الجغرافي', () => {
+  it('يفضّل نفس المدينة ثم المنطقة ثم المملكة', () => {
+    expect(geoScore({ sameCity: true, sameRegion: true, kingdomWide: true })).toBe(1);
+    expect(geoScore({ sameCity: false, sameRegion: true, kingdomWide: false })).toBe(0.6);
+    expect(geoScore({ sameCity: false, sameRegion: false, kingdomWide: true })).toBe(0.3);
+    expect(geoScore({ sameCity: false, sameRegion: false, kingdomWide: false })).toBe(0);
+  });
+});
+
+describe('تقارب المستخدم مع الأقسام', () => {
+  it('يعطي صفرًا للمستخدم الجديد (بداية باردة)', () => {
+    expect(
+      affinityScore({
+        categoryClicks: 0, categorySaves: 0, categoryImpressions: 0,
+        totalClicks: 0, totalSaves: 0, totalImpressions: 0,
+      }),
+    ).toBe(0);
+  });
+
+  it('النقر يزن أكثر من الحفظ، والحفظ أكثر من مجرد الظهور', () => {
+    const base = { totalClicks: 10, totalSaves: 10, totalImpressions: 100 };
+    const byClick = affinityScore({ ...base, categoryClicks: 5, categorySaves: 0, categoryImpressions: 0 });
+    const bySave = affinityScore({ ...base, categoryClicks: 0, categorySaves: 5, categoryImpressions: 0 });
+    const byView = affinityScore({ ...base, categoryClicks: 0, categorySaves: 0, categoryImpressions: 5 });
+    expect(byClick).toBeGreaterThan(bySave);
+    expect(bySave).toBeGreaterThan(byView);
+  });
+});
+
+describe('الدرجة النهائية', () => {
+  const weights = { ...DEFAULT_RANKING_WEIGHTS };
+  const base = { quality: 0.5, affinity: 0.5, geo: 1, freshness: 1, isPromoted: false, seenCount: 0 };
+
+  it('الإعلان المدفوع يتقدّم لكنه لا يلغي بقية الإشارات', () => {
+    const organicGood = finalScore({ ...base, quality: 0.9, affinity: 0.9 }, weights);
+    const promotedPoor = finalScore({ ...base, quality: 0, affinity: 0, isPromoted: true }, weights);
+    expect(organicGood).toBeGreaterThan(promotedPoor);
+  });
+
+  it('تكرار العرض يخفض الدرجة ثم يتشبّع', () => {
+    const fresh = finalScore(base, weights);
+    const seenOnce = finalScore({ ...base, seenCount: 1 }, weights);
+    const seenMany = finalScore({ ...base, seenCount: 10 }, weights);
+    expect(seenOnce).toBeLessThan(fresh);
+    expect(seenMany).toBeLessThan(seenOnce);
+    // العقوبة محدودة ولا تنحدر بلا نهاية
+    expect(fresh - seenMany).toBeLessThanOrEqual(weights.seenPenalty);
+  });
+
+  it('رفع وزن التقارب يزيد أثره فعليًا', () => {
+    const normal = finalScore({ ...base, affinity: 1 }, weights);
+    const boosted = finalScore({ ...base, affinity: 1 }, { ...weights, affinity: 5 });
+    expect(boosted).toBeGreaterThan(normal);
+  });
+});
+
+describe('تنويع المعلنين', () => {
+  it('يمنع سيطرة معلن واحد على أوائل الموجز', () => {
+    const items = [
+      { id: 'a1', advertiserId: 'A' }, { id: 'a2', advertiserId: 'A' },
+      { id: 'a3', advertiserId: 'A' }, { id: 'a4', advertiserId: 'A' },
+      { id: 'b1', advertiserId: 'B' },
+    ];
+    const result = diversify(items, 2);
+    expect(result.slice(0, 3).map((item) => item.id)).toEqual(['a1', 'a2', 'b1']);
+    // لا يُفقد أي عنصر، يُؤجَّل فقط
+    expect(result).toHaveLength(items.length);
+  });
+});
+
+describe('قراءة أوزان الترتيب من الإعدادات', () => {
+  it('يرجع للقيم الافتراضية عند إدخال غير صالح', () => {
+    expect(parseWeights(null)).toEqual(DEFAULT_RANKING_WEIGHTS);
+    expect(parseWeights('nonsense')).toEqual(DEFAULT_RANKING_WEIGHTS);
+    expect(parseWeights({ quality: -5 }).quality).toBe(DEFAULT_RANKING_WEIGHTS.quality);
+    expect(parseWeights({ quality: Number.NaN }).quality).toBe(DEFAULT_RANKING_WEIGHTS.quality);
+  });
+
+  it('يقبل القيم الصالحة ويتجاهل الحقول المجهولة', () => {
+    const parsed = parseWeights({ quality: 3, unknownField: 99 });
+    expect(parsed.quality).toBe(3);
+    expect(parsed.affinity).toBe(DEFAULT_RANKING_WEIGHTS.affinity);
   });
 });

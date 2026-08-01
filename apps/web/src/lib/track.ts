@@ -4,7 +4,7 @@ import { API_URL } from './api';
 
 const DEVICE_KEY = 'e3lani.device';
 
-function deviceId(): string {
+export function deviceId(): string {
   if (typeof window === 'undefined') return 'server';
   let id = window.localStorage.getItem(DEVICE_KEY);
   if (!id) {
