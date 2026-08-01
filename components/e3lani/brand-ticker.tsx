@@ -43,7 +43,7 @@ export function BrandTicker() {
 
 const styles = StyleSheet.create({
   ticker: {
-    height: 40,
+    height: 34,
     overflow: "hidden",
     backgroundColor: BRAND.yellow,
   },
@@ -56,24 +56,24 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 10,
+    gap: 6,
+    paddingHorizontal: 8,
   },
   logo: {
-    minWidth: 72,
+    minWidth: 64,
     color: BRAND.black,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "900",
     textAlign: "center",
   },
   separator: {
-    marginHorizontal: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 10,
+    marginHorizontal: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
     backgroundColor: BRAND.black,
     color: BRAND.white,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "900",
     overflow: "hidden",
   },

@@ -259,10 +259,24 @@ export function AdCard({
             ) : null}
           </View>
         </View>
-        <Text numberOfLines={2} style={[styles.adTitle, { textAlign: isRTL ? "right" : "left" }]}>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.adTitle,
+            fullscreen && styles.adTitleFullscreen,
+            { textAlign: isRTL ? "right" : "left" },
+          ]}
+        >
           {ad.title}
         </Text>
-        <Text numberOfLines={2} style={[styles.description, { textAlign: isRTL ? "right" : "left" }]}>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.description,
+            fullscreen && styles.descriptionFullscreen,
+            { textAlign: isRTL ? "right" : "left" },
+          ]}
+        >
           {ad.description}
         </Text>
         {!fullscreen ? (
@@ -302,34 +316,34 @@ const styles = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,.29)" },
   scrimFullscreen: { backgroundColor: "rgba(0,0,0,0.35)" },
   badges: { position: "absolute", top: 15, left: 15, right: 15, gap: 7 },
-  badgesFullscreen: { top: 104, right: 14, left: undefined, width: "auto" },
+  badgesFullscreen: { top: 92, right: 12, left: undefined, width: "auto", gap: 5 },
   badge: {
-    minHeight: 29,
-    borderRadius: 15,
-    paddingHorizontal: 10,
+    minHeight: 22,
+    borderRadius: 8,
+    paddingHorizontal: 8,
     backgroundColor: BRAND.yellow,
     alignItems: "center",
     justifyContent: "center",
   },
   badgeDark: { backgroundColor: "rgba(17,17,17,.8)" },
-  badgeText: { color: BRAND.black, fontSize: 10, lineHeight: 14, fontWeight: "900" },
+  badgeText: { color: BRAND.black, fontSize: 9, lineHeight: 12, fontWeight: "900" },
   mediaLabel: {
     position: "absolute",
-    top: 104,
-    left: 14,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 9,
+    top: 92,
+    left: 12,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 8,
     backgroundColor: "rgba(0,0,0,0.57)",
   },
-  mediaLabelText: { color: BRAND.white, fontSize: 10, fontWeight: "900" },
+  mediaLabelText: { color: BRAND.white, fontSize: 9, fontWeight: "900" },
   actions: { position: "absolute", right: 12, bottom: 88, gap: 13 },
-  actionsFullscreen: { left: 10, right: undefined, bottom: 34, gap: 14 },
-  action: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", gap: 2 },
+  actionsFullscreen: { left: 8, right: undefined, bottom: 18, gap: 8 },
+  action: { minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center", gap: 1 },
   actionIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.19)",
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -338,10 +352,10 @@ const styles = StyleSheet.create({
   },
   actionIconSaved: { backgroundColor: BRAND.yellow, borderColor: BRAND.yellow },
   actionPressed: { opacity: 0.58, transform: [{ scale: 0.97 }] },
-  actionText: { color: BRAND.white, fontSize: 9, lineHeight: 13, fontWeight: "800" },
+  actionText: { color: BRAND.white, fontSize: 8, lineHeight: 11, fontWeight: "800" },
   copy: { position: "absolute", left: 17, right: 58, bottom: 18 },
-  copyFullscreen: { right: 82, left: 16, bottom: 24 },
-  brandRow: { alignItems: "center", gap: 7, maxWidth: "100%" },
+  copyFullscreen: { right: 62, left: 12, bottom: 14 },
+  brandRow: { alignItems: "center", gap: 6, maxWidth: "100%" },
   avatar: {
     width: 34,
     height: 34,
@@ -351,35 +365,35 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarFullscreen: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.5,
     borderColor: BRAND.white,
   },
-  avatarText: { color: BRAND.black, fontSize: 16, lineHeight: 21, fontWeight: "900" },
-  brandName: { color: BRAND.white, maxWidth: 220, fontSize: 13, lineHeight: 19, fontWeight: "900" },
-  metaLine: { marginTop: 3, color: "#ddd", fontSize: 11, lineHeight: 16 },
-  adTitle: { marginTop: 11, color: BRAND.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  description: { marginTop: 5, color: "#EFEFEF", fontSize: 13, lineHeight: 20 },
-  location: { marginTop: 7, alignItems: "center", gap: 4 },
-  locationText: { color: BRAND.white, fontSize: 12, lineHeight: 17 },
+  avatarText: { color: BRAND.black, fontSize: 14, lineHeight: 18, fontWeight: "900" },
+  brandName: { color: BRAND.white, maxWidth: 180, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  metaLine: { marginTop: 2, color: "#ddd", fontSize: 10, lineHeight: 14 },
+  adTitle: { marginTop: 6, color: BRAND.white, fontSize: 17, lineHeight: 22, fontWeight: "900" },
+  description: { marginTop: 3, color: "#EFEFEF", fontSize: 11, lineHeight: 16 },
+  location: { marginTop: 5, alignItems: "center", gap: 4 },
+  locationText: { color: BRAND.white, fontSize: 11, lineHeight: 15 },
   cta: {
-    marginTop: 13,
-    minHeight: 44,
-    minWidth: 138,
-    borderRadius: 14,
-    paddingHorizontal: 15,
+    marginTop: 8,
+    minHeight: 36,
+    minWidth: 120,
+    borderRadius: 11,
+    paddingHorizontal: 12,
     backgroundColor: BRAND.yellow,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
+    gap: 6,
   },
   ctaFullscreen: {
     width: "100%",
-    height: 49,
+    height: 36,
     justifyContent: "space-between",
   },
-  ctaText: { color: BRAND.black, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  ctaText: { color: BRAND.black, fontSize: 12, lineHeight: 16, fontWeight: "900" },
 });
