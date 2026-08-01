@@ -14,6 +14,7 @@ const links = [
   ["/admin/moderation", "fact-check", "المراجعة", "Moderation"],
   ["/admin/reports", "flag", "البلاغات", "Reports"],
   ["/admin/payments", "payments", "المدفوعات", "Payments"],
+  ["/admin/pricing", "sell", "التسعير", "Pricing"],
   ["/admin/users", "group", "المستخدمون", "Users"],
   ["/admin/brands", "storefront", "البراندات", "Brands"],
   ["/admin/catalog", "category", "الكتالوج", "Catalog"],

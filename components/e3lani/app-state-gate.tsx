@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { Redirect, usePathname } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,8 +24,9 @@ function LaunchPolicyHydrator() {
 }
 
 export function AppStateGate({ children }: { children: ReactNode }) {
-  const { ready, loadError, retryLoad, continueWithFreshState } = useE3lani();
+  const { ready, loadError, retryLoad, continueWithFreshState, countryGateCompleted } = useE3lani();
   const { locale } = useI18n();
+  const pathname = usePathname();
 
   if (!ready) {
     return (
@@ -72,6 +74,21 @@ export function AppStateGate({ children }: { children: ReactNode }) {
           </Pressable>
         </View>
       </SafeAreaView>
+    );
+  }
+
+  const allowWithoutGate =
+    pathname === "/welcome" ||
+    pathname === "/login" ||
+    pathname?.startsWith("/policies") ||
+    pathname?.startsWith("/oauth");
+
+  if (!countryGateCompleted && !allowWithoutGate) {
+    return (
+      <>
+        <LaunchPolicyHydrator />
+        <Redirect href="/welcome" />
+      </>
     );
   }
 

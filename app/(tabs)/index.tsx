@@ -19,8 +19,20 @@ import { BrandTicker } from "@/components/e3lani/brand-ticker";
 import { EmptyState, PrimaryButton } from "@/components/e3lani/ui";
 import { BRAND, type Ad } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
-import { getMarket, GLOBAL_MARKET, MARKETS, rankFeedAds, type FeedMode, type MarketCode } from "@/lib/feed/rank";
+import {
+  buildMarkets,
+  getMarket,
+  GLOBAL_MARKET,
+  MY_COUNTRY_MARKET,
+  rankFeedAds,
+  resolveMarketFilter,
+  type FeedMode,
+  type MarketCode,
+} from "@/lib/feed/rank";
 import { useI18n } from "@/lib/i18n";
+import { mapFeedAd } from "@/lib/map-feed-ad";
+import { trpc } from "@/lib/trpc";
+import { useCountries } from "@/lib/use-countries";
 import { useProductData } from "@/lib/use-product-data";
 
 const TAB_BAR = 72;
@@ -30,7 +42,6 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ category?: string; focus?: string }>();
   const {
-    ads,
     blockedOwners,
     ready,
     recordMetric,
@@ -40,17 +51,49 @@ export default function Home() {
     categoryFilter,
     setCategoryFilter,
     setMarket,
+    setServerAds,
     launchPolicy,
     accountCountry,
   } = useE3lani();
   const productData = useProductData();
+  const { countries } = useCountries();
+  const markets = useMemo(() => buildMarkets(countries), [countries]);
   const { isRTL, t, locale } = useI18n();
   const [tab, setTab] = useState<FeedMode>("forYou");
   const [active, setActive] = useState("");
   const [marketOpen, setMarketOpen] = useState(false);
+  const resolvedMarket = resolveMarketFilter(marketCode, accountCountry);
+  const feedQuery = trpc.ads.feed.useQuery(
+    {
+      countryCode:
+        tab === "nearby"
+          ? accountCountry
+          : resolvedMarket.code === GLOBAL_MARKET
+            ? null
+            : resolvedMarket.code,
+      forceCountryFilter:
+        tab === "nearby" ||
+        marketCode === MY_COUNTRY_MARKET ||
+        (forceCountryFilter && marketCode !== GLOBAL_MARKET),
+      categorySlug: categoryFilter || null,
+      limit: 50,
+    },
+    { staleTime: 30_000 },
+  );
+  const recordEvent = trpc.ads.recordEvent.useMutation();
   const listRef = useRef<FlatList<Ad>>(null);
   const seen = useRef(new Set<string>());
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 65 }).current;
+
+  const serverAds = useMemo(
+    () => (feedQuery.data ?? []).map((item) => mapFeedAd(item)),
+    [feedQuery.data],
+  );
+
+  useEffect(() => {
+    if (feedQuery.data) setServerAds(serverAds);
+  }, [feedQuery.data, serverAds, setServerAds]);
+
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: { item: Ad }[] }) => {
       const id = viewableItems[0]?.item.id ?? "";
@@ -59,6 +102,11 @@ export default function Home() {
         seen.current.add(id);
         recordMetric(id, "impressions");
         recordMetric(id, "views");
+        void recordEvent.mutateAsync({
+          id,
+          eventType: "view",
+          dedupeSuffix: `device-${id}`,
+        }).catch(() => undefined);
       }
     },
   ).current;
@@ -71,7 +119,7 @@ export default function Home() {
   }, [params.category, setCategoryFilter]);
 
   const itemHeight = Math.max(height - TAB_BAR - insets.bottom, 520);
-  const market = getMarket(marketCode);
+  const market = getMarket(marketCode, markets);
 
   const cities = useMemo(
     () =>
@@ -90,9 +138,10 @@ export default function Home() {
 
   const visible = useMemo(
     () =>
-      rankFeedAds(ads, {
+      rankFeedAds(serverAds, {
         mode: tab,
-        marketCode: tab === "nearby" && marketCode === GLOBAL_MARKET ? accountCountry : marketCode,
+        marketCode,
+        accountCountry,
         categoryId: categoryFilter || undefined,
         cities,
         metrics,
@@ -101,7 +150,7 @@ export default function Home() {
         forceCountryFilter: tab === "nearby" ? true : forceCountryFilter,
       }),
     [
-      ads,
+      serverAds,
       blockedOwners,
       categoryFilter,
       cities,
@@ -124,7 +173,7 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [params.focus, ready, visible]);
 
-  if (!ready) {
+  if (!ready || feedQuery.isLoading) {
     return (
       <View style={[styles.root, styles.center]}>
         <ActivityIndicator color={BRAND.yellowDark} size="large" />
@@ -256,12 +305,16 @@ export default function Home() {
                 : "Country is organizational only. The default feed is global and never hidden by account country."}
             </Text>
             <ScrollView style={{ maxHeight: 360 }}>
-              {MARKETS.map((item) => (
+              {markets.map((item) => (
                 <Pressable
                   key={item.code}
                   style={[styles.option, marketCode === item.code && styles.optionActive]}
                   onPress={() => {
-                    setMarket(item.code as MarketCode, item.code !== GLOBAL_MARKET);
+                    setMarket(
+                      item.code as MarketCode,
+                      item.code === MY_COUNTRY_MARKET ||
+                        (item.code !== GLOBAL_MARKET && item.code !== "ALL"),
+                    );
                     setMarketOpen(false);
                   }}
                 >

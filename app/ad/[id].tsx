@@ -10,6 +10,8 @@ import { ScreenContainer } from "@/components/screen-container";
 import { BRAND, type ContactType } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { mapFeedAd } from "@/lib/map-feed-ad";
+import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
 
 const urls = (type: ContactType, value: string) =>
@@ -26,7 +28,10 @@ export default function Detail() {
   const store = useE3lani();
   const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
-  const ad = store.ads.find((item) => item.id === id);
+  const adQuery = trpc.ads.get.useQuery({ id }, { enabled: Boolean(id) });
+  const reportMutation = trpc.ads.report.useMutation();
+  const eventMutation = trpc.ads.recordEvent.useMutation();
+  const ad = adQuery.data ? mapFeedAd(adQuery.data) : store.ads.find((item) => item.id === id);
   const recordedAdId = useRef("");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportSent, setReportSent] = useState(false);
@@ -35,8 +40,13 @@ export default function Detail() {
     if (ad && recordedAdId.current !== ad.id) {
       recordedAdId.current = ad.id;
       store.recordMetric(ad.id, "views");
+      void eventMutation.mutateAsync({
+        id: ad.id,
+        eventType: "view",
+        dedupeSuffix: `detail-${ad.id}`,
+      }).catch(() => undefined);
     }
-  }, [ad, store]);
+  }, [ad, store, eventMutation]);
 
   if (!ad) {
     return (
@@ -73,6 +83,7 @@ export default function Detail() {
 
   const submitReport = (reason: "misleading" | "prohibited") => {
     store.submitReport(ad.id, reason);
+    void reportMutation.mutateAsync({ id: ad.id, reason }).catch(() => undefined);
     setReportOpen(false);
     setReportSent(true);
   };

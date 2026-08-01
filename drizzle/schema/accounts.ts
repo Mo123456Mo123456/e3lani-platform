@@ -11,6 +11,7 @@ export const users = mysqlTable("users", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
   phone: varchar("phone", { length: 32 }),
+  countryCode: varchar("countryCode", { length: 2 }),
   accountType: mysqlEnum("accountType", ["viewer", "advertiser", "brand"]).default("viewer").notNull(),
   status: mysqlEnum("status", ["active", "suspended", "deleted"]).default("active").notNull(),
   preferredLanguage: mysqlEnum("preferredLanguage", ["ar", "en"]).default("ar").notNull(),
@@ -18,6 +19,20 @@ export const users = mysqlTable("users", {
   deletedAt: timestamp("deletedAt"),
 }, (table) => [
   uniqueIndex("users_openId_unique").on(table.openId),
+]);
+
+export const otpChallenges = mysqlTable("otp_challenges", {
+  id: int("id").autoincrement().primaryKey(),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  codeHash: varchar("codeHash", { length: 128 }).notNull(),
+  purpose: mysqlEnum("purpose", ["login", "register_advertiser"]).default("login").notNull(),
+  attempts: int("attempts").default(0).notNull(),
+  maxAttempts: int("maxAttempts").default(5).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("otp_challenges_phone_idx").on(table.phone, table.purpose, table.createdAt),
 ]);
 
 export const userProfiles = mysqlTable("user_profiles", {

@@ -90,8 +90,10 @@ export function AdCard({
   fullscreen?: boolean;
 }) {
   const { locale, isRTL, t } = useI18n();
-  const { brand, savedIds, toggleSave, recordMetric, metrics } = useE3lani();
+  const { brand, savedIds, toggleSave, recordMetric, metrics, user } = useE3lani();
   const productData = useProductData();
+  const saveMutation = trpc.ads.toggleSave.useMutation();
+  const eventMutation = trpc.ads.recordEvent.useMutation();
   const city = productData.cities.find((item) => item.id === ad.cityId);
   const category = productData.categories.find((item) => item.id === ad.categoryId);
   const saved = savedIds.includes(ad.id);

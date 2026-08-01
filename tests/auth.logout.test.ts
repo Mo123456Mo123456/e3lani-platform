@@ -28,6 +28,7 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
     status: "active",
     preferredLanguage: "ar",
     cityId: null,
+    countryCode: null,
     deletedAt: null,
   };
   

@@ -151,10 +151,18 @@ describe("AI moderation heuristics", () => {
     );
   });
 
-  it("auto-pauses clearly blocked content", () => {
+  it("auto-pauses clearly blocked content with contextual phrases", () => {
     const result = scanAdContent({ title: "بيع سلاح ناري", description: "متوفر الآن" });
     expect(result.label).toBe("BLOCKED");
     expect(result.autoAction).toBe("auto_pause");
+  });
+
+  it("does not auto-pause on a lone ambiguous word without context", () => {
+    const result = scanAdContent({
+      title: "دورة عن تاريخ السلاح في المتاحف",
+      description: "محتوى تعليمي للمعارض",
+    });
+    expect(result.autoAction).not.toBe("auto_pause");
   });
 });
 

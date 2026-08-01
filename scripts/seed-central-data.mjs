@@ -7,6 +7,9 @@ const regions = [
   ["madinah", "منطقة المدينة المنورة", "Madinah Region", 1, 4],
   ["qassim", "منطقة القصيم", "Al-Qassim Region", 1, 5],
   ["asir", "منطقة عسير", "Asir Region", 1, 6],
+  ["uae", "الإمارات", "United Arab Emirates", 1, 7],
+  ["egypt", "مصر", "Egypt", 1, 8],
+  ["international", "دولي", "International", 1, 9],
 ];
 
 const cities = [
@@ -18,6 +21,11 @@ const cities = [
   ["madinah", "madinah", "المدينة المنورة", "Madinah", 24686000, 39615000, 1, 6],
   ["qassim", "buraydah", "بريدة", "Buraydah", 26326000, 43975000, 1, 7],
   ["asir", "abha", "أبها", "Abha", 18216000, 42505000, 1, 8],
+  ["uae", "dubai", "دبي", "Dubai", 25114800, 55296400, 1, 9],
+  ["uae", "abu_dhabi", "أبوظبي", "Abu Dhabi", 24388400, 54434400, 1, 10],
+  ["egypt", "cairo", "القاهرة", "Cairo", 30044300, 31235700, 1, 11],
+  ["egypt", "alexandria", "الإسكندرية", "Alexandria", 31199700, 29918500, 1, 12],
+  ["international", "other", "مدينة أخرى", "Other city", null, null, 1, 99],
 ];
 
 const categories = [

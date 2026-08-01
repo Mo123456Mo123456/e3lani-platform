@@ -4,10 +4,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
-import { formatCountryLabel } from "@/lib/countries";
+import { findCountry, formatCountryLabel } from "@/lib/countries";
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { useCountries } from "@/lib/use-countries";
 
 const rows = [
   { key: "myAds", icon: "campaign", route: "/account/my-ads" },
@@ -19,9 +20,11 @@ const rows = [
 
 export default function Profile() {
   const { user, logout, accountCountry } = useE3lani();
+  const { countries } = useCountries();
   const { locale, t, toggleLocale } = useI18n();
   const staff = Boolean(user && ["reviewer", "finance", "support", "admin", "owner"].includes(user.role));
-  const countryLabel = formatCountryLabel(user?.countryCode ?? accountCountry, locale === "ar" ? "ar" : "en");
+  const country = findCountry(countries, user?.countryCode ?? accountCountry);
+  const countryLabel = formatCountryLabel(country, locale === "ar" ? "ar" : "en");
 
   return (
     <ScreenContainer className="px-4">
@@ -38,6 +41,14 @@ export default function Profile() {
           <Text style={styles.name}>{user?.name ?? t("welcome")}</Text>
           <Text style={styles.help}>{user?.phone ?? t("loginHelp")}</Text>
           <Text style={styles.country}>{countryLabel}</Text>
+          <Pressable
+            onPress={() => router.push("/welcome" as never)}
+            style={styles.changeCountry}
+          >
+            <Text style={styles.changeCountryText}>
+              {locale === "ar" ? "تغيير الدولة" : "Change country"}
+            </Text>
+          </Pressable>
           {!user ? (
             <View style={styles.full}>
               <PrimaryButton label={t("signIn")} icon="login" onPress={() => router.push("/login" as never)} />
@@ -136,6 +147,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "800",
     textAlign: "center",
+  },
+  changeCountry: { marginTop: 6 },
+  changeCountryText: {
+    color: BRAND.yellowDark,
+    fontSize: 12,
+    fontWeight: "800",
+    textDecorationLine: "underline",
   },
   full: { width: "100%", marginTop: 17 },
   row: {

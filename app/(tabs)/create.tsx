@@ -48,7 +48,7 @@ export default function Create() {
         <Text style={styles.text}>
           {t("mediaHelp")}
           {paymentVisible
-            ? `\n${t("basePrice")}: 59 ${t("sar")}`
+            ? `\n${locale === "ar" ? "السعر يُحسب من إعدادات الإدارة على الخادم." : "Price is calculated from admin settings on the server."}`
             : locale === "ar"
               ? "\nيُنشر الإعلان مباشرة دون انتظار موافقة بشرية."
               : "\nAds publish instantly without waiting for human approval."}

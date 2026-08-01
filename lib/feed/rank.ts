@@ -1,5 +1,5 @@
 import type { Ad } from "../e3lani-data";
-import { ACCOUNT_COUNTRIES } from "../countries";
+import { FALLBACK_COUNTRIES, GLOBAL_MARKET, MY_COUNTRY_MARKET } from "../countries";
 
 export type FeedMode = "forYou" | "nearby" | "latest";
 
@@ -11,19 +11,18 @@ export type FeedCity = {
 
 export type RankOptions = {
   mode: FeedMode;
-  /** `ALL` = global feed. A country code filters only when `forceCountryFilter` or nearby. */
+  /** `ALL` = global feed. `MINE` resolves to account country with filter. */
   marketCode: string;
+  accountCountry?: string;
   categoryId?: string;
   cities?: FeedCity[];
   metrics?: Record<string, { views?: number; saves?: number; shares?: number }>;
   blockedOwners?: string[];
-  /** When false, country may hide ads (legacy). Default true for open launch. */
   allCountriesVisibility?: boolean;
-  /** User explicitly chose a country chip (not merely account country). */
   forceCountryFilter?: boolean;
 };
 
-export const GLOBAL_MARKET = "ALL" as const;
+export { GLOBAL_MARKET, MY_COUNTRY_MARKET };
 
 function countryForAd(ad: Ad, cities: FeedCity[] = []): string | undefined {
   if (ad.countryCode) return ad.countryCode;
@@ -31,7 +30,20 @@ function countryForAd(ad: Ad, cities: FeedCity[] = []): string | undefined {
   return city?.countryCode;
 }
 
-/** Score used by «لك» — quality, engagement, freshness; country is a soft boost only. */
+export function resolveMarketFilter(
+  marketCode: string,
+  accountCountry?: string,
+): { code: string; force: boolean } {
+  if (marketCode === GLOBAL_MARKET || marketCode === "ALL") {
+    return { code: GLOBAL_MARKET, force: false };
+  }
+  if (marketCode === MY_COUNTRY_MARKET) {
+    return { code: accountCountry || "SA", force: true };
+  }
+  // Specific country chip: filtering is applied by the caller via forceCountryFilter.
+  return { code: marketCode, force: false };
+}
+
 export function forYouScore(
   ad: Ad,
   metrics: RankOptions["metrics"] = {},
@@ -58,47 +70,47 @@ export function forYouScore(
   );
 }
 
-/**
- * Builds the home feed with distinct logic per tab.
- * Country never blocks visibility unless the user explicitly filters (or nearby mode).
- */
 export function rankFeedAds(ads: Ad[], options: RankOptions): Ad[] {
   const blocked = new Set(options.blockedOwners ?? []);
-  const globalVisible = options.allCountriesVisibility !== false;
   let list = ads.filter((ad) => ad.status === "active" && !blocked.has(ad.ownerId));
 
   if (options.categoryId) {
     list = list.filter((ad) => ad.categoryId === options.categoryId);
   }
 
-  const market = options.marketCode || GLOBAL_MARKET;
+  const resolved = resolveMarketFilter(options.marketCode, options.accountCountry);
   const applyCountryFilter =
-    market !== GLOBAL_MARKET &&
+    resolved.code !== GLOBAL_MARKET &&
     (options.mode === "nearby" ||
       options.forceCountryFilter === true ||
+      resolved.force === true ||
       options.allCountriesVisibility === false);
 
   if (applyCountryFilter) {
-    list = list.filter((ad) => countryForAd(ad, options.cities) === market);
+    list = list.filter((ad) => countryForAd(ad, options.cities) === resolved.code);
   }
-
-  // Keep type used so unused-flag lint stays quiet when visibility is global.
-  void globalVisible;
 
   if (options.mode === "latest") {
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   if (options.mode === "nearby") {
-    return [...list].sort((a, b) => {
-      const score =
-        forYouScore(b, options.metrics, market) - forYouScore(a, options.metrics, market);
-      if (score !== 0) return score;
-      return b.createdAt.localeCompare(a.createdAt);
-    });
+    const nearbyMarket =
+      options.marketCode === GLOBAL_MARKET
+        ? options.accountCountry || "SA"
+        : resolved.code;
+    return [...list]
+      .filter((ad) => countryForAd(ad, options.cities) === nearbyMarket)
+      .sort((a, b) => {
+        const score =
+          forYouScore(b, options.metrics, nearbyMarket) -
+          forYouScore(a, options.metrics, nearbyMarket);
+        if (score !== 0) return score;
+        return b.createdAt.localeCompare(a.createdAt);
+      });
   }
 
-  const preferred = market === GLOBAL_MARKET ? undefined : market;
+  const preferred = resolved.code === GLOBAL_MARKET ? undefined : resolved.code;
   const ranked = [...list].sort(
     (a, b) =>
       forYouScore(b, options.metrics, preferred) - forYouScore(a, options.metrics, preferred),
@@ -148,27 +160,39 @@ const CITY_IDS: Record<string, string[]> = {
   EG: ["cairo", "giza", "alexandria", "mansoura", "aswan"],
 };
 
-export const MARKETS = [
-  {
-    code: GLOBAL_MARKET,
-    nameAr: "جميع الدول",
-    nameEn: "All countries",
-    flag: "🌍",
-    cityIds: [] as string[],
-  },
-  ...ACCOUNT_COUNTRIES.map((country) => ({
-    code: country.code,
-    nameAr: country.nameAr,
-    nameEn: country.nameEn,
-    flag: country.flag,
-    cityIds: CITY_IDS[country.code] ?? [],
-  })),
-] as const;
+export function buildMarkets(countries: { code: string; nameAr: string; nameEn: string; flag: string }[]) {
+  const source = countries.length ? countries : FALLBACK_COUNTRIES;
+  return [
+    {
+      code: GLOBAL_MARKET,
+      nameAr: "جميع الدول",
+      nameEn: "All countries",
+      flag: "🌍",
+      cityIds: [] as string[],
+    },
+    {
+      code: MY_COUNTRY_MARKET,
+      nameAr: "دولتي",
+      nameEn: "My country",
+      flag: "📍",
+      cityIds: [] as string[],
+    },
+    ...source.map((country) => ({
+      code: country.code,
+      nameAr: country.nameAr,
+      nameEn: country.nameEn,
+      flag: country.flag,
+      cityIds: CITY_IDS[country.code] ?? [],
+    })),
+  ];
+}
 
-export type MarketCode = (typeof MARKETS)[number]["code"] | string;
+export const MARKETS = buildMarkets(FALLBACK_COUNTRIES);
 
-export function getMarket(code: string) {
-  return MARKETS.find((item) => item.code === code) ?? MARKETS[0];
+export type MarketCode = string;
+
+export function getMarket(code: string, markets = MARKETS) {
+  return markets.find((item) => item.code === code) ?? markets[0];
 }
 
 export function filterAdsByMarket(
@@ -176,7 +200,9 @@ export function filterAdsByMarket(
   marketCode: string,
   cities: FeedCity[] = [],
   force = true,
+  accountCountry?: string,
 ): Ad[] {
-  if (!force || marketCode === GLOBAL_MARKET) return ads;
-  return ads.filter((ad) => countryForAd(ad, cities) === marketCode);
+  const resolved = resolveMarketFilter(marketCode, accountCountry);
+  if (!force || resolved.code === GLOBAL_MARKET) return ads;
+  return ads.filter((ad) => countryForAd(ad, cities) === resolved.code);
 }

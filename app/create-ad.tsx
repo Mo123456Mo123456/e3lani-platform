@@ -7,7 +7,6 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { MediaView } from "@/components/e3lani/ad-card";
 import { Field, OutlineButton, Pill, PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
-import { ACCOUNT_COUNTRIES } from "@/lib/countries";
 import {
   BRAND,
   type AdContact,
@@ -18,6 +17,8 @@ import {
 import { useE3lani } from "@/lib/e3lani-store";
 import { shouldShowPaymentUi } from "@/lib/launch-policy";
 import { useI18n } from "@/lib/i18n";
+import { mapFeedAd } from "@/lib/map-feed-ad";
+import { useCountries } from "@/lib/use-countries";
 import {
   preferredMediaUrl,
   preparePickedMedia,
@@ -43,8 +44,17 @@ type UploadItem = {
 export default function CreateAd() {
   const store = useE3lani();
   const productData = useProductData();
+  const { countries } = useCountries();
   const { locale, isRTL, t } = useI18n();
+  const createMutation = trpc.ads.create.useMutation();
+  const quoteQuery = trpc.product.quote.useQuery({
+    countryCode: store.accountCountry,
+    categorySlug: undefined,
+    accountType: store.user?.accountType,
+  });
   const paymentVisible = shouldShowPaymentUi(store.launchPolicy);
+  const serverBlocksPaid =
+    Boolean(quoteQuery.data?.blockPublishReason) && !quoteQuery.data?.globalFreeMode;
   const totalSteps = paymentVisible ? 5 : 4;
   const [step, setStep] = useState(1);
   const [media, setMedia] = useState<AdMedia[]>([]);
@@ -271,7 +281,7 @@ export default function CreateAd() {
     });
   };
 
-  const next = () => {
+  const next = async () => {
     if (step === 1 && uploads.some((item) => item.status !== "ready")) {
       return Alert.alert(locale === "ar" ? "انتظر اكتمال رفع جميع الوسائط أو أعد محاولة الملفات المتعثرة." : "Wait for all uploads to finish or retry failed files.");
     }
@@ -286,28 +296,63 @@ export default function CreateAd() {
       setStep((current) => current + 1);
       return;
     }
-    const resolvedCityId =
-      cityId === "other" ? `other:${customCity.trim() || "unspecified"}` : cityId;
-    const ad = store.createAd({
-      title: title.trim(),
-      description: description.trim(),
-      categoryId,
-      cityId: resolvedCityId,
-      countryCode: adCountry,
-      contacts,
-      promotions: paymentVisible ? promotions : [],
-      media,
-    });
-    if (paymentVisible && ad.status === "awaiting_payment") {
-      router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
-      return;
+    if (serverBlocksPaid) {
+      return Alert.alert(
+        locale === "ar" ? "النشر المدفوع غير جاهز" : "Paid publishing unavailable",
+        locale === "ar"
+          ? "الوضع المدفوع مفعّل لكن مزود الدفع الإنتاجي غير جاهز. لن يُحوَّل الإعلان إلى مجاني تلقائيًا."
+          : "Paid mode is on but the production payment provider is not ready. The ad will not be converted to free automatically.",
+      );
     }
-    Alert.alert(t("success"), t("freePublish"));
-    router.replace("/(tabs)" as never);
+    try {
+      const mediaAssetIds = media
+        .map((item) => item.mediaAssetId)
+        .filter((id): id is number => typeof id === "number");
+      if (!mediaAssetIds.length) {
+        return Alert.alert(
+          locale === "ar" ? "الوسائط مطلوبة" : "Media required",
+          locale === "ar"
+            ? "ارفع الوسائط إلى الخادم قبل النشر."
+            : "Upload media to the server before publishing.",
+        );
+      }
+      const created = await createMutation.mutateAsync({
+        title: title.trim(),
+        description: description.trim(),
+        categorySlug: categoryId,
+        cityCode: cityId === "other" ? "other" : cityId,
+        customCityName: cityId === "other" ? customCity.trim() || null : null,
+        countryCode: adCountry,
+        mediaAssetIds,
+        contacts,
+      });
+      const ad = mapFeedAd(created);
+      store.upsertServerAd(ad);
+      if (ad.status === "awaiting_payment") {
+        router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
+        return;
+      }
+      Alert.alert(
+        t("success"),
+        ad.status === "paused"
+          ? locale === "ar"
+            ? "أوقفت المراجعة الآلية الإعلان. يمكنك تقديم استئناف من إعلاناتي."
+            : "AI moderation paused the ad. You can appeal from My ads."
+          : t("freePublish"),
+      );
+      router.replace("/(tabs)" as never);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "PUBLISH_FAILED";
+      Alert.alert(t("error"), message);
+    }
   };
 
   const quote = paymentVisible
-    ? productData.calculateQuote(promotions)
+    ? {
+        items: promotions,
+        totalHalalas: quoteQuery.data?.quote.finalPrice ?? 0,
+        vatHalalas: quoteQuery.data?.quote.tax ?? 0,
+      }
     : { items: [] as PromotionCode[], totalHalalas: 0, vatHalalas: 0 };
   const city = productData.cities.find((item) => item.id === cityId);
   const cityName =
@@ -399,7 +444,7 @@ export default function CreateAd() {
             </ScrollView>
             <Text style={styles.label}>{locale === "ar" ? "دولة الإعلان" : "Ad country"}</Text>
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
-              {ACCOUNT_COUNTRIES.map((country) => (
+              {countries.map((country) => (
                 <Pill
                   key={country.code}
                   label={`${country.flag} ${locale === "ar" ? country.nameAr : country.nameEn}`}
@@ -499,7 +544,7 @@ export default function CreateAd() {
             disabled={step === 1 && uploads.some((item) => item.status !== "ready")}
             label={step === totalSteps ? (paymentVisible ? t("pay") : t("publishNow")) : t("next")}
             icon={step === totalSteps ? (paymentVisible ? "payments" : "campaign") : "arrow-back"}
-            onPress={next}
+            onPress={() => void next()}
           />
         </View>
       </View>

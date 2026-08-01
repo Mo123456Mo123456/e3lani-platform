@@ -1,35 +1,35 @@
-# معيار قبول الإطلاق العالمي المفتوح — إعلاني
+# معيار قبول الإطلاق العالمي — تحديث الفرع
 
-## الحالة الحالية في هذا الفرع
+## ما هو مكتمل في الكود
 
 | # | المعيار | الحالة |
 |---|---------|--------|
-| 1 | مستخدم سعودي يفتح التطبيق | مدعوم |
-| 2 | اختيار السعودية عند التسجيل/الحساب | `accountCountry` منفصل عن فلتر الموجز |
-| 3 | ظهور علم الدولة في الحساب | عبر أسواق `MARKETS` + صفحة الحساب |
-| 4 | الصفحة الرئيسية تعرض 🌍 جميع الدول | الافتراضي `marketCode = ALL` |
-| 5 | مشاهدة إعلانات من دول متعددة | بذور SA/AE/EG + ترتيب عالمي |
-| 6 | فلتر الإمارات يعرض إعلانات الإمارات فقط | `forceCountryFilter` |
-| 7 | العودة إلى جميع الدول | اختيار 🌍 |
-| 8 | نشر مجاني فوري | `FREE_LAUNCH` + `launch.policy` |
-| 9 | الظهور من حساب/جهاز آخر | عبر الموجز المحلي/المركزي حسب الربط |
-| 10 | فحص ذكاء اصطناعي في الخلفية | `scanAdContent` + علامات SAFE/NEEDS_REVIEW/BLOCKED |
-| 11 | الإبلاغ عن مخالفة | مسار البلاغات القائم |
-| 12 | الإدارة توقف الإعلان | لوحة الإدارة / `setAdStatus` |
-| 13 | تحويل النظام من مجاني إلى مدفوع | مفاتيح `launch.policy` |
-| 14 | سعر دولة دون التأثير على غيرها | `scoped_pricing_rules` + `resolvePublishQuote` |
-| 15 | خصم مؤقت | حقول `startsAt`/`endsAt` + وضع `discount` |
-| 16 | عودة السعر بعد انتهاء العرض | قواعد غير النشطة تُستبعد تلقائيًا |
-| 17 | عدم تغيير السجلات السابقة | `ad_price_snapshots` |
-| 18 | تشغيل بوابات الدفع لاحقًا من الإعدادات | `paymentsEnabled` + `lib/payments/providers.ts` + `product.updateLaunchPolicy` |
+| 1 | اختيار الدولة والعلم عند أول فتح | `app/welcome.tsx` + `countryGateCompleted` |
+| 2 | موجز «جميع الدول» افتراضيًا | `marketCode = ALL` بعد البوابة |
+| 3 | مشاهدة إعلانات دول مختلفة | `ads.feed` لا يفلتر بالدولة إلا عند الاختيار الصريح / قريب منك / دولتي |
+| 4 | نشر مجاني فوري | `ads.create` + `launch.policy` |
+| 5 | ظهور الإعلان من جهاز آخر | **يتطلب** DB + خادم يعمل؛ المسار جاهز عبر `ads.feed` / `ads.create` |
+| 6 | فحص AI في الخلفية | `scanAdContent` — لا يوقف بكلمة منفردة بلا سياق |
+| 7 | تحكم الإدارة بالمجاني/المدفوع/الخصم | `admin/settings` + `admin/pricing` + `updateLaunchPolicy` / `upsertPricingRule` |
+| 8 | السعر من الخادم | `product.quote` + لقطة `ad_price_snapshots` |
+| 9 | المدفوعات مجهزة ومتوقفة | adapters + `payment_intents` + sandbox ممنوع في production |
+| 10 | لا موافقة بشرية مسبقة | `manualPreApproval = false` افتراضيًا |
+| 11 | الإعلانات ليست من AsyncStorage | prefs فقط في `e3lani.prefs.v2`؛ الموجز من `ads.feed` |
+| 12 | OTP | `auth.requestOtp` / `verifyOtp` — رمز 123456 في Sandbox فقط ولا يظهر في Production |
+
+## ما يبقى Sandbox / يحتاج بيئة
+
+- ظهور إعلان بين جهازين حقيقيين يحتاج `DATABASE_URL` + تطبيق الهجرات `0005`/`0006` + `db:seed`.
+- OTP الإنتاجي يحتاج `OTP_PROVIDER_API_KEY` (وإلا `OTP_PROVIDER_NOT_CONFIGURED`).
+- الدفع الإنتاجي يبقى متوقفًا حتى تفعيل المزود من الإعدادات.
 
 ## إعدادات الإطلاق الافتراضية
 
 - Global Free Mode = ON
 - Payments Enabled = OFF
 - Payment Required = OFF
-- All Countries Visibility = ON
 - Instant Publishing = ON
-- AI Moderation = ON
 - Manual Pre-Approval = OFF
-- Post-Publish Reports = ON
+- AI Moderation = ON
+- All Countries Visibility = ON
+- Default Feed Market = ALL

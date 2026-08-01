@@ -1,7 +1,11 @@
 /**
- * Payment provider adapters — structural readiness for a future paid launch.
- * Providers stay inactive while `paymentsEnabled` / `paymentRequired` are off.
+ * Payment provider adapters — ready for a future paid launch.
+ * Sandbox must never run in production.
  */
+
+function isProductionRuntime() {
+  return process.env.NODE_ENV === "production";
+}
 
 export type PaymentStatus =
   | "not_required"
@@ -12,6 +16,8 @@ export type PaymentStatus =
   | "cancelled"
   | "refunded"
   | "partially_refunded";
+
+export type PaymentEnvironment = "sandbox" | "production";
 
 export type CreatePaymentInput = {
   amount: number;
@@ -24,61 +30,109 @@ export type CreatePaymentInput = {
 
 export type PaymentResult = {
   provider: string;
+  environment: PaymentEnvironment;
   status: PaymentStatus;
   externalId: string | null;
+  clientSecret: string | null;
   message: string;
+};
+
+export type WebhookVerificationInput = {
+  rawBody: string;
+  signature: string | null;
+  headers: Record<string, string | undefined>;
 };
 
 export interface PaymentProviderAdapter {
   id: string;
   displayName: string;
+  environment: PaymentEnvironment;
   supportedCurrencies: string[];
   createPayment(input: CreatePaymentInput): Promise<PaymentResult>;
   confirmPayment(externalId: string): Promise<PaymentResult>;
   refundPayment(externalId: string, amount?: number): Promise<PaymentResult>;
+  verifyWebhook(input: WebhookVerificationInput): Promise<{ ok: boolean; eventId: string | null }>;
 }
 
-/** Sandbox adapter used for local/dev until a real PSP is enabled. */
 export const sandboxPaymentAdapter: PaymentProviderAdapter = {
   id: "sandbox",
   displayName: "Sandbox",
+  environment: "sandbox",
   supportedCurrencies: ["SAR", "AED", "EGP", "USD", "GBP"],
   async createPayment(input) {
+    if (isProductionRuntime()) {
+      throw new Error("SANDBOX_PAYMENT_FORBIDDEN_IN_PRODUCTION");
+    }
     if (input.amount <= 0) {
       return {
         provider: "sandbox",
+        environment: "sandbox",
         status: "not_required",
         externalId: null,
+        clientSecret: null,
         message: "Zero-amount charges are not created.",
       };
     }
     return {
       provider: "sandbox",
+      environment: "sandbox",
       status: "pending",
       externalId: `sandbox_${input.adId}_${Date.now()}`,
-      message: "Sandbox payment created; awaiting confirmation.",
+      clientSecret: `sandbox_secret_${input.adId}`,
+      message: "Sandbox payment intent created.",
     };
   },
   async confirmPayment(externalId) {
+    if (isProductionRuntime()) throw new Error("SANDBOX_PAYMENT_FORBIDDEN_IN_PRODUCTION");
     return {
       provider: "sandbox",
+      environment: "sandbox",
       status: "paid",
       externalId,
+      clientSecret: null,
       message: "Sandbox payment confirmed.",
     };
   },
   async refundPayment(externalId) {
+    if (isProductionRuntime()) throw new Error("SANDBOX_PAYMENT_FORBIDDEN_IN_PRODUCTION");
     return {
       provider: "sandbox",
+      environment: "sandbox",
       status: "refunded",
       externalId,
+      clientSecret: null,
       message: "Sandbox refund recorded.",
     };
+  },
+  async verifyWebhook() {
+    if (isProductionRuntime()) throw new Error("SANDBOX_PAYMENT_FORBIDDEN_IN_PRODUCTION");
+    return { ok: true, eventId: `sandbox_evt_${Date.now()}` };
+  },
+};
+
+/** Production stub — activate after provider credentials are configured. */
+export const productionPaymentAdapter: PaymentProviderAdapter = {
+  id: "production",
+  displayName: "Production PSP",
+  environment: "production",
+  supportedCurrencies: ["SAR", "AED", "EGP", "USD", "GBP"],
+  async createPayment() {
+    throw new Error("PAYMENT_PROVIDER_NOT_CONFIGURED");
+  },
+  async confirmPayment() {
+    throw new Error("PAYMENT_PROVIDER_NOT_CONFIGURED");
+  },
+  async refundPayment() {
+    throw new Error("PAYMENT_PROVIDER_NOT_CONFIGURED");
+  },
+  async verifyWebhook() {
+    throw new Error("PAYMENT_PROVIDER_NOT_CONFIGURED");
   },
 };
 
 const registry = new Map<string, PaymentProviderAdapter>([
   [sandboxPaymentAdapter.id, sandboxPaymentAdapter],
+  [productionPaymentAdapter.id, productionPaymentAdapter],
 ]);
 
 export function registerPaymentProvider(adapter: PaymentProviderAdapter) {
@@ -87,14 +141,23 @@ export function registerPaymentProvider(adapter: PaymentProviderAdapter) {
 
 export function getPaymentProvider(id: string | null | undefined): PaymentProviderAdapter | null {
   if (!id) return null;
-  return registry.get(id) ?? null;
+  const adapter = registry.get(id) ?? null;
+  if (adapter?.environment === "sandbox" && isProductionRuntime()) return null;
+  return adapter;
 }
 
 export function listPaymentProviders(): PaymentProviderAdapter[] {
-  return [...registry.values()];
+  return [...registry.values()].filter(
+    (adapter) => !(adapter.environment === "sandbox" && isProductionRuntime()),
+  );
 }
 
-/** Never treat a free publish as a zero-value paid order. */
 export function paymentStatusForFreePublish(): PaymentStatus {
   return "not_required";
+}
+
+export function assertPayableAmount(amount: number) {
+  if (amount <= 0) {
+    throw new Error("ZERO_AMOUNT_PAYMENT_FORBIDDEN");
+  }
 }

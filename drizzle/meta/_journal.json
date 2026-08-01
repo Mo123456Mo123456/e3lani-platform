@@ -43,6 +43,13 @@
       "when": 1785608400000,
       "tag": "0005_global_launch_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1785612000000,
+      "tag": "0006_server_ads_country_otp",
+      "breakpoints": true
     }
   ]
 }

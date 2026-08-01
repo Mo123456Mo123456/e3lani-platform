@@ -29,6 +29,7 @@ export const ads = mysqlTable("ads", {
   businessProfileId: int("businessProfileId").references(() => businessProfiles.id),
   categoryId: int("categoryId").notNull().references(() => categories.id),
   cityId: int("cityId").notNull().references(() => cities.id),
+  countryCode: varchar("countryCode", { length: 2 }).default("SA").notNull(),
   currentRevisionId: int("currentRevisionId"),
   pendingRevisionId: int("pendingRevisionId"),
   adStatus: mysqlEnum("adStatus", ["draft", "awaiting_payment", "pending_review", "changes_requested", "active", "paused", "rejected", "expired", "removed"]).default("draft").notNull(),
@@ -45,6 +46,7 @@ export const ads = mysqlTable("ads", {
 }, (table) => [
   uniqueIndex("ads_publicId_unique").on(table.publicId),
   index("ads_feed_idx").on(table.adStatus, table.cityId, table.categoryId, table.activatedAt),
+  index("ads_country_feed_idx").on(table.adStatus, table.countryCode, table.activatedAt),
   index("ads_owner_idx").on(table.ownerId, table.adStatus),
 ]);
 
@@ -54,6 +56,7 @@ export const adRevisions = mysqlTable("ad_revisions", {
   version: int("version").notNull(),
   title: varchar("title", { length: 120 }).notNull(),
   description: text("description").notNull(),
+  customCityName: varchar("customCityName", { length: 120 }),
   audienceScope: mysqlEnum("audienceScope", ["city", "region", "kingdom"]).default("city").notNull(),
   reviewStatus: mysqlEnum("reviewStatus", ["draft", "queued", "in_review", "approved", "changes_requested", "rejected"]).default("draft").notNull(),
   submittedAt: timestamp("submittedAt"),
