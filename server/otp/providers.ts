@@ -17,19 +17,19 @@ export interface OtpProviderAdapter {
   sendOtp(input: { phone: string; code: string; purpose: OtpPurpose }): Promise<void>;
 }
 
+function otpHashSecret(): string {
+  if (ENV.cookieSecret) return ENV.cookieSecret;
+  if (!ENV.isProduction) return "e3lani-local-sandbox-only-secret";
+  throw new Error("OTP_HASH_SECRET_NOT_CONFIGURED");
+}
+
 export function hashOtpCode(code: string): string {
-  if (!ENV.cookieSecret) {
-    throw new Error("OTP_HASH_SECRET_NOT_CONFIGURED");
-  }
-  return createHash("sha256").update(`${ENV.cookieSecret}:otp:${code}`).digest("hex");
+  return createHash("sha256").update(`${otpHashSecret()}:otp:${code}`).digest("hex");
 }
 
 export function hashOtpSubject(phone: string): string {
-  if (!ENV.cookieSecret) {
-    throw new Error("OTP_HASH_SECRET_NOT_CONFIGURED");
-  }
   return createHash("sha256")
-    .update(`${ENV.cookieSecret}:otp-subject:${phone.trim()}`)
+    .update(`${otpHashSecret()}:otp-subject:${phone.trim()}`)
     .digest("hex");
 }
 
