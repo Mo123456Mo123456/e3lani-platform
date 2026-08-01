@@ -61,9 +61,9 @@ jobs:
         run: pnpm exec expo export --platform web --output-dir dist-web
 
   database:
-    name: Migrations, seed and commercial schema
+    name: Fresh schema, seed and commercial verification
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     services:
       mysql:
         image: mysql:8.4
@@ -102,11 +102,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply committed migrations
-        run: pnpm exec drizzle-kit migrate
+      - name: Apply current Drizzle schema to fresh MySQL
+        run: pnpm exec drizzle-kit push --force
 
       - name: Seed central product data
         run: pnpm db:seed
 
       - name: Verify commercial schema and launch defaults
         run: node scripts/verify-commercial-schema.mjs
+
+      - name: Export fresh schema baseline
+        run: |
+          mysqldump -h 127.0.0.1 -uroot -proot --no-data --skip-comments --compact --set-gtid-purged=OFF e3lani > fresh-schema.sql
+
+      - name: Upload schema baseline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: e3lani-fresh-schema
+          path: fresh-schema.sql
+          retention-days: 1
