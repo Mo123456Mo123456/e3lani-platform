@@ -15,6 +15,7 @@ import {
 import { BRAND, type Ad, type AdMedia } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
 
 const localAssets = {
@@ -125,12 +126,25 @@ export function AdCard({
   const save = (event: GestureResponderEvent) => {
     event.stopPropagation();
     toggleSave(ad.id);
+    if (user) {
+      void saveMutation.mutateAsync({ id: ad.id }).catch(() => {
+        // The next saved-ids synchronization corrects an optimistic mismatch.
+      });
+    }
   };
 
   const share = async (event: GestureResponderEvent) => {
     event.stopPropagation();
+    const result = await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
+    if (result.action !== Share.sharedAction) return;
     recordMetric(ad.id, "shares");
-    await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
+    void eventMutation
+      .mutateAsync({
+        id: ad.id,
+        eventType: "share",
+        dedupeSuffix: `share-${Date.now()}`,
+      })
+      .catch(() => undefined);
   };
 
   const openDetails = () => router.push({ pathname: "/ad/[id]", params: { id: ad.id } } as never);
@@ -173,7 +187,13 @@ export function AdCard({
       {fullscreen ? (
         <View style={styles.mediaLabel}>
           <Text style={styles.mediaLabelText}>
-            {ad.media[0]?.kind === "video" ? (locale === "ar" ? "فيديو" : "Video") : locale === "ar" ? "صورة" : "Photo"}
+            {ad.media[0]?.kind === "video"
+              ? locale === "ar"
+                ? "فيديو"
+                : "Video"
+              : locale === "ar"
+                ? "صورة"
+                : "Photo"}
           </Text>
         </View>
       ) : null}
