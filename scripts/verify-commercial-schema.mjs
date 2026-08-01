@@ -56,6 +56,7 @@ const requiredColumns = {
   otp_challenges: ["phone", "codeHash", "attempts", "maxAttempts", "expiresAt", "consumedAt"],
   payment_intents: [
     "publicId",
+    "idempotencyKey",
     "userId",
     "adId",
     "provider",
@@ -80,7 +81,12 @@ const requiredIndexes = {
   favorites: ["favorite_user_ad_uq"],
   auth_sessions: ["auth_sessions_tokenId_unique", "auth_sessions_user_active_idx"],
   auth_rate_limits: ["auth_rate_limits_scope_key_unique"],
-  payment_intents: ["payment_intents_publicId_unique", "payment_intents_ad_idx"],
+  payment_intents: [
+    "payment_intents_publicId_unique",
+    "payment_intents_idempotency_unique",
+    "payment_intents_externalId_unique",
+    "payment_intents_ad_idx",
+  ],
 };
 
 const connection = await mysql.createConnection(process.env.DATABASE_URL);
