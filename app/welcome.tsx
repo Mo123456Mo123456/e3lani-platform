@@ -1,6 +1,15 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
@@ -9,11 +18,30 @@ import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
 import { useCountries } from "@/lib/use-countries";
 
+function normalizeSearch(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u064B-\u065F\u0670]/g, "");
+}
+
 export default function Welcome() {
   const { completeCountryGate, accountCountry } = useE3lani();
-  const { countries, isLoading, fromDatabase } = useCountries();
+  const { countries, isLoading, fromDatabase, retry } = useCountries();
   const { locale } = useI18n();
   const [selected, setSelected] = useState(accountCountry || "SA");
+  const [search, setSearch] = useState("");
+
+  const filteredCountries = useMemo(() => {
+    const query = normalizeSearch(search);
+    if (!query) return countries;
+    return countries.filter((country) =>
+      normalizeSearch(
+        `${country.nameAr} ${country.nameEn} ${country.code} ${country.dialCode} ${country.currency}`,
+      ).includes(query),
+    );
+  }, [countries, search]);
 
   const continueAsGuest = () => {
     completeCountryGate(selected);
@@ -22,7 +50,7 @@ export default function Welcome() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5">
-      <ScrollView contentContainerStyle={styles.page}>
+      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <ScreenTitle
           title={locale === "ar" ? "إعلاني | E3lani" : "E3lani"}
           subtitle={
@@ -36,31 +64,74 @@ export default function Welcome() {
           {locale === "ar" ? "دولة الحساب / الزائر" : "Account / visitor country"}
         </Text>
         {!fromDatabase && !isLoading ? (
-          <Text style={styles.hint}>
-            {locale === "ar"
-              ? "تعذر جلب الدول من الخادم — تُعرض قائمة احتياطية مؤقتة."
-              : "Could not load countries from the server — showing a temporary fallback list."}
-          </Text>
+          <Pressable onPress={retry} style={styles.fallbackNotice}>
+            <MaterialIcons name="cloud-off" size={18} color={BRAND.warning} />
+            <Text style={styles.hint}>
+              {locale === "ar"
+                ? "تعذر جلب الدول من الخادم — اضغط لإعادة المحاولة."
+                : "Could not load countries from the server — tap to retry."}
+            </Text>
+          </Pressable>
         ) : null}
+
+        <View style={styles.searchBox}>
+          <MaterialIcons name="search" size={21} color={BRAND.muted} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder={
+              locale === "ar"
+                ? "ابحث باسم الدولة أو الرمز أو مفتاح الاتصال"
+                : "Search country, code or dial prefix"
+            }
+            placeholderTextColor={BRAND.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.searchInput, { textAlign: locale === "ar" ? "right" : "left" }]}
+          />
+          {search ? (
+            <Pressable accessibilityRole="button" onPress={() => setSearch("")}>
+              <MaterialIcons name="close" size={20} color={BRAND.black} />
+            </Pressable>
+          ) : null}
+        </View>
 
         {isLoading ? (
           <ActivityIndicator color={BRAND.yellowDark} />
-        ) : (
+        ) : filteredCountries.length ? (
           <View style={styles.grid}>
-            {countries.map((country) => {
+            {filteredCountries.map((country) => {
               const active = selected === country.code;
               return (
                 <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
                   key={country.code}
                   onPress={() => setSelected(country.code)}
                   style={[styles.chip, active && styles.chipOn]}
                 >
-                  <Text style={styles.chipText}>
-                    {country.flag} {locale === "ar" ? country.nameAr : country.nameEn}
-                  </Text>
+                  <Text style={styles.flag}>{country.flag}</Text>
+                  <View style={styles.countryCopy}>
+                    <Text numberOfLines={1} style={styles.chipText}>
+                      {locale === "ar" ? country.nameAr : country.nameEn}
+                    </Text>
+                    <Text style={styles.countryMeta}>
+                      {country.code} · {country.dialCode}
+                    </Text>
+                  </View>
+                  {active ? (
+                    <MaterialIcons name="check-circle" size={20} color={BRAND.yellowDark} />
+                  ) : null}
                 </Pressable>
               );
             })}
+          </View>
+        ) : (
+          <View style={styles.empty}>
+            <MaterialIcons name="public-off" size={34} color={BRAND.muted} />
+            <Text style={styles.emptyText}>
+              {locale === "ar" ? "لا توجد دولة مطابقة للبحث" : "No country matches your search"}
+            </Text>
           </View>
         )}
 
@@ -99,18 +170,54 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "right",
   },
-  hint: { color: BRAND.muted, fontSize: 12, textAlign: "right" },
-  grid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
-  chip: {
+  fallbackNotice: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 7,
     borderWidth: 1,
     borderColor: BRAND.border,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 13,
+    padding: 10,
+    backgroundColor: BRAND.surface,
+  },
+  hint: { flex: 1, color: BRAND.muted, fontSize: 12, textAlign: "right" },
+  searchBox: {
+    minHeight: 52,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 9,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    backgroundColor: BRAND.white,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 50,
+    color: BRAND.black,
+    fontSize: 14,
+  },
+  grid: { gap: 8 },
+  chip: {
+    minHeight: 62,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 11,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
     backgroundColor: BRAND.white,
   },
   chipOn: { borderColor: BRAND.yellowDark, backgroundColor: "#FFF8D6" },
-  chipText: { color: BRAND.black, fontSize: 13, fontWeight: "800" },
+  flag: { fontSize: 25 },
+  countryCopy: { flex: 1 },
+  chipText: { color: BRAND.black, fontSize: 14, fontWeight: "800", textAlign: "right" },
+  countryMeta: { marginTop: 3, color: BRAND.muted, fontSize: 11, textAlign: "right" },
+  empty: { alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 28 },
+  emptyText: { color: BRAND.muted, fontSize: 13, fontWeight: "700", textAlign: "center" },
   linkBtn: { alignItems: "center", paddingVertical: 10 },
   link: {
     color: BRAND.yellowDark,
