@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 
-import { categories, countries, scopedPricingRules } from "../drizzle/schema";
+import { ads, categories, countries, scopedPricingRules } from "../drizzle/schema";
 import {
   isPublishingFree,
   normalizeLaunchPolicy,
@@ -13,6 +13,8 @@ import {
   type PriceSnapshot,
   type ScopedPricingRule,
 } from "../lib/pricing/resolve-quote";
+import { writeAuditLog } from "./audit-service";
+import { resolveActiveCoupon, userHasActiveExemption } from "./coupons-service";
 import { getDb, getPublicProductConfig, requireDatabase } from "./db";
 
 export type ServerQuoteInput = {
@@ -23,6 +25,7 @@ export type ServerQuoteInput = {
   brandId?: number;
   campaignId?: number;
   adType?: string;
+  couponCode?: string;
 };
 
 export async function loadLaunchPolicy(): Promise<LaunchPolicy> {
@@ -94,12 +97,22 @@ async function resolveCategoryReference(categorySlug?: string): Promise<string |
   return rows[0] ? String(rows[0].id) : undefined;
 }
 
+export async function countUserAds(userId: number): Promise<number> {
+  const db = requireDatabase(await getDb());
+  const rows = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(ads)
+    .where(and(eq(ads.ownerId, userId), isNull(ads.deletedAt)));
+  return Number(rows[0]?.count ?? 0);
+}
+
 export async function resolveServerPublishQuote(input: ServerQuoteInput): Promise<{
   policy: LaunchPolicy;
   quote: PriceSnapshot;
   paymentUiVisible: boolean;
   paymentProviderReady: boolean;
   blockPublishReason: string | null;
+  couponId?: number | null;
 }> {
   const [policy, rules, config, categoryId] = await Promise.all([
     loadLaunchPolicy(),
@@ -107,6 +120,21 @@ export async function resolveServerPublishQuote(input: ServerQuoteInput): Promis
     getPublicProductConfig(),
     resolveCategoryReference(input.categorySlug),
   ]);
+
+  const userAdCount =
+    input.userId != null ? await countUserAds(input.userId).catch(() => 0) : 0;
+  const hasExemption =
+    input.userId != null
+      ? await userHasActiveExemption(input.userId, input.brandId).catch(() => false)
+      : false;
+  const coupon =
+    policy.couponSystem && input.couponCode
+      ? await resolveActiveCoupon({
+          code: input.couponCode,
+          countryCode: input.countryCode,
+          userId: input.userId,
+        }).catch(() => null)
+      : null;
 
   const quote = resolvePublishQuote({
     policy,
@@ -118,6 +146,16 @@ export async function resolveServerPublishQuote(input: ServerQuoteInput): Promis
     brandId: input.brandId != null ? String(input.brandId) : undefined,
     campaignId: input.campaignId != null ? String(input.campaignId) : undefined,
     adType: input.adType,
+    userAdCount,
+    hasExemption,
+    coupon: coupon
+      ? {
+          code: coupon.code,
+          discountType: coupon.discountType,
+          discountValue: coupon.discountValue,
+          name: coupon.name,
+        }
+      : null,
   });
 
   const paymentUiVisible = shouldShowPaymentUi(policy);
@@ -133,7 +171,37 @@ export async function resolveServerPublishQuote(input: ServerQuoteInput): Promis
       "PAYMENT_PROVIDER_NOT_READY: Paid mode is on but no production payment provider is configured.";
   }
 
-  return { policy, quote, paymentUiVisible, paymentProviderReady, blockPublishReason };
+  return {
+    policy,
+    quote,
+    paymentUiVisible,
+    paymentProviderReady,
+    blockPublishReason,
+    couponId: coupon?.id ?? null,
+  };
+}
+
+export async function deactivatePricingRule(input: { actorId: number; publicId: string }) {
+  const db = requireDatabase(await getDb());
+  const rows = await db
+    .select()
+    .from(scopedPricingRules)
+    .where(eq(scopedPricingRules.publicId, input.publicId))
+    .limit(1);
+  if (!rows[0]) throw new Error("PRICING_RULE_NOT_FOUND");
+  await db
+    .update(scopedPricingRules)
+    .set({ isActive: 0 })
+    .where(eq(scopedPricingRules.id, rows[0].id));
+  await writeAuditLog({
+    actorId: input.actorId,
+    actorRole: "admin",
+    action: "pricing_rule.deactivate",
+    entityType: "pricing_rule",
+    entityId: input.publicId,
+    beforeState: rows[0],
+  }).catch(() => undefined);
+  return { ok: true as const };
 }
 
 export { pickPricingRule, resolvePublishQuote };

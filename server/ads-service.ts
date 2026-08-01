@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 import {
@@ -21,7 +21,10 @@ import {
   users,
 } from "../drizzle/schema";
 import { scanAdContent } from "../lib/moderation/ai-scan";
+import { writeAuditLog } from "./audit-service";
+import { recordCouponRedemption } from "./coupons-service";
 import { getDb, requireDatabase } from "./db";
+import { notifyAdPaused, notifyAdPublished } from "./notifications-service";
 import { resolveServerPublishQuote } from "./pricing-service";
 
 function publicId(prefix: string, max = 24) {
@@ -74,6 +77,7 @@ export type CreateAdInput = {
   mediaAssetIds: number[];
   contacts: { type: "store" | "product" | "whatsapp" | "phone"; value: string }[];
   accountType?: string;
+  couponCode?: string;
 };
 
 async function resolveCategoryId(slug: string) {
@@ -89,13 +93,16 @@ async function resolveCategoryId(slug: string) {
 
 async function resolveCityId(cityCode: string) {
   const db = requireDatabase(await getDb());
-  const code = cityCode.startsWith("other") ? "other" : cityCode;
-  const rows = await db
-    .select({ id: cities.id, code: cities.code })
-    .from(cities)
-    .where(and(eq(cities.code, code), eq(cities.isActive, 1)))
-    .limit(1);
-  if (rows[0]) return rows[0];
+  const candidates = [cityCode];
+  if (cityCode.startsWith("other") && cityCode !== "other") candidates.push("other");
+  for (const code of candidates) {
+    const rows = await db
+      .select({ id: cities.id, code: cities.code })
+      .from(cities)
+      .where(and(eq(cities.code, code), eq(cities.isActive, 1)))
+      .limit(1);
+    if (rows[0]) return rows[0];
+  }
   const fallback = await db
     .select({ id: cities.id, code: cities.code })
     .from(cities)
@@ -104,6 +111,18 @@ async function resolveCityId(cityCode: string) {
     .limit(1);
   if (!fallback[0]) throw new Error("CITY_NOT_FOUND");
   return fallback[0];
+}
+
+async function recentOwnerTexts(ownerId: number): Promise<string[]> {
+  const db = requireDatabase(await getDb());
+  const rows = await db
+    .select({ title: adRevisions.title, description: adRevisions.description })
+    .from(ads)
+    .innerJoin(adRevisions, eq(ads.currentRevisionId, adRevisions.id))
+    .where(and(eq(ads.ownerId, ownerId), isNull(ads.deletedAt)))
+    .orderBy(desc(ads.createdAt))
+    .limit(8);
+  return rows.map((row) => `${row.title}\n${row.description}`);
 }
 
 export async function listCountries() {
@@ -132,22 +151,25 @@ export async function listCountries() {
 
 export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
   const db = requireDatabase(await getDb());
-  const { policy, quote, blockPublishReason } = await resolveServerPublishQuote({
+  const { policy, quote, blockPublishReason, couponId } = await resolveServerPublishQuote({
     countryCode: input.countryCode,
     categorySlug: input.categorySlug,
     accountType: input.accountType,
     userId: input.ownerId,
+    couponCode: input.couponCode,
   });
 
   if (blockPublishReason) {
     throw new Error(blockPublishReason);
   }
 
+  const priorTexts = policy.aiModeration ? await recentOwnerTexts(input.ownerId).catch(() => []) : [];
   const scan = policy.aiModeration
     ? scanAdContent({
         title: input.title,
         description: input.description,
         contactValue: input.contacts[0]?.value,
+        recentOwnerTexts: priorTexts,
       })
     : { label: "SAFE" as const, reasons: [], autoAction: "keep_published" as const, confidence: 0 };
 
@@ -293,8 +315,43 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     }
   });
 
+  if (couponId) {
+    const adRows = await db
+      .select({ id: ads.id })
+      .from(ads)
+      .where(eq(ads.publicId, adPublicId))
+      .limit(1);
+    if (adRows[0]) {
+      await recordCouponRedemption({
+        couponId,
+        userId: input.ownerId,
+        adId: adRows[0].id,
+      }).catch(() => undefined);
+    }
+  }
+
   const dto = await getFeedAdByPublicId(adPublicId);
   if (!dto) throw new Error("AD_CREATE_FAILED");
+
+  if (dto.status === "active") {
+    await notifyAdPublished(input.ownerId, dto.id, dto.title).catch(() => undefined);
+  } else if (dto.status === "paused") {
+    await notifyAdPaused(
+      input.ownerId,
+      dto.id,
+      scan.reasons.join(", ") || "Paused by moderation",
+    ).catch(() => undefined);
+  }
+
+  await writeAuditLog({
+    actorId: input.ownerId,
+    actorRole: "advertiser",
+    action: "ad.create",
+    entityType: "ad",
+    entityId: dto.id,
+    afterState: { status: dto.status, paymentStatus: dto.paymentStatus, countryCode: dto.countryCode },
+  }).catch(() => undefined);
+
   return dto;
 }
 
@@ -700,5 +757,254 @@ export async function adminSetAdStatus(input: {
       activatedAt: input.status === "active" ? adRows[0].activatedAt ?? now : adRows[0].activatedAt,
     })
     .where(eq(ads.id, adRows[0].id));
+
+  if (input.status === "paused") {
+    await notifyAdPaused(
+      adRows[0].ownerId,
+      input.publicAdId,
+      input.reason || "Paused by admin",
+    ).catch(() => undefined);
+  } else if (input.status === "active") {
+    const rev = adRows[0].currentRevisionId
+      ? await db
+          .select({ title: adRevisions.title })
+          .from(adRevisions)
+          .where(eq(adRevisions.id, adRows[0].currentRevisionId))
+          .limit(1)
+      : [];
+    await notifyAdPublished(adRows[0].ownerId, input.publicAdId, rev[0]?.title ?? input.publicAdId).catch(
+      () => undefined,
+    );
+  }
+
+  await writeAuditLog({
+    actorId: input.actorId,
+    actorRole: "admin",
+    action: `ad.admin_${input.status}`,
+    entityType: "ad",
+    entityId: input.publicAdId,
+    reason: input.reason ?? null,
+    beforeState: { adStatus: adRows[0].adStatus },
+    afterState: { adStatus: input.status },
+  }).catch(() => undefined);
+
   return { ok: true as const, reason: input.reason ?? null };
+}
+
+async function requireOwnedAd(ownerId: number, publicAdId: string) {
+  const db = requireDatabase(await getDb());
+  const adRows = await db
+    .select()
+    .from(ads)
+    .where(and(eq(ads.publicId, publicAdId), isNull(ads.deletedAt)))
+    .limit(1);
+  if (!adRows[0]) throw new Error("AD_NOT_FOUND");
+  if (adRows[0].ownerId !== ownerId) throw new Error("AD_FORBIDDEN");
+  return adRows[0];
+}
+
+export async function updateServerAd(input: {
+  ownerId: number;
+  publicAdId: string;
+  title?: string;
+  description?: string;
+  contacts?: { type: "store" | "product" | "whatsapp" | "phone"; value: string }[];
+  customCityName?: string | null;
+}) {
+  const db = requireDatabase(await getDb());
+  const ad = await requireOwnedAd(input.ownerId, input.publicAdId);
+  if (!ad.currentRevisionId) throw new Error("AD_REVISION_NOT_FOUND");
+
+  const current = await db
+    .select()
+    .from(adRevisions)
+    .where(eq(adRevisions.id, ad.currentRevisionId))
+    .limit(1);
+  if (!current[0]) throw new Error("AD_REVISION_NOT_FOUND");
+
+  const title = (input.title ?? current[0].title).trim().slice(0, 120);
+  const description = (input.description ?? current[0].description).trim();
+  if (title.length < 4) throw new Error("AD_TITLE_INVALID");
+  if (description.length < 20) throw new Error("AD_DESCRIPTION_INVALID");
+
+  const now = new Date();
+  const insertRev = await db.insert(adRevisions).values({
+    adId: ad.id,
+    version: (current[0].version ?? 1) + 1,
+    title,
+    description,
+    customCityName:
+      input.customCityName !== undefined ? input.customCityName?.trim() || null : current[0].customCityName,
+    audienceScope: current[0].audienceScope,
+    reviewStatus: "approved",
+    submittedAt: now,
+    decidedAt: now,
+    createdBy: input.ownerId,
+  });
+  const revisionId = Number(insertRev[0].insertId);
+
+  const mediaRows = await db
+    .select()
+    .from(adMedia)
+    .where(eq(adMedia.revisionId, ad.currentRevisionId))
+    .orderBy(asc(adMedia.sortOrder));
+  for (const media of mediaRows) {
+    await db.insert(adMedia).values({
+      revisionId,
+      mediaAssetId: media.mediaAssetId,
+      sortOrder: media.sortOrder,
+      altTextAr: media.altTextAr,
+      altTextEn: media.altTextEn,
+    });
+  }
+
+  let contacts = input.contacts;
+  if (!contacts) {
+    const contactRows = await db
+      .select()
+      .from(adContacts)
+      .where(eq(adContacts.revisionId, ad.currentRevisionId))
+      .orderBy(asc(adContacts.sortOrder));
+    contacts = contactRows.map((row) => ({ type: row.contactType, value: row.contactValue }));
+  }
+
+  for (const [index, contact] of contacts.entries()) {
+    await db.insert(adContacts).values({
+      revisionId,
+      contactType: contact.type,
+      contactValue: contact.value,
+      sortOrder: index,
+    });
+  }
+
+  await db.update(ads).set({ currentRevisionId: revisionId }).where(eq(ads.id, ad.id));
+  await writeAuditLog({
+    actorId: input.ownerId,
+    actorRole: "advertiser",
+    action: "ad.update",
+    entityType: "ad",
+    entityId: input.publicAdId,
+    afterState: { revisionId, title },
+  }).catch(() => undefined);
+
+  const dto = await getFeedAdByPublicId(input.publicAdId);
+  if (!dto) throw new Error("AD_UPDATE_FAILED");
+  return dto;
+}
+
+export async function pauseServerAd(input: { ownerId: number; publicAdId: string; reason?: string }) {
+  const ad = await requireOwnedAd(input.ownerId, input.publicAdId);
+  if (ad.adStatus !== "active" && ad.adStatus !== "pending_review") {
+    throw new Error("AD_NOT_PAUSABLE");
+  }
+  const db = requireDatabase(await getDb());
+  const now = new Date();
+  await db
+    .update(ads)
+    .set({ adStatus: "paused", pausedAt: now })
+    .where(eq(ads.id, ad.id));
+  await notifyAdPaused(input.ownerId, input.publicAdId, input.reason || "Paused by owner").catch(
+    () => undefined,
+  );
+  await writeAuditLog({
+    actorId: input.ownerId,
+    actorRole: "advertiser",
+    action: "ad.pause",
+    entityType: "ad",
+    entityId: input.publicAdId,
+    reason: input.reason ?? null,
+  }).catch(() => undefined);
+  return { ok: true as const };
+}
+
+export async function publishServerAd(input: { ownerId: number; publicAdId: string }) {
+  const ad = await requireOwnedAd(input.ownerId, input.publicAdId);
+  if (ad.paymentStatus === "pending") throw new Error("AD_AWAITING_PAYMENT");
+  if (ad.moderationStatus === "rejected") throw new Error("AD_MODERATION_REJECTED");
+  if (!["paused", "draft", "pending_review", "expired"].includes(ad.adStatus)) {
+    throw new Error("AD_NOT_PUBLISHABLE");
+  }
+  const db = requireDatabase(await getDb());
+  const now = new Date();
+  const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  await db
+    .update(ads)
+    .set({
+      adStatus: "active",
+      pausedAt: null,
+      activatedAt: ad.activatedAt ?? now,
+      expiresAt: expires,
+      moderationStatus: ad.moderationStatus === "queued" ? "queued" : "approved",
+    })
+    .where(eq(ads.id, ad.id));
+
+  const rev = ad.currentRevisionId
+    ? await db
+        .select({ title: adRevisions.title })
+        .from(adRevisions)
+        .where(eq(adRevisions.id, ad.currentRevisionId))
+        .limit(1)
+    : [];
+  await notifyAdPublished(input.ownerId, input.publicAdId, rev[0]?.title ?? input.publicAdId).catch(
+    () => undefined,
+  );
+  await writeAuditLog({
+    actorId: input.ownerId,
+    actorRole: "advertiser",
+    action: "ad.publish",
+    entityType: "ad",
+    entityId: input.publicAdId,
+  }).catch(() => undefined);
+  return getFeedAdByPublicId(input.publicAdId);
+}
+
+export async function deleteServerAd(input: { ownerId: number; publicAdId: string }) {
+  const ad = await requireOwnedAd(input.ownerId, input.publicAdId);
+  const db = requireDatabase(await getDb());
+  const now = new Date();
+  await db
+    .update(ads)
+    .set({ adStatus: "removed", deletedAt: now, pausedAt: now })
+    .where(eq(ads.id, ad.id));
+  await writeAuditLog({
+    actorId: input.ownerId,
+    actorRole: "advertiser",
+    action: "ad.delete",
+    entityType: "ad",
+    entityId: input.publicAdId,
+  }).catch(() => undefined);
+  return { ok: true as const };
+}
+
+/** Delete orphan media assets not linked to any revision (failed publish leftovers). */
+export async function cleanupOrphanMediaAssets(input?: {
+  olderThanMinutes?: number;
+  limit?: number;
+  ownerId?: number;
+}) {
+  const db = requireDatabase(await getDb());
+  const olderThanMinutes = Math.max(input?.olderThanMinutes ?? 60, 5);
+  const limit = Math.min(Math.max(input?.limit ?? 50, 1), 200);
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+
+  const linked = await db.select({ mediaAssetId: adMedia.mediaAssetId }).from(adMedia);
+  const linkedIds = [...new Set(linked.map((row) => row.mediaAssetId))];
+
+  const conditions = [lt(mediaAssets.createdAt, cutoff)];
+  if (input?.ownerId) conditions.push(eq(mediaAssets.ownerId, input.ownerId));
+  if (linkedIds.length) conditions.push(notInArray(mediaAssets.id, linkedIds));
+
+  const orphans = await db
+    .select({ id: mediaAssets.id })
+    .from(mediaAssets)
+    .where(and(...conditions))
+    .orderBy(asc(mediaAssets.createdAt))
+    .limit(limit);
+
+  let deleted = 0;
+  for (const orphan of orphans) {
+    await db.delete(mediaAssets).where(eq(mediaAssets.id, orphan.id));
+    deleted += 1;
+  }
+  return { ok: true as const, deleted, scanned: orphans.length };
 }

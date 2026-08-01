@@ -9,6 +9,7 @@ import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { normalizeLaunchPolicy } from "@/lib/launch-policy";
 import { useI18n } from "@/lib/i18n";
+import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
 
 function LaunchPolicyHydrator() {
@@ -19,6 +20,43 @@ function LaunchPolicyHydrator() {
     if (!productData.launchPolicy) return;
     hydrateLaunchPolicy(normalizeLaunchPolicy(productData.launchPolicy));
   }, [hydrateLaunchPolicy, productData.launchPolicy]);
+
+  return null;
+}
+
+function VisitorPrefsSync() {
+  const store = useE3lani();
+  const upsert = trpc.visitor.upsert.useMutation();
+
+  useEffect(() => {
+    if (!store.ready || store.loadError || !store.anonymousId) return;
+    const timer = setTimeout(() => {
+      upsert.mutate({
+        anonymousId: store.anonymousId,
+        prefs: {
+          accountCountry: store.accountCountry,
+          marketCode: String(store.marketCode),
+          forceCountryFilter: store.forceCountryFilter,
+          categoryFilter: store.categoryFilter,
+          countryGateCompleted: store.countryGateCompleted,
+        },
+        savedAdPublicIds: store.savedIds.slice(0, 200),
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+    // Intentionally omit upsert from deps to avoid re-binding loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    store.ready,
+    store.loadError,
+    store.anonymousId,
+    store.accountCountry,
+    store.marketCode,
+    store.forceCountryFilter,
+    store.categoryFilter,
+    store.countryGateCompleted,
+    store.savedIds,
+  ]);
 
   return null;
 }
@@ -87,6 +125,7 @@ export function AppStateGate({ children }: { children: ReactNode }) {
     return (
       <>
         <LaunchPolicyHydrator />
+        <VisitorPrefsSync />
         <Redirect href="/welcome" />
       </>
     );
@@ -95,6 +134,7 @@ export function AppStateGate({ children }: { children: ReactNode }) {
   return (
     <>
       <LaunchPolicyHydrator />
+      <VisitorPrefsSync />
       {children}
     </>
   );

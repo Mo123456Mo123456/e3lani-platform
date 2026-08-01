@@ -59,6 +59,7 @@ export const scopedPricingRules = mysqlTable("scoped_pricing_rules", {
 export const coupons = mysqlTable("coupons", {
   id: int("id").autoincrement().primaryKey(),
   code: varchar("code", { length: 64 }).notNull(),
+  name: varchar("name", { length: 160 }),
   discountType: mysqlEnum("discountType", ["percent", "fixed"]).notNull(),
   discountValue: int("discountValue").notNull(),
   countryId: int("countryId").references(() => countries.id),
@@ -68,8 +69,49 @@ export const coupons = mysqlTable("coupons", {
   expiresAt: timestamp("expiresAt"),
   isActive: tinyint("isActive").default(1).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("coupons_code_unique").on(table.code),
+]);
+
+export const couponRedemptions = mysqlTable("coupon_redemptions", {
+  id: int("id").autoincrement().primaryKey(),
+  couponId: int("couponId").notNull().references(() => coupons.id),
+  userId: int("userId").notNull().references(() => users.id),
+  adId: int("adId").references(() => ads.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("coupon_redemptions_user_idx").on(table.userId, table.couponId),
+]);
+
+export const pricingExemptions = mysqlTable("pricing_exemptions", {
+  id: int("id").autoincrement().primaryKey(),
+  publicId: varchar("publicId", { length: 32 }).notNull(),
+  subjectType: mysqlEnum("subjectType", ["user", "brand"]).notNull(),
+  subjectRef: varchar("subjectRef", { length: 64 }).notNull(),
+  reason: varchar("reason", { length: 240 }),
+  startsAt: timestamp("startsAt"),
+  endsAt: timestamp("endsAt"),
+  isActive: tinyint("isActive").default(1).notNull(),
+  createdBy: int("createdBy").references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("pricing_exemptions_publicId_unique").on(table.publicId),
+  index("pricing_exemptions_subject_idx").on(table.subjectType, table.subjectRef, table.isActive),
+]);
+
+export const visitorSessions = mysqlTable("visitor_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  anonymousId: varchar("anonymousId", { length: 128 }).notNull(),
+  prefsJson: json("prefsJson").notNull(),
+  savedAdPublicIds: json("savedAdPublicIds").$type<string[]>(),
+  mergedUserId: int("mergedUserId").references(() => users.id),
+  mergedAt: timestamp("mergedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("visitor_sessions_anonymousId_unique").on(table.anonymousId),
 ]);
 
 export const adPriceSnapshots = mysqlTable("ad_price_snapshots", {

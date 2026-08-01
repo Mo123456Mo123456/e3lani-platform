@@ -29,6 +29,13 @@ export type ScopedPricingRule = {
   priority: number;
 };
 
+export type CouponDiscount = {
+  code: string;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  name?: string | null;
+};
+
 export type PriceSnapshot = {
   basePrice: number;
   discount: number;
@@ -52,6 +59,10 @@ export type ResolveQuoteInput = {
   campaignId?: string;
   adType?: string;
   nowIso?: string;
+  /** Count of ads already created by this user (for first-ad / quota free). */
+  userAdCount?: number;
+  hasExemption?: boolean;
+  coupon?: CouponDiscount | null;
 };
 
 function ruleActive(rule: ScopedPricingRule, now: Date): boolean {
@@ -96,31 +107,65 @@ export function pickPricingRule(input: ResolveQuoteInput): ScopedPricingRule | n
   return candidates[0] ?? null;
 }
 
+function freeSnapshot(currency: string, freeReason: string, offerOrCoupon: string | null = null): PriceSnapshot {
+  return {
+    basePrice: 0,
+    discount: 0,
+    tax: 0,
+    finalPrice: 0,
+    currency,
+    pricingRuleId: null,
+    freeReason,
+    offerOrCoupon,
+    paymentStatus: "not_required",
+  };
+}
+
 /** Resolves the payable amount without mutating historical snapshots. */
 export function resolvePublishQuote(input: ResolveQuoteInput): PriceSnapshot {
   if (isPublishingFree(input.policy)) {
-    return {
-      basePrice: 0,
-      discount: 0,
-      tax: 0,
-      finalPrice: 0,
-      currency: "SAR",
-      pricingRuleId: null,
-      freeReason: input.policy.globalFreeMode ? "global_free_mode" : "payment_not_required",
-      offerOrCoupon: null,
-      paymentStatus: "not_required",
-    };
+    return freeSnapshot(
+      "SAR",
+      input.policy.globalFreeMode ? "global_free_mode" : "payment_not_required",
+    );
+  }
+
+  if (input.hasExemption) {
+    return freeSnapshot("SAR", "pricing_exemption");
+  }
+
+  // Per-user free rules apply only when the caller supplies a known ad count.
+  if (typeof input.userAdCount === "number") {
+    if (input.policy.firstAdFree && input.userAdCount === 0) {
+      return freeSnapshot("SAR", "first_ad_free");
+    }
+    if (input.policy.freeAdsPerUser != null && input.userAdCount < input.policy.freeAdsPerUser) {
+      return freeSnapshot("SAR", "free_ads_quota");
+    }
   }
 
   const rule = pickPricingRule(input);
   const currency = rule?.currency ?? "SAR";
   const base = rule?.basePrice ?? 5900;
-  const discounted =
+  let payable =
     input.policy.discountMode && rule?.discountPrice != null ? rule.discountPrice : base;
-  const discount = Math.max(0, base - discounted);
+  const ruleDiscount = Math.max(0, base - payable);
+  let offerOrCoupon = ruleDiscount > 0 ? rule?.name ?? "discount" : null;
+
+  if (input.policy.couponSystem && input.coupon) {
+    if (input.coupon.discountType === "percent") {
+      const cut = Math.round((payable * Math.min(100, Math.max(0, input.coupon.discountValue))) / 100);
+      payable = Math.max(0, payable - cut);
+    } else {
+      payable = Math.max(0, payable - Math.max(0, input.coupon.discountValue));
+    }
+    offerOrCoupon = input.coupon.name || input.coupon.code;
+  }
+
+  const discount = Math.max(0, base - payable);
   const taxRate = input.policy.taxEnabled ? (rule?.taxRate ?? 0.15) : 0;
-  const tax = Math.round(discounted * taxRate);
-  const finalPrice = discounted + tax;
+  const tax = Math.round(payable * taxRate);
+  const finalPrice = payable + tax;
 
   return {
     basePrice: base,
@@ -130,7 +175,7 @@ export function resolvePublishQuote(input: ResolveQuoteInput): PriceSnapshot {
     currency,
     pricingRuleId: rule?.id ?? null,
     freeReason: finalPrice === 0 ? "zero_priced_rule" : null,
-    offerOrCoupon: discount > 0 ? rule?.name ?? "discount" : null,
+    offerOrCoupon,
     paymentStatus: finalPrice > 0 ? "pending" : "not_required",
   };
 }

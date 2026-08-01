@@ -148,6 +148,7 @@ export async function getPublicCatalog() {
         id: cities.code,
         regionDatabaseId: regions.id,
         regionId: regions.code,
+        countryId: cities.countryId,
         nameAr: cities.nameAr,
         nameEn: cities.nameEn,
         latitudeE6: cities.latitudeE6,

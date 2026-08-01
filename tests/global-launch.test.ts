@@ -9,7 +9,7 @@ import {
   normalizeLaunchPolicy,
   shouldShowPaymentUi,
 } from "../lib/launch-policy";
-import { scanAdContent } from "../lib/moderation/ai-scan";
+import { scanAdContent, textSimilarity } from "../lib/moderation/ai-scan";
 import { resolvePublishQuote } from "../lib/pricing/resolve-quote";
 
 function ad(id: string, countryCode: string, overrides: Partial<Ad> = {}): Ad {
@@ -163,6 +163,80 @@ describe("AI moderation heuristics", () => {
       description: "محتوى تعليمي للمعارض",
     });
     expect(result.autoAction).not.toBe("auto_pause");
+  });
+
+  it("flags near-duplicate owner copy for review", () => {
+    const prior = "شقة مفروشة للإيجار شمال الرياض غرفتين وصالة";
+    const result = scanAdContent({
+      title: "شقة مفروشة للإيجار شمال الرياض",
+      description: "غرفتين وصالة",
+      recentOwnerTexts: [prior],
+    });
+    expect(result.reasons).toContain("near_duplicate");
+    expect(result.autoAction).toBe("flag_for_admin");
+  });
+
+  it("computes token similarity for duplicate detection", () => {
+    expect(textSimilarity("hello world test", "hello world test")).toBe(1);
+    expect(textSimilarity("hello world", "unrelated stuff")).toBeLessThan(0.3);
+  });
+});
+
+describe("per-user free pricing rules", () => {
+  const paidPolicy = normalizeLaunchPolicy({
+    globalFreeMode: false,
+    pricingMode: "paid",
+    paymentsEnabled: true,
+    paymentRequired: true,
+    firstAdFree: true,
+    freeAdsPerUser: 2,
+    couponSystem: true,
+    discountMode: false,
+    taxEnabled: false,
+  });
+
+  it("makes the first ad free when firstAdFree is on", () => {
+    const quote = resolvePublishQuote({
+      policy: paidPolicy,
+      userAdCount: 0,
+      rules: [
+        {
+          id: "r1",
+          name: "Global",
+          scopeType: "global",
+          basePrice: 5900,
+          currency: "SAR",
+          taxRate: 0,
+          isActive: true,
+          priority: 1,
+        },
+      ],
+    });
+    expect(quote.finalPrice).toBe(0);
+    expect(quote.freeReason).toBe("first_ad_free");
+    expect(quote.paymentStatus).toBe("not_required");
+  });
+
+  it("applies percent coupons when publishing is paid", () => {
+    const quote = resolvePublishQuote({
+      policy: { ...paidPolicy, firstAdFree: false, freeAdsPerUser: null },
+      userAdCount: 5,
+      coupon: { code: "SAVE50", discountType: "percent", discountValue: 50 },
+      rules: [
+        {
+          id: "r1",
+          name: "Global",
+          scopeType: "global",
+          basePrice: 5900,
+          currency: "SAR",
+          taxRate: 0,
+          isActive: true,
+          priority: 1,
+        },
+      ],
+    });
+    expect(quote.finalPrice).toBe(2950);
+    expect(quote.offerOrCoupon).toBe("SAVE50");
   });
 });
 

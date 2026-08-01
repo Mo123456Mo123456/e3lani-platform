@@ -64,6 +64,13 @@
       "when": 1785619200000,
       "tag": "0008_payment_intent_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1785622800000,
+      "tag": "0009_lifecycle_geo_coupons_audit",
+      "breakpoints": true
     }
   ]
 }

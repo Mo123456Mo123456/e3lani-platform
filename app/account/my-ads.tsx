@@ -13,7 +13,12 @@ export default function MyAds() {
   const store = useE3lani();
   const { t, locale } = useI18n();
   const mineQuery = trpc.ads.mine.useQuery(undefined, { enabled: Boolean(store.user) });
-  const appeal = trpc.ads.appeal.useMutation({ onSuccess: () => void mineQuery.refetch() });
+  const utils = trpc.useUtils();
+  const refresh = () => void utils.ads.mine.invalidate();
+  const appeal = trpc.ads.appeal.useMutation({ onSuccess: refresh });
+  const pause = trpc.ads.pause.useMutation({ onSuccess: refresh });
+  const publish = trpc.ads.publish.useMutation({ onSuccess: refresh });
+  const remove = trpc.ads.delete.useMutation({ onSuccess: refresh });
   const data = (mineQuery.data ?? []).map((item) => mapFeedAd(item));
 
   if (!store.user) {
@@ -49,21 +54,44 @@ export default function MyAds() {
                 {item.id} · v{item.revision}
                 {item.countryCode ? ` · ${item.countryCode}` : ""}
               </Text>
-              {item.status === "paused" ? (
-                <OutlineButton
-                  label={locale === "ar" ? "طلب استئناف" : "Request appeal"}
-                  icon="gavel"
-                  onPress={() =>
-                    void appeal.mutateAsync({
-                      id: item.id,
-                      message:
-                        locale === "ar"
-                          ? "أطلب مراجعة قرار الإيقاف الآلي. المحتوى متوافق مع السياسات."
-                          : "Please review the automated pause. The content complies with policy.",
-                    })
-                  }
-                />
-              ) : null}
+              <View style={s.actions}>
+                {item.status === "active" ? (
+                  <OutlineButton
+                    label={locale === "ar" ? "إيقاف" : "Pause"}
+                    icon="pause"
+                    onPress={() => void pause.mutateAsync({ id: item.id })}
+                  />
+                ) : null}
+                {item.status === "paused" || item.status === "expired" || item.status === "draft" ? (
+                  <OutlineButton
+                    label={locale === "ar" ? "نشر" : "Publish"}
+                    icon="publish"
+                    onPress={() => void publish.mutateAsync({ id: item.id })}
+                  />
+                ) : null}
+                {item.status === "paused" ? (
+                  <OutlineButton
+                    label={locale === "ar" ? "طلب استئناف" : "Request appeal"}
+                    icon="gavel"
+                    onPress={() =>
+                      void appeal.mutateAsync({
+                        id: item.id,
+                        message:
+                          locale === "ar"
+                            ? "أطلب مراجعة قرار الإيقاف الآلي. المحتوى متوافق مع السياسات."
+                            : "Please review the automated pause. The content complies with policy.",
+                      })
+                    }
+                  />
+                ) : null}
+                {item.status !== "removed" ? (
+                  <OutlineButton
+                    label={locale === "ar" ? "حذف" : "Delete"}
+                    icon="delete-outline"
+                    onPress={() => void remove.mutateAsync({ id: item.id })}
+                  />
+                ) : null}
+              </View>
             </View>
           )}
         />
@@ -93,4 +121,5 @@ const s = StyleSheet.create({
   },
   title: { color: BRAND.black, fontSize: 17, lineHeight: 24, fontWeight: "900", textAlign: "right" },
   id: { color: BRAND.muted, fontSize: 11, lineHeight: 16, textAlign: "right" },
+  actions: { gap: 8, marginTop: 4 },
 });

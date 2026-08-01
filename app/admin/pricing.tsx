@@ -12,10 +12,21 @@ export default function AdminPricing() {
   const { locale } = useI18n();
   const utils = trpc.useUtils();
   const rulesQuery = trpc.product.listPricingRules.useQuery();
+  const couponsQuery = trpc.product.listCoupons.useQuery();
   const upsert = trpc.product.upsertPricingRule.useMutation({
     onSuccess: async () => {
       await utils.product.listPricingRules.invalidate();
       await utils.product.quote.invalidate();
+    },
+  });
+  const deactivateRule = trpc.product.deactivatePricingRule.useMutation({
+    onSuccess: async () => {
+      await utils.product.listPricingRules.invalidate();
+    },
+  });
+  const upsertCoupon = trpc.product.upsertCoupon.useMutation({
+    onSuccess: async () => {
+      await utils.product.listCoupons.invalidate();
     },
   });
 
@@ -26,6 +37,8 @@ export default function AdminPricing() {
   const [currency, setCurrency] = useState("SAR");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  const [couponCode, setCouponCode] = useState("LAUNCH20");
+  const [couponValue, setCouponValue] = useState("20");
   const [message, setMessage] = useState("");
 
   const save = async () => {
@@ -50,6 +63,22 @@ export default function AdminPricing() {
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "SAVE_FAILED");
+    }
+  };
+
+  const saveCoupon = async () => {
+    try {
+      await upsertCoupon.mutateAsync({
+        code: couponCode,
+        name: couponCode,
+        discountType: "percent",
+        discountValue: Number(couponValue) || 0,
+        countryCode: countryCode.toUpperCase(),
+        isActive: true,
+      });
+      setMessage(locale === "ar" ? "تم حفظ الكوبون." : "Coupon saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "COUPON_SAVE_FAILED");
     }
   };
 
@@ -115,8 +144,43 @@ export default function AdminPricing() {
             <Text style={styles.rowMeta}>
               {rule.startsAt ?? "—"} → {rule.endsAt ?? "—"}
             </Text>
+            <Pressable
+              onPress={() =>
+                void deactivateRule.mutateAsync({ publicId: rule.id }).then(() =>
+                  setMessage(locale === "ar" ? "تم تعطيل القاعدة." : "Rule deactivated."),
+                )
+              }
+            >
+              <Text style={styles.link}>{locale === "ar" ? "تعطيل" : "Deactivate"}</Text>
+            </Pressable>
           </View>
         ))}
+
+        <Text style={styles.section}>{locale === "ar" ? "كوبون خصم" : "Discount coupon"}</Text>
+        <Field label={locale === "ar" ? "رمز الكوبون" : "Coupon code"} value={couponCode} onChangeText={setCouponCode} autoCapitalize="characters" />
+        <Field
+          label={locale === "ar" ? "قيمة الخصم (٪ أو مبلغ)" : "Discount value (% or amount)"}
+          value={couponValue}
+          onChangeText={setCouponValue}
+          keyboardType="number-pad"
+        />
+        <PrimaryButton
+          label={locale === "ar" ? "حفظ الكوبون" : "Save coupon"}
+          icon="local-offer"
+          onPress={() => void saveCoupon()}
+        />
+        {(couponsQuery.data ?? []).slice(0, 8).map((coupon) => (
+          <View key={coupon.code} style={styles.row}>
+            <Text style={styles.rowTitle}>
+              {coupon.code} · {coupon.discountType} {coupon.discountValue}
+            </Text>
+            <Text style={styles.rowMeta}>
+              {coupon.isActive ? (locale === "ar" ? "نشط" : "Active") : locale === "ar" ? "معطّل" : "Off"}
+              {coupon.countryCode ? ` · ${coupon.countryCode}` : ""}
+            </Text>
+          </View>
+        ))}
+
         <Pressable onPress={() => router.push("/admin/settings" as never)}>
           <Text style={styles.link}>
             {locale === "ar" ? "مفاتيح التشغيل (مجاني/مدفوع/...)" : "Launch flags (free/paid/...)"}
