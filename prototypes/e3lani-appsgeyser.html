@@ -1,0 +1,2354 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FFC400">
+  <title>إعلاني | E3lani</title>
+  <style>
+    :root {
+      --brand: #FFC400;
+      --black: #111;
+      --gray: #F7F7F7;
+      --border: #E8E8E8;
+      --muted: #777;
+      --white: #fff;
+      --danger: #E5484D;
+      --success: #2EAD62;
+      --nav: 72px;
+      --shadow: 0 18px 50px rgba(17, 17, 17, .12);
+      --soft-shadow: 0 10px 30px rgba(17, 17, 17, .08);
+      --radius: 22px;
+      --phone-w: 430px;
+      --phone-h: 900px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      font-family: Tahoma, Arial, sans-serif;
+      color: var(--black);
+      background: #fff;
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      color: inherit;
+      background: none;
+    }
+
+    img,
+    video {
+      max-width: 100%;
+      display: block;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .app-shell {
+      position: relative;
+      width: 100%;
+      height: 100dvh;
+      margin: 0 auto;
+      background: var(--white);
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      background: var(--white);
+      overflow: hidden;
+      padding-bottom: calc(var(--nav) + env(safe-area-inset-bottom));
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .scroll-screen {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 14px 16px calc(var(--nav) + 24px + env(safe-area-inset-bottom));
+      background: var(--gray);
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: -14px -16px 14px;
+      padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+      background: rgba(255, 255, 255, .92);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      font-weight: 900;
+      letter-spacing: -.4px;
+    }
+
+    .brand-logo {
+      display: inline-grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: 14px;
+      background: var(--brand);
+      box-shadow: inset 0 -3px 0 rgba(17, 17, 17, .12);
+    }
+
+    .topbar h1,
+    .topbar h2 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .topbar p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .icon-btn,
+    .chip,
+    .market-btn,
+    .tab-btn,
+    .pill-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 40px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      color: var(--black);
+      box-shadow: 0 2px 0 rgba(17, 17, 17, .03);
+    }
+
+    .icon-btn {
+      width: 42px;
+      padding: 0;
+      font-size: 19px;
+      position: relative;
+    }
+
+    .icon-btn .dot {
+      position: absolute;
+      top: 8px;
+      left: 9px;
+      width: 9px;
+      height: 9px;
+      border-radius: 99px;
+      background: var(--danger);
+      border: 2px solid #fff;
+      display: none;
+    }
+
+    .icon-btn.has-unread .dot {
+      display: block;
+    }
+
+    .chip,
+    .tab-btn,
+    .pill-btn {
+      padding: 0 14px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .chip.active,
+    .tab-btn.active,
+    .pill-btn.primary {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: var(--black);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .feed-screen {
+      background: #080808;
+      color: #fff;
+    }
+
+    .feed-head {
+      position: absolute;
+      top: 0;
+      right: 0;
+      left: 0;
+      z-index: 25;
+      padding: calc(10px + env(safe-area-inset-top)) 12px 8px;
+      background: linear-gradient(180deg, rgba(0, 0, 0, .72), rgba(0, 0, 0, .28), transparent);
+      pointer-events: none;
+    }
+
+    .ticker {
+      width: 100%;
+      overflow: hidden;
+      padding: 7px 0;
+      margin-bottom: 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(255, 255, 255, .1);
+      backdrop-filter: blur(14px);
+      pointer-events: auto;
+    }
+
+    .ticker-track {
+      display: flex;
+      width: max-content;
+      gap: 10px;
+      animation: tickerMove 22s linear infinite;
+    }
+
+    .ticker span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: max-content;
+      padding: 0 12px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #fff;
+      opacity: .95;
+    }
+
+    @keyframes tickerMove {
+      from { transform: translateX(0); }
+      to { transform: translateX(50%); }
+    }
+
+    .feed-tools {
+      display: grid;
+      grid-template-columns: 42px 1fr 42px;
+      align-items: center;
+      gap: 9px;
+      pointer-events: auto;
+    }
+
+    .feed-search {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 14px;
+      border-radius: 999px;
+      color: rgba(255, 255, 255, .9);
+      background: rgba(255, 255, 255, .16);
+      border: 1px solid rgba(255, 255, 255, .16);
+      backdrop-filter: blur(18px);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .feed-mode-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 10px;
+      pointer-events: auto;
+    }
+
+    .feed-mode-tabs .tab-btn {
+      min-height: 34px;
+      color: #fff;
+      background: rgba(255, 255, 255, .12);
+      border-color: rgba(255, 255, 255, .16);
+      box-shadow: none;
+    }
+
+    .feed-mode-tabs .tab-btn.active {
+      color: var(--black);
+      background: var(--brand);
+      border-color: var(--brand);
+    }
+
+    .feed-wrap {
+      height: 100%;
+      overflow-y: auto;
+      scroll-snap-type: y mandatory;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+    }
+
+    .feed-wrap::-webkit-scrollbar {
+      display: none;
+    }
+
+    .feed-card {
+      position: relative;
+      height: 100dvh;
+      min-height: 620px;
+      scroll-snap-align: start;
+      overflow: hidden;
+      background: #111;
+    }
+
+    .feed-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, .35), transparent 24%),
+        linear-gradient(0deg, rgba(0, 0, 0, .82), transparent 46%);
+      pointer-events: none;
+    }
+
+    .feed-media {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: linear-gradient(135deg, #222, #444);
+    }
+
+    .feed-empty {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 30px;
+      text-align: center;
+      color: #fff;
+      background:
+        radial-gradient(circle at 18% 20%, rgba(255, 196, 0, .22), transparent 28%),
+        linear-gradient(145deg, #090909, #232323);
+    }
+
+    .feed-info {
+      position: absolute;
+      right: 16px;
+      left: 86px;
+      bottom: calc(var(--nav) + 24px + env(safe-area-inset-bottom));
+      z-index: 3;
+      color: #fff;
+    }
+
+    .feed-info .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .feed-info .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      color: #fff;
+      background: rgba(17, 17, 17, .48);
+      border: 1px solid rgba(255, 255, 255, .12);
+      backdrop-filter: blur(12px);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .feed-info h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.22;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, .55);
+    }
+
+    .feed-info p {
+      margin: 0 0 12px;
+      color: rgba(255, 255, 255, .86);
+      font-size: 14px;
+      line-height: 1.65;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .feed-price {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--brand);
+      color: var(--black);
+      font-size: 15px;
+      font-weight: 900;
+      box-shadow: 0 10px 24px rgba(255, 196, 0, .3);
+    }
+
+    .feed-actions {
+      position: absolute;
+      left: 14px;
+      bottom: calc(var(--nav) + 22px + env(safe-area-inset-bottom));
+      z-index: 4;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .action-btn {
+      width: 54px;
+      min-height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 19px;
+      color: #fff;
+      background: rgba(17, 17, 17, .48);
+      border: 1px solid rgba(255, 255, 255, .13);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .2);
+      font-size: 22px;
+    }
+
+    .action-btn small {
+      display: block;
+      margin-top: -7px;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .action-btn.saved {
+      color: var(--brand);
+      border-color: rgba(255, 196, 0, .45);
+    }
+
+    .section-card,
+    .form-card,
+    .list-card,
+    .profile-card {
+      border-radius: var(--radius);
+      background: var(--white);
+      border: 1px solid var(--border);
+      box-shadow: var(--soft-shadow);
+    }
+
+    .section-card {
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .section-title h3 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    .section-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .market-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .market-btn {
+      min-height: 66px;
+      flex-direction: column;
+      padding: 8px;
+      font-weight: 900;
+    }
+
+    .market-btn.active {
+      background: var(--brand);
+      border-color: var(--brand);
+    }
+
+    .search-field,
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--white);
+      color: var(--black);
+      outline: none;
+      padding: 0 14px;
+      transition: border .18s ease, box-shadow .18s ease;
+    }
+
+    .search-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      background: #fff;
+    }
+
+    .search-field input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      padding: 0;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus,
+    .search-field:focus-within {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px rgba(255, 196, 0, .18);
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .category-tile {
+      min-height: 96px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 10px 6px;
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: 0 5px 18px rgba(17, 17, 17, .04);
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .category-tile .emoji {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: var(--gray);
+      font-size: 23px;
+    }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 13px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(255, 196, 0, .25), rgba(255, 196, 0, .08));
+      border: 1px solid rgba(255, 196, 0, .55);
+      margin-bottom: 14px;
+    }
+
+    .notice strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .notice p {
+      margin: 0;
+      color: #4d421f;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    .form-card {
+      padding: 14px;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field label {
+      display: block;
+      margin: 0 2px 7px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .field textarea {
+      min-height: 116px;
+      resize: vertical;
+      padding-top: 12px;
+      line-height: 1.6;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .upload-box {
+      position: relative;
+      min-height: 164px;
+      border-radius: 24px;
+      border: 1.5px dashed #d7d7d7;
+      background:
+        radial-gradient(circle at top right, rgba(255, 196, 0, .22), transparent 35%),
+        #fff;
+      overflow: hidden;
+    }
+
+    .upload-box input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-inner {
+      height: 100%;
+      min-height: 164px;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .upload-inner b {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+
+    .upload-inner span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .media-preview {
+      display: none;
+      width: 100%;
+      height: 220px;
+      object-fit: cover;
+    }
+
+    .upload-box.has-media .upload-inner {
+      display: none;
+    }
+
+    .upload-box.has-media .media-preview {
+      display: block;
+    }
+
+    .primary-btn {
+      width: 100%;
+      min-height: 52px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border-radius: 18px;
+      background: var(--brand);
+      color: var(--black);
+      font-size: 15px;
+      font-weight: 900;
+      box-shadow: 0 12px 28px rgba(255, 196, 0, .26);
+    }
+
+    .secondary-btn {
+      width: 100%;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid var(--border);
+      font-weight: 800;
+    }
+
+    .ad-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .ad-row {
+      display: grid;
+      grid-template-columns: 98px 1fr;
+      gap: 12px;
+      padding: 10px;
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: 0 7px 20px rgba(17, 17, 17, .05);
+    }
+
+    .ad-row-media {
+      width: 98px;
+      height: 98px;
+      object-fit: cover;
+      border-radius: 16px;
+      background: #eee;
+    }
+
+    .ad-row h3 {
+      margin: 2px 0 5px;
+      font-size: 15px;
+      line-height: 1.35;
+    }
+
+    .ad-row p {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .empty-state {
+      display: grid;
+      place-items: center;
+      min-height: 220px;
+      padding: 28px;
+      text-align: center;
+      border-radius: var(--radius);
+      background: #fff;
+      border: 1px dashed #dcdcdc;
+    }
+
+    .empty-state .empty-icon {
+      width: 64px;
+      height: 64px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 12px;
+      border-radius: 24px;
+      background: var(--gray);
+      font-size: 28px;
+    }
+
+    .empty-state h3 {
+      margin: 0 0 6px;
+    }
+
+    .empty-state p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .profile-hero {
+      position: relative;
+      min-height: 238px;
+      margin: -14px -16px 14px;
+      padding: calc(14px + env(safe-area-inset-top)) 16px 16px;
+      color: #fff;
+      background:
+        linear-gradient(0deg, rgba(0, 0, 0, .72), rgba(0, 0, 0, .08)),
+        radial-gradient(circle at 12% 20%, rgba(255, 196, 0, .7), transparent 30%),
+        linear-gradient(135deg, #111, #313131);
+      overflow: hidden;
+    }
+
+    .profile-hero .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .cover-upload {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
+    }
+
+    .profile-cover-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: .92;
+    }
+
+    .profile-main {
+      position: absolute;
+      right: 16px;
+      left: 16px;
+      bottom: 18px;
+      z-index: 2;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .avatar-wrap {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      flex: 0 0 88px;
+    }
+
+    .avatar {
+      width: 88px;
+      height: 88px;
+      border-radius: 30px;
+      border: 3px solid #fff;
+      object-fit: cover;
+      background: var(--brand);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, .25);
+    }
+
+    .avatar-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .profile-name h2 {
+      margin: 0 0 4px;
+      font-size: 22px;
+    }
+
+    .profile-name p {
+      margin: 0;
+      color: rgba(255, 255, 255, .8);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat-card {
+      padding: 14px 8px;
+      text-align: center;
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: 0 7px 18px rgba(17, 17, 17, .04);
+    }
+
+    .stat-card b {
+      display: block;
+      font-size: 19px;
+      margin-bottom: 4px;
+    }
+
+    .stat-card span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .profile-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 9px;
+      margin-bottom: 14px;
+    }
+
+    .profile-post-box {
+      padding: 14px;
+      margin-bottom: 14px;
+      border-radius: var(--radius);
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: var(--soft-shadow);
+    }
+
+    .post-card {
+      padding: 14px;
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: 0 7px 20px rgba(17, 17, 17, .05);
+    }
+
+    .post-card + .post-card {
+      margin-top: 12px;
+    }
+
+    .post-card h3 {
+      margin: 0 0 5px;
+      font-size: 14px;
+    }
+
+    .post-card p {
+      margin: 0;
+      color: #333;
+      line-height: 1.7;
+      font-size: 13px;
+    }
+
+    .post-card time {
+      display: block;
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .notification-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 13px;
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid var(--border);
+      margin-bottom: 10px;
+    }
+
+    .notification-row.unread {
+      border-color: rgba(255, 196, 0, .75);
+      background: #fffaf0;
+    }
+
+    .notification-row .icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: var(--gray);
+      flex: 0 0 42px;
+    }
+
+    .notification-row h3 {
+      margin: 0 0 4px;
+      font-size: 14px;
+    }
+
+    .notification-row p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 12px;
+    }
+
+    .bottom-nav {
+      position: absolute;
+      right: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 60;
+      height: calc(var(--nav) + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+      background: rgba(255, 255, 255, .94);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 -10px 30px rgba(17, 17, 17, .08);
+    }
+
+    .nav-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      min-width: 0;
+      border-radius: 18px;
+      color: #777;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .nav-item .nav-icon {
+      font-size: 21px;
+      line-height: 1;
+    }
+
+    .nav-item.active {
+      color: var(--black);
+    }
+
+    .nav-item.active::before {
+      content: "";
+      position: absolute;
+      top: 5px;
+      width: 24px;
+      height: 3px;
+      border-radius: 99px;
+      background: var(--brand);
+    }
+
+    .nav-create {
+      transform: translateY(-13px);
+      color: var(--black);
+    }
+
+    .nav-create .nav-icon {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--brand);
+      border: 5px solid #fff;
+      box-shadow: 0 12px 28px rgba(255, 196, 0, .38);
+      font-size: 26px;
+    }
+
+    .nav-create.active::before {
+      display: none;
+    }
+
+    .sheet-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 90;
+      display: none;
+      align-items: flex-end;
+      background: rgba(0, 0, 0, .36);
+      backdrop-filter: blur(3px);
+    }
+
+    .sheet-backdrop.show {
+      display: flex;
+    }
+
+    .sheet {
+      width: 100%;
+      max-height: min(82dvh, 720px);
+      overflow-y: auto;
+      padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+      border-radius: 28px 28px 0 0;
+      background: #fff;
+      box-shadow: var(--shadow);
+      animation: sheetIn .22s ease both;
+    }
+
+    @keyframes sheetIn {
+      from { transform: translateY(18px); opacity: .7; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .sheet-handle {
+      width: 42px;
+      height: 5px;
+      margin: 0 auto 14px;
+      border-radius: 99px;
+      background: #dcdcdc;
+    }
+
+    .sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .sheet-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .sheet-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .sheet-option {
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 14px;
+      border-radius: 17px;
+      background: var(--gray);
+      border: 1px solid var(--border);
+      font-weight: 800;
+      text-align: right;
+    }
+
+    .sheet-option.active {
+      background: var(--brand);
+      border-color: var(--brand);
+    }
+
+    .toast {
+      position: absolute;
+      right: 16px;
+      left: 16px;
+      bottom: calc(var(--nav) + 18px + env(safe-area-inset-bottom));
+      z-index: 130;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      min-height: 50px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      color: #fff;
+      background: rgba(17, 17, 17, .92);
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .toast.show {
+      display: flex;
+      animation: toastIn .2s ease both;
+    }
+
+    @keyframes toastIn {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (min-width: 720px) {
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 16% 10%, rgba(255, 196, 0, .24), transparent 30%),
+          linear-gradient(135deg, #f4f4f4, #dfdfdf);
+      }
+
+      .app-shell {
+        width: var(--phone-w);
+        height: min(var(--phone-h), calc(100vh - 32px));
+        max-height: var(--phone-h);
+        border-radius: 42px;
+        border: 10px solid #111;
+        box-shadow: 0 36px 90px rgba(17, 17, 17, .28);
+      }
+
+      .app-shell::before {
+        content: "";
+        position: absolute;
+        top: 8px;
+        right: 50%;
+        z-index: 140;
+        width: 110px;
+        height: 26px;
+        transform: translateX(50%);
+        border-radius: 0 0 18px 18px;
+        background: #111;
+        pointer-events: none;
+      }
+
+      .feed-card {
+        height: min(var(--phone-h), calc(100vh - 32px));
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell" id="app">
+    <section class="screen feed-screen active" id="home" aria-label="الرئيسية">
+      <header class="feed-head">
+        <div class="ticker" aria-label="شريط البراندات">
+          <div class="ticker-track" id="tickerTrack"></div>
+        </div>
+        <div class="feed-tools">
+          <button class="icon-btn" type="button" data-open-screen="notifications" aria-label="الإشعارات">🔔<span class="dot"></span></button>
+          <button class="feed-search" type="button" data-open-screen="searchScreen" aria-label="بحث عام">🔎 ابحث في إعلاني</button>
+          <button class="icon-btn" type="button" data-open-sheet="marketSheet" aria-label="تغيير السوق">🌍</button>
+        </div>
+        <nav class="feed-mode-tabs" aria-label="فرز الإعلانات">
+          <button class="tab-btn active" type="button" data-feed-mode="forYou">لك</button>
+          <button class="tab-btn" type="button" data-feed-mode="nearby">قريب منك</button>
+          <button class="tab-btn" type="button" data-feed-mode="latest">الأحدث</button>
+        </nav>
+      </header>
+      <div class="feed-wrap" id="feedWrap" tabindex="0"></div>
+    </section>
+
+    <section class="screen scroll-screen" id="categories" aria-label="الأقسام">
+      <header class="topbar">
+        <div>
+          <h1>الأقسام</h1>
+          <p>اختر السوق والقسم المناسب لإعلانك</p>
+        </div>
+        <button class="icon-btn" type="button" data-open-sheet="marketSheet" aria-label="تغيير السوق">🌍</button>
+      </header>
+      <div class="section-card">
+        <div class="section-title">
+          <h3>السوق الحالي</h3>
+          <span id="marketHint">السعودية</span>
+        </div>
+        <div class="market-row" id="marketButtons"></div>
+      </div>
+      <label class="search-field" for="categorySearch">
+        <span>🔎</span>
+        <input id="categorySearch" type="search" placeholder="ابحث عن قسم">
+      </label>
+      <div class="category-grid" id="categoryGrid"></div>
+    </section>
+
+    <section class="screen scroll-screen" id="create" aria-label="إنشاء إعلان">
+      <header class="topbar">
+        <div>
+          <h1>انشر إعلانك</h1>
+          <p>إعلانك يظهر مباشرة في الخلاصة</p>
+        </div>
+        <span class="brand-logo" aria-hidden="true">＋</span>
+      </header>
+      <div class="notice">
+        <span aria-hidden="true">⚡</span>
+        <div>
+          <strong>النشر مجاني حاليًا</strong>
+          <p>أضف صور أو فيديو، اكتب التفاصيل، وسيصبح إعلانك نشطًا في إعلاني فورًا بدون رسوم.</p>
+        </div>
+      </div>
+      <form class="form-card form-grid" id="adForm" autocomplete="off">
+        <label class="upload-box" id="mediaUploadBox">
+          <input id="adMedia" type="file" accept="image/*,video/*">
+          <img class="media-preview" id="mediaPreview" alt="معاينة الوسائط">
+          <video class="media-preview" id="videoPreview" muted playsinline controls></video>
+          <span class="upload-inner">
+            <span>
+              <b>ارفع صورة أو فيديو للإعلان</b>
+              <span>يتم ضغط الصور تلقائيًا لتناسب تجربة AppsGeyser.</span>
+            </span>
+          </span>
+        </label>
+        <div class="field">
+          <label for="adTitle">عنوان الإعلان</label>
+          <input id="adTitle" required maxlength="80" placeholder="مثال: سيارة عائلية نظيفة للبيع">
+        </div>
+        <div class="field">
+          <label for="adDescription">وصف الإعلان</label>
+          <textarea id="adDescription" required maxlength="600" placeholder="اكتب تفاصيل واضحة تساعد المشتري على التواصل معك"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="adCategory">القسم</label>
+            <select id="adCategory" required></select>
+          </div>
+          <div class="field">
+            <label for="adCountry">الدولة</label>
+            <select id="adCountry" required></select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="adCity">المدينة</label>
+            <select id="adCity" required></select>
+          </div>
+          <div class="field">
+            <label for="adScope">نطاق الظهور</label>
+            <select id="adScope" required>
+              <option value="local">داخل المدينة</option>
+              <option value="country">داخل الدولة</option>
+              <option value="all">كل الأسواق</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="contactMethod">طريقة التواصل</label>
+            <select id="contactMethod" required>
+              <option value="whatsapp">واتساب</option>
+              <option value="phone">اتصال</option>
+              <option value="email">البريد الإلكتروني</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="contactValue">بيانات التواصل</label>
+            <input id="contactValue" required maxlength="80" placeholder="رقم أو بريد إلكتروني">
+          </div>
+        </div>
+        <button class="primary-btn" type="submit">انشر مجانًا الآن</button>
+      </form>
+    </section>
+
+    <section class="screen scroll-screen" id="saved" aria-label="المحفوظات">
+      <header class="topbar">
+        <div>
+          <h1>المحفوظات</h1>
+          <p>إعلانات أعجبتك للرجوع لها لاحقًا</p>
+        </div>
+        <button class="icon-btn" type="button" data-open-screen="searchScreen" aria-label="بحث">🔎</button>
+      </header>
+      <div class="ad-list" id="savedList"></div>
+    </section>
+
+    <section class="screen scroll-screen" id="profile" aria-label="الملف الشخصي">
+      <div class="profile-hero" id="profileHero">
+        <img class="profile-cover-img hidden" id="profileCoverImg" alt="غلاف الملف">
+        <input class="cover-upload" id="profileCoverInput" type="file" accept="image/*" aria-label="تغيير الغلاف">
+        <div class="topline">
+          <span class="brand-mark"><span class="brand-logo">إ</span> إعلاني</span>
+          <button class="icon-btn" type="button" data-open-sheet="profileSheet" aria-label="تعديل الملف">⚙️</button>
+        </div>
+        <div class="profile-main">
+          <div class="avatar-wrap">
+            <img class="avatar" id="profileAvatar" alt="الصورة الشخصية">
+            <input class="avatar-input" id="profileAvatarInput" type="file" accept="image/*" aria-label="تغيير الصورة الشخصية">
+          </div>
+          <div class="profile-name">
+            <h2 id="profileName">تاجر إعلاني</h2>
+            <p id="profileBio">حساب مجاني لعرض الإعلانات والمنشورات المحلية.</p>
+          </div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><b id="statAds">0</b><span>إعلانات</span></div>
+        <div class="stat-card"><b id="statSaved">0</b><span>محفوظات</span></div>
+        <div class="stat-card"><b id="statPosts">0</b><span>منشورات</span></div>
+      </div>
+      <div class="profile-tabs">
+        <button class="tab-btn active" type="button" data-profile-tab="ads">إعلاناتي</button>
+        <button class="tab-btn" type="button" data-profile-tab="posts">منشوراتي</button>
+      </div>
+      <div class="profile-post-box" id="postComposer">
+        <div class="section-title">
+          <h3>منشور مجاني للملف</h3>
+          <span>لا يظهر في الخلاصة</span>
+        </div>
+        <button class="secondary-btn" type="button" data-open-sheet="postSheet">اكتب منشورًا جديدًا</button>
+      </div>
+      <div id="profileContent"></div>
+    </section>
+
+    <section class="screen scroll-screen" id="searchScreen" aria-label="البحث">
+      <header class="topbar">
+        <button class="icon-btn" type="button" data-back-home aria-label="رجوع">→</button>
+        <div>
+          <h1>بحث إعلاني</h1>
+          <p>ابحث في الإعلانات النشطة</p>
+        </div>
+        <span></span>
+      </header>
+      <label class="search-field" for="globalSearch">
+        <span>🔎</span>
+        <input id="globalSearch" type="search" placeholder="سيارة، فيلا، قهوة، خدمات...">
+      </label>
+      <div class="ad-list" id="searchResults"></div>
+    </section>
+
+    <section class="screen scroll-screen" id="notifications" aria-label="الإشعارات">
+      <header class="topbar">
+        <button class="icon-btn" type="button" data-back-home aria-label="رجوع">→</button>
+        <div>
+          <h1>الإشعارات</h1>
+          <p>تنبيهات حسابك وإعلاناتك</p>
+        </div>
+        <button class="pill-btn" type="button" id="markAllRead">تمت القراءة</button>
+      </header>
+      <div id="notificationsList"></div>
+    </section>
+
+    <nav class="bottom-nav" aria-label="التنقل الرئيسي">
+      <button class="nav-item active" type="button" data-nav="home"><span class="nav-icon">⌂</span><span>الرئيسية</span></button>
+      <button class="nav-item" type="button" data-nav="categories"><span class="nav-icon">▦</span><span>الأقسام</span></button>
+      <button class="nav-item nav-create" type="button" data-nav="create"><span class="nav-icon">＋</span><span>إضافة</span></button>
+      <button class="nav-item" type="button" data-nav="saved"><span class="nav-icon">♡</span><span>محفوظة</span></button>
+      <button class="nav-item" type="button" data-nav="profile"><span class="nav-icon">◉</span><span>حسابي</span></button>
+    </nav>
+
+    <div class="sheet-backdrop" id="marketSheet" role="dialog" aria-modal="true" aria-label="اختيار السوق">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <h2>اختر السوق</h2>
+          <button class="icon-btn" type="button" data-close-sheet>×</button>
+        </div>
+        <div class="sheet-grid" id="marketSheetOptions"></div>
+      </div>
+    </div>
+
+    <div class="sheet-backdrop" id="reportSheet" role="dialog" aria-modal="true" aria-label="الإبلاغ عن إعلان">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <h2>الإبلاغ عن الإعلان</h2>
+          <button class="icon-btn" type="button" data-close-sheet>×</button>
+        </div>
+        <p class="muted" style="margin:0 0 12px;line-height:1.6;font-size:13px;">ساعدنا في الحفاظ على مجتمع آمن. اختر سبب البلاغ وسيتم مراجعته.</p>
+        <div class="sheet-grid" id="reportReasons"></div>
+      </div>
+    </div>
+
+    <div class="sheet-backdrop" id="postSheet" role="dialog" aria-modal="true" aria-label="إضافة منشور">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <h2>منشور جديد</h2>
+          <button class="icon-btn" type="button" data-close-sheet>×</button>
+        </div>
+        <form class="form-grid" id="postForm">
+          <div class="field">
+            <label for="postTitle">عنوان المنشور</label>
+            <input id="postTitle" required maxlength="70" placeholder="مثال: عروض نهاية الأسبوع">
+          </div>
+          <div class="field">
+            <label for="postBody">نص المنشور</label>
+            <textarea id="postBody" required maxlength="500" placeholder="اكتب تحديثًا لزوار ملفك الشخصي"></textarea>
+          </div>
+          <button class="primary-btn" type="submit">نشر في ملفي مجانًا</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="sheet-backdrop" id="profileSheet" role="dialog" aria-modal="true" aria-label="تعديل الملف">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <h2>تعديل الملف الشخصي</h2>
+          <button class="icon-btn" type="button" data-close-sheet>×</button>
+        </div>
+        <form class="form-grid" id="profileForm">
+          <div class="field">
+            <label for="profileNameInput">الاسم</label>
+            <input id="profileNameInput" required maxlength="60">
+          </div>
+          <div class="field">
+            <label for="profileBioInput">نبذة قصيرة</label>
+            <textarea id="profileBioInput" maxlength="180"></textarea>
+          </div>
+          <button class="primary-btn" type="submit">حفظ الملف</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <script>
+    const STORAGE = {
+      ads: 'e3lani_ads',
+      saved: 'e3lani_saved',
+      posts: 'e3lani_posts',
+      profile: 'e3lani_profile',
+      notifications: 'e3lani_notifications',
+      market: 'e3lani_market'
+    };
+
+    const markets = {
+      SA: { name: 'السعودية', flag: '🇸🇦', cities: ['الرياض', 'جدة', 'الدمام', 'مكة', 'المدينة', 'الخبر', 'أبها', 'تبوك'] },
+      AE: { name: 'الإمارات', flag: '🇦🇪', cities: ['دبي', 'أبوظبي', 'الشارقة', 'عجمان', 'العين', 'رأس الخيمة', 'الفجيرة'] },
+      EG: { name: 'مصر', flag: '🇪🇬', cities: ['القاهرة', 'الإسكندرية', 'الجيزة', 'المنصورة', 'طنطا', 'شرم الشيخ', 'الغردقة'] }
+    };
+
+    const categories = [
+      { name: 'السيارات', icon: '🚗' },
+      { name: 'العقارات', icon: '🏠' },
+      { name: 'الإلكترونيات', icon: '📱' },
+      { name: 'الأثاث', icon: '🛋️' },
+      { name: 'الأزياء', icon: '👗' },
+      { name: 'الخدمات', icon: '🛠️' },
+      { name: 'الوظائف', icon: '💼' },
+      { name: 'المعدات', icon: '🚜' },
+      { name: 'الحيوانات المسموح بها', icon: '🐾' },
+      { name: 'الألعاب', icon: '🎮' },
+      { name: 'التأجير', icon: '🔑' },
+      { name: 'المنتجات المنزلية', icon: '🏺' },
+      { name: 'الأسر المنتجة', icon: '🍯' },
+      { name: 'التذاكر', icon: '🎟️' },
+      { name: 'الصحة والجمال', icon: '💄' },
+      { name: 'التعليم', icon: '📚' },
+      { name: 'السفر', icon: '✈️' },
+      { name: 'المطاعم', icon: '🍽️' },
+      { name: 'البراندات', icon: '⭐' },
+      { name: 'التبادل والتبرع', icon: '🤝' },
+      { name: 'أخرى', icon: '📌' }
+    ];
+
+    const seedAds = [
+      {
+        id: 'seed-car',
+        ownerId: 'seed',
+        title: 'تويوتا كامري 2021 بحالة ممتازة',
+        description: 'سيارة استخدام شخصي، صيانة وكالة، ممشى قليل، جاهزة للفحص والتواصل الجاد فقط.',
+        category: 'السيارات',
+        country: 'SA',
+        city: 'الرياض',
+        scope: 'country',
+        contactMethod: 'whatsapp',
+        contactValue: '+966500000001',
+        mediaType: 'image',
+        media: 'https://images.unsplash.com/photo-1542362567-b07e54358753?auto=format&fit=crop&w=1200&q=80',
+        price: '85,000 ر.س',
+        views: 1280,
+        createdAt: Date.now() - 1000 * 60 * 60 * 8,
+        brand: 'E3lani Motors'
+      },
+      {
+        id: 'seed-cafe',
+        ownerId: 'seed',
+        title: 'ركن قهوة مختصة للتقبيل',
+        description: 'كشك قهوة مجهز بالكامل في موقع حيوي، مناسب للأسر المنتجة أو بداية مشروع جديد.',
+        category: 'المطاعم',
+        country: 'AE',
+        city: 'دبي',
+        scope: 'all',
+        contactMethod: 'phone',
+        contactValue: '+971500000002',
+        mediaType: 'image',
+        media: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1200&q=80',
+        price: '45,000 د.إ',
+        views: 920,
+        createdAt: Date.now() - 1000 * 60 * 60 * 20,
+        brand: 'Cafe Local'
+      },
+      {
+        id: 'seed-villa',
+        ownerId: 'seed',
+        title: 'فيلا عائلية قريبة من الخدمات',
+        description: 'فيلا واسعة بتصميم حديث، حديقة خارجية، مواقف خاصة، وموقع هادئ قريب من المدارس.',
+        category: 'العقارات',
+        country: 'EG',
+        city: 'القاهرة',
+        scope: 'all',
+        contactMethod: 'email',
+        contactValue: 'villa@example.com',
+        mediaType: 'image',
+        media: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+        price: '3,200,000 ج.م',
+        views: 1540,
+        createdAt: Date.now() - 1000 * 60 * 60 * 34,
+        brand: 'E3lani Homes'
+      }
+    ];
+
+    const reportReasons = [
+      'محتوى مضلل',
+      'منتج ممنوع',
+      'احتيال',
+      'رابط ضار',
+      'انتحال',
+      'محتوى غير مناسب',
+      'إعلان مكرر',
+      'مخالفة سياسة الدولة',
+      'سبب آخر'
+    ];
+
+    let state = {
+      ads: [],
+      saved: [],
+      posts: [],
+      profile: {},
+      notifications: [],
+      market: 'SA',
+      feedMode: 'forYou',
+      currentReportAd: null,
+      profileTab: 'ads',
+      mediaDraft: null,
+      previousScreen: 'home'
+    };
+
+    let videoObserver = null;
+    let toastTimer = null;
+
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+
+    function clean(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function readStore(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (error) {
+        return fallback;
+      }
+    }
+
+    function writeStore(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    function persist() {
+      writeStore(STORAGE.ads, state.ads);
+      writeStore(STORAGE.saved, state.saved);
+      writeStore(STORAGE.posts, state.posts);
+      writeStore(STORAGE.profile, state.profile);
+      writeStore(STORAGE.notifications, state.notifications);
+      writeStore(STORAGE.market, state.market);
+    }
+
+    function initialProfile() {
+      return {
+        id: 'me',
+        name: 'تاجر إعلاني',
+        bio: 'حساب مجاني لعرض الإعلانات والمنشورات المحلية.',
+        avatar: '',
+        cover: ''
+      };
+    }
+
+    function initialNotifications() {
+      return [
+        {
+          id: 'n-welcome',
+          title: 'مرحبًا بك في إعلاني',
+          body: 'النشر مجاني حاليًا. ابدأ بإضافة إعلانك الأول وسيظهر مباشرة في الخلاصة.',
+          icon: '⚡',
+          unread: true,
+          createdAt: Date.now() - 1000 * 60 * 12
+        },
+        {
+          id: 'n-market',
+          title: 'اختر السوق المناسب',
+          body: 'يمكنك التبديل بين السعودية والإمارات ومصر من زر السوق.',
+          icon: '🌍',
+          unread: false,
+          createdAt: Date.now() - 1000 * 60 * 60 * 3
+        }
+      ];
+    }
+
+    function hydrateState() {
+      const storedAds = readStore(STORAGE.ads, null);
+      state.ads = Array.isArray(storedAds) && storedAds.length ? storedAds : seedAds;
+      state.saved = readStore(STORAGE.saved, []);
+      state.posts = readStore(STORAGE.posts, []);
+      state.profile = { ...initialProfile(), ...readStore(STORAGE.profile, {}) };
+      state.notifications = readStore(STORAGE.notifications, initialNotifications());
+      state.market = readStore(STORAGE.market, 'SA');
+      if (!markets[state.market]) state.market = 'SA';
+      persist();
+    }
+
+    function formatDate(timestamp) {
+      return new Intl.DateTimeFormat('ar', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp));
+    }
+
+    function marketName(code) {
+      return markets[code]?.name || code;
+    }
+
+    function marketFlag(code) {
+      return markets[code]?.flag || '🌍';
+    }
+
+    function categoryIcon(name) {
+      return categories.find((item) => item.name === name)?.icon || '📌';
+    }
+
+    function showToast(message, icon = '✅') {
+      const toast = $('#toast');
+      toast.innerHTML = `<span>${icon}</span><span>${clean(message)}</span>`;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+    }
+
+    function switchScreen(screenId) {
+      if (!$('#' + screenId)) return;
+      if (!['searchScreen', 'notifications'].includes(screenId)) {
+        state.previousScreen = screenId;
+      }
+      $$('.screen').forEach((screen) => screen.classList.toggle('active', screen.id === screenId));
+      $$('.nav-item').forEach((item) => item.classList.toggle('active', item.dataset.nav === screenId));
+      if (screenId === 'saved') renderSaved();
+      if (screenId === 'profile') renderProfile();
+      if (screenId === 'searchScreen') renderSearch();
+      if (screenId === 'notifications') {
+        renderNotifications();
+        updateUnreadBadge();
+      }
+      if (screenId === 'home') {
+        setTimeout(observeVideos, 80);
+      }
+    }
+
+    function openSheet(id) {
+      const sheet = $('#' + id);
+      if (sheet) sheet.classList.add('show');
+    }
+
+    function closeSheets() {
+      $$('.sheet-backdrop').forEach((sheet) => sheet.classList.remove('show'));
+      state.currentReportAd = null;
+    }
+
+    function tickerItems() {
+      const brands = ['E3lani', 'Motors', 'Homes', 'Cafe Local', 'Beauty', 'Tickets', 'Travel', 'Brands', 'Services'];
+      const repeated = [...brands, ...brands, ...brands];
+      $('#tickerTrack').innerHTML = repeated.map((brand) => `<span>◆ ${clean(brand)}</span>`).join('');
+    }
+
+    function sortedFeedAds() {
+      const ads = [...state.ads];
+      if (state.feedMode === 'latest') {
+        return ads.sort((a, b) => b.createdAt - a.createdAt);
+      }
+      if (state.feedMode === 'nearby') {
+        return ads
+          .filter((ad) => ad.country === state.market || ad.scope === 'all')
+          .sort((a, b) => {
+            const aLocal = a.country === state.market ? 1 : 0;
+            const bLocal = b.country === state.market ? 1 : 0;
+            return bLocal - aLocal || b.createdAt - a.createdAt;
+          });
+      }
+      return ads.sort((a, b) => {
+        const aBoost = (a.country === state.market ? 1500 : 0) + (a.views || 0);
+        const bBoost = (b.country === state.market ? 1500 : 0) + (b.views || 0);
+        return bBoost - aBoost;
+      });
+    }
+
+    function renderMedia(ad, className) {
+      if (ad.mediaType === 'video') {
+        return `<video class="${className}" src="${clean(ad.media)}" muted playsinline loop preload="metadata"></video>`;
+      }
+      return `<img class="${className}" src="${clean(ad.media)}" alt="${clean(ad.title)}">`;
+    }
+
+    function renderFeed() {
+      const wrap = $('#feedWrap');
+      const ads = sortedFeedAds();
+      if (!ads.length) {
+        wrap.innerHTML = `
+          <div class="feed-empty">
+            <div>
+              <div style="font-size:42px;margin-bottom:10px;">📣</div>
+              <h2>لا توجد إعلانات بعد</h2>
+              <p>كن أول من ينشر إعلانًا مجانيًا في هذا السوق.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      wrap.innerHTML = ads.map((ad) => {
+        const isSaved = state.saved.includes(ad.id);
+        return `
+          <article class="feed-card" data-ad-id="${clean(ad.id)}">
+            ${renderMedia(ad, 'feed-media')}
+            <div class="feed-info">
+              <div class="badge-row">
+                <span class="badge">${categoryIcon(ad.category)} ${clean(ad.category)}</span>
+                <span class="badge">${marketFlag(ad.country)} ${clean(marketName(ad.country))} - ${clean(ad.city)}</span>
+              </div>
+              <h2>${clean(ad.title)}</h2>
+              <p>${clean(ad.description)}</p>
+              <span class="feed-price">${clean(ad.price || 'السعر عند التواصل')}</span>
+            </div>
+            <div class="feed-actions">
+              <button class="action-btn ${isSaved ? 'saved' : ''}" type="button" data-save="${clean(ad.id)}" aria-label="حفظ الإعلان">♡<small>${isSaved ? 'محفوظ' : 'حفظ'}</small></button>
+              <button class="action-btn" type="button" data-share="${clean(ad.id)}" aria-label="مشاركة الإعلان">↗<small>شارك</small></button>
+              <button class="action-btn" type="button" data-contact="${clean(ad.id)}" aria-label="تواصل">☎<small>تواصل</small></button>
+              <button class="action-btn" type="button" data-report="${clean(ad.id)}" aria-label="إبلاغ">!<small>بلاغ</small></button>
+            </div>
+          </article>
+        `;
+      }).join('');
+      observeVideos();
+    }
+
+    function observeVideos() {
+      if (videoObserver) videoObserver.disconnect();
+      videoObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          const video = entry.target;
+          if (entry.isIntersecting && entry.intersectionRatio > 0.65) {
+            video.play().catch(() => {});
+          } else {
+            video.pause();
+          }
+        });
+      }, { threshold: [0, .65, 1] });
+      $$('#feedWrap video').forEach((video) => videoObserver.observe(video));
+    }
+
+    function renderMarkets() {
+      const buttons = Object.entries(markets).map(([code, market]) => `
+        <button class="market-btn ${state.market === code ? 'active' : ''}" type="button" data-market="${code}">
+          <span style="font-size:24px;">${market.flag}</span>
+          <span>${clean(market.name)}</span>
+        </button>
+      `).join('');
+      $('#marketButtons').innerHTML = buttons;
+      $('#marketSheetOptions').innerHTML = Object.entries(markets).map(([code, market]) => `
+        <button class="sheet-option ${state.market === code ? 'active' : ''}" type="button" data-market="${code}">
+          <span>${market.flag} ${clean(market.name)}</span>
+          <span>${state.market === code ? '✓' : ''}</span>
+        </button>
+      `).join('');
+      $('#marketHint').textContent = markets[state.market].name;
+    }
+
+    function setMarket(code) {
+      if (!markets[code]) return;
+      state.market = code;
+      writeStore(STORAGE.market, state.market);
+      renderMarkets();
+      renderCountryCitySelects();
+      renderFeed();
+      renderSearch();
+      closeSheets();
+      showToast(`تم اختيار سوق ${markets[code].name}`, markets[code].flag);
+    }
+
+    function renderCategories(filter = '') {
+      const query = filter.trim();
+      const items = categories.filter((item) => item.name.includes(query));
+      $('#categoryGrid').innerHTML = items.map((item) => `
+        <button class="category-tile" type="button" data-category="${clean(item.name)}">
+          <span class="emoji">${item.icon}</span>
+          <span>${clean(item.name)}</span>
+        </button>
+      `).join('');
+    }
+
+    function renderFormOptions() {
+      $('#adCategory').innerHTML = categories.map((item) => `<option value="${clean(item.name)}">${item.icon} ${clean(item.name)}</option>`).join('');
+      $('#adCountry').innerHTML = Object.entries(markets).map(([code, market]) => `<option value="${code}">${market.flag} ${clean(market.name)}</option>`).join('');
+      $('#adCountry').value = state.market;
+      renderCountryCitySelects();
+    }
+
+    function renderCountryCitySelects() {
+      const countrySelect = $('#adCountry');
+      const citySelect = $('#adCity');
+      if (!countrySelect || !citySelect) return;
+      const country = countrySelect.value || state.market;
+      citySelect.innerHTML = markets[country].cities.map((city) => `<option value="${clean(city)}">${clean(city)}</option>`).join('');
+    }
+
+    function adListMarkup(ads, emptyTitle, emptyText) {
+      if (!ads.length) {
+        return `
+          <div class="empty-state">
+            <div>
+              <div class="empty-icon">📭</div>
+              <h3>${clean(emptyTitle)}</h3>
+              <p>${clean(emptyText)}</p>
+            </div>
+          </div>
+        `;
+      }
+      return ads.map((ad) => `
+        <article class="ad-row">
+          ${renderMedia(ad, 'ad-row-media')}
+          <div>
+            <h3>${clean(ad.title)}</h3>
+            <p>${clean(ad.description)}</p>
+            <div class="meta-row">
+              <span>${categoryIcon(ad.category)} ${clean(ad.category)}</span>
+              <span>${marketFlag(ad.country)} ${clean(ad.city)}</span>
+              <span>${clean(ad.price || 'السعر عند التواصل')}</span>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function renderSaved() {
+      const savedAds = state.ads.filter((ad) => state.saved.includes(ad.id));
+      $('#savedList').innerHTML = adListMarkup(savedAds, 'لا توجد إعلانات محفوظة', 'اضغط حفظ على أي إعلان في الخلاصة ليظهر هنا.');
+    }
+
+    function renderSearch() {
+      const input = $('#globalSearch');
+      const query = (input?.value || '').trim().toLowerCase();
+      const ads = state.ads.filter((ad) => {
+        const text = `${ad.title} ${ad.description} ${ad.category} ${ad.city} ${marketName(ad.country)}`.toLowerCase();
+        return !query || text.includes(query);
+      });
+      $('#searchResults').innerHTML = adListMarkup(ads, 'ابدأ البحث', 'اكتب كلمة مفتاحية لعرض الإعلانات المناسبة.');
+    }
+
+    function renderNotifications() {
+      const list = $('#notificationsList');
+      if (!state.notifications.length) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <div>
+              <div class="empty-icon">🔔</div>
+              <h3>لا توجد إشعارات</h3>
+              <p>سنخبرك هنا بأي تحديثات مهمة.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+      list.innerHTML = state.notifications
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map((note) => `
+          <article class="notification-row ${note.unread ? 'unread' : ''}">
+            <span class="icon">${clean(note.icon || '🔔')}</span>
+            <div>
+              <h3>${clean(note.title)}</h3>
+              <p>${clean(note.body)}</p>
+              <p style="margin-top:6px;font-size:11px;">${formatDate(note.createdAt)}</p>
+            </div>
+          </article>
+        `).join('');
+    }
+
+    function updateUnreadBadge() {
+      const unread = state.notifications.some((note) => note.unread);
+      $$('[data-open-screen="notifications"]').forEach((button) => button.classList.toggle('has-unread', unread));
+    }
+
+    function renderProfile() {
+      $('#profileName').textContent = state.profile.name;
+      $('#profileBio').textContent = state.profile.bio;
+      $('#profileNameInput').value = state.profile.name;
+      $('#profileBioInput').value = state.profile.bio;
+      $('#profileAvatar').src = state.profile.avatar || defaultAvatar();
+      if (state.profile.cover) {
+        $('#profileCoverImg').src = state.profile.cover;
+        $('#profileCoverImg').classList.remove('hidden');
+      } else {
+        $('#profileCoverImg').classList.add('hidden');
+      }
+
+      const myAds = state.ads.filter((ad) => ad.ownerId === state.profile.id);
+      $('#statAds').textContent = myAds.length;
+      $('#statSaved').textContent = state.saved.length;
+      $('#statPosts').textContent = state.posts.length;
+      $('#postComposer').classList.toggle('hidden', state.profileTab !== 'posts');
+      $$('.profile-tabs .tab-btn').forEach((button) => button.classList.toggle('active', button.dataset.profileTab === state.profileTab));
+
+      if (state.profileTab === 'ads') {
+        $('#profileContent').innerHTML = adListMarkup(myAds, 'لم تنشر إعلانًا بعد', 'اضغط زر إضافة وانشر إعلانك مجانًا الآن.');
+      } else {
+        $('#profileContent').innerHTML = renderPosts();
+      }
+    }
+
+    function renderPosts() {
+      if (!state.posts.length) {
+        return `
+          <div class="empty-state">
+            <div>
+              <div class="empty-icon">✍️</div>
+              <h3>لا توجد منشورات</h3>
+              <p>المنشورات تظهر في ملفك فقط ولا تدخل خلاصة الإعلانات.</p>
+            </div>
+          </div>
+        `;
+      }
+      return state.posts
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map((post) => `
+          <article class="post-card">
+            <h3>${clean(post.title)}</h3>
+            <p>${clean(post.body)}</p>
+            <time>${formatDate(post.createdAt)}</time>
+          </article>
+        `).join('');
+    }
+
+    function defaultAvatar() {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180"><rect width="180" height="180" rx="52" fill="#FFC400"/><circle cx="90" cy="72" r="30" fill="#111"/><path d="M38 154c8-31 28-47 52-47s44 16 52 47" fill="#111"/></svg>`;
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    }
+
+    function toggleSave(adId) {
+      if (state.saved.includes(adId)) {
+        state.saved = state.saved.filter((id) => id !== adId);
+        showToast('تمت إزالة الإعلان من المحفوظات', '♡');
+      } else {
+        state.saved.push(adId);
+        showToast('تم حفظ الإعلان في المحفوظات', '💛');
+      }
+      writeStore(STORAGE.saved, state.saved);
+      renderFeed();
+      renderSaved();
+      renderProfile();
+    }
+
+    async function shareAd(adId) {
+      const ad = state.ads.find((item) => item.id === adId);
+      if (!ad) return;
+      const text = `${ad.title} - ${ad.description}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: ad.title, text });
+          showToast('تم فتح المشاركة', '↗');
+          return;
+        } catch (error) {}
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('تم نسخ تفاصيل الإعلان', '📋');
+      } catch (error) {
+        showToast('انسخ تفاصيل الإعلان يدويًا', '📋');
+      }
+    }
+
+    function contactAd(adId) {
+      const ad = state.ads.find((item) => item.id === adId);
+      if (!ad) return;
+      if (ad.contactMethod === 'whatsapp') {
+        window.location.href = `https://wa.me/${ad.contactValue.replace(/\D/g, '')}`;
+      } else if (ad.contactMethod === 'phone') {
+        window.location.href = `tel:${ad.contactValue}`;
+      } else {
+        window.location.href = `mailto:${ad.contactValue}?subject=${encodeURIComponent(ad.title)}`;
+      }
+      showToast('تم فتح وسيلة التواصل', '☎');
+    }
+
+    function reportAd(adId) {
+      state.currentReportAd = adId;
+      openSheet('reportSheet');
+    }
+
+    function renderReportReasons() {
+      $('#reportReasons').innerHTML = reportReasons.map((reason) => `
+        <button class="sheet-option" type="button" data-report-reason="${clean(reason)}">
+          <span>${clean(reason)}</span>
+          <span>›</span>
+        </button>
+      `).join('');
+    }
+
+    function notify(title, body, icon = '🔔') {
+      state.notifications.unshift({
+        id: `n-${Date.now()}`,
+        title,
+        body,
+        icon,
+        unread: true,
+        createdAt: Date.now()
+      });
+      writeStore(STORAGE.notifications, state.notifications);
+      updateUnreadBadge();
+    }
+
+    function compressImage(file, maxWidth = 1280, quality = .78) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => {
+          const image = new Image();
+          image.onerror = reject;
+          image.onload = () => {
+            const scale = Math.min(1, maxWidth / image.width);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(image.width * scale);
+            canvas.height = Math.round(image.height * scale);
+            const context = canvas.getContext('2d');
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          image.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function readVideo(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function handleMedia(file) {
+      if (!file) return;
+      const uploadBox = $('#mediaUploadBox');
+      const imagePreview = $('#mediaPreview');
+      const videoPreview = $('#videoPreview');
+      try {
+        if (file.type.startsWith('image/')) {
+          const dataUrl = await compressImage(file);
+          state.mediaDraft = { type: 'image', dataUrl };
+          imagePreview.src = dataUrl;
+          videoPreview.removeAttribute('src');
+          imagePreview.style.display = 'block';
+          videoPreview.style.display = 'none';
+          uploadBox.classList.add('has-media');
+          showToast('تم ضغط الصورة وتجهيزها', '🖼️');
+        } else if (file.type.startsWith('video/')) {
+          const dataUrl = await readVideo(file);
+          state.mediaDraft = { type: 'video', dataUrl };
+          videoPreview.src = dataUrl;
+          imagePreview.removeAttribute('src');
+          imagePreview.style.display = 'none';
+          videoPreview.style.display = 'block';
+          uploadBox.classList.add('has-media');
+          showToast('تم تجهيز الفيديو', '🎬');
+        }
+      } catch (error) {
+        showToast('تعذر قراءة الملف، حاول مرة أخرى', '⚠️');
+      }
+    }
+
+    function resetAdForm() {
+      $('#adForm').reset();
+      $('#adCountry').value = state.market;
+      renderCountryCitySelects();
+      $('#mediaUploadBox').classList.remove('has-media');
+      $('#mediaPreview').removeAttribute('src');
+      $('#videoPreview').removeAttribute('src');
+      $('#mediaPreview').style.display = '';
+      $('#videoPreview').style.display = '';
+      state.mediaDraft = null;
+    }
+
+    function publishAd(event) {
+      event.preventDefault();
+      const country = $('#adCountry').value;
+      const city = $('#adCity').value;
+      const title = $('#adTitle').value.trim();
+      const description = $('#adDescription').value.trim();
+      const ad = {
+        id: `ad-${Date.now()}`,
+        ownerId: state.profile.id,
+        title,
+        description,
+        category: $('#adCategory').value,
+        country,
+        city,
+        scope: $('#adScope').value,
+        contactMethod: $('#contactMethod').value,
+        contactValue: $('#contactValue').value.trim(),
+        mediaType: state.mediaDraft?.type || 'image',
+        media: state.mediaDraft?.dataUrl || placeholderMedia(title),
+        price: 'السعر عند التواصل',
+        views: 0,
+        createdAt: Date.now(),
+        brand: state.profile.name
+      };
+      state.ads.unshift(ad);
+      writeStore(STORAGE.ads, state.ads);
+      notify('تم نشر إعلانك', 'إعلانك نشط الآن في الخلاصة ويمكن للمستخدمين التواصل معك.', '📣');
+      resetAdForm();
+      renderFeed();
+      renderProfile();
+      showToast('تم نشر الإعلان مجانًا وهو نشط الآن', '⚡');
+      switchScreen('home');
+    }
+
+    function placeholderMedia(title) {
+      const safeTitle = String(title || 'إعلاني').replace(/[<>&"']/g, '');
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#FFC400"/><stop offset="1" stop-color="#111"/></linearGradient></defs><rect width="1200" height="1600" fill="url(#g)"/><circle cx="230" cy="260" r="150" fill="rgba(255,255,255,.25)"/><text x="600" y="780" text-anchor="middle" font-family="Tahoma,Arial" font-size="86" font-weight="700" fill="white">E3lani</text><text x="600" y="890" text-anchor="middle" font-family="Tahoma,Arial" font-size="44" fill="white">${safeTitle}</text></svg>`;
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    }
+
+    async function compressProfileImage(file) {
+      if (!file || !file.type.startsWith('image/')) return '';
+      try {
+        return await compressImage(file, 900, .8);
+      } catch (error) {
+        showToast('تعذر تحديث الصورة', '⚠️');
+        return '';
+      }
+    }
+
+    function bindEvents() {
+      document.addEventListener('click', (event) => {
+        const nav = event.target.closest('[data-nav]');
+        if (nav) switchScreen(nav.dataset.nav);
+
+        const openScreen = event.target.closest('[data-open-screen]');
+        if (openScreen) switchScreen(openScreen.dataset.openScreen);
+
+        const backHome = event.target.closest('[data-back-home]');
+        if (backHome) switchScreen(state.previousScreen || 'home');
+
+        const sheetButton = event.target.closest('[data-open-sheet]');
+        if (sheetButton) openSheet(sheetButton.dataset.openSheet);
+
+        const closeSheetButton = event.target.closest('[data-close-sheet]');
+        if (closeSheetButton) closeSheets();
+
+        const backdrop = event.target.classList.contains('sheet-backdrop') ? event.target : null;
+        if (backdrop) closeSheets();
+
+        const mode = event.target.closest('[data-feed-mode]');
+        if (mode) {
+          state.feedMode = mode.dataset.feedMode;
+          $$('.feed-mode-tabs .tab-btn').forEach((button) => button.classList.toggle('active', button === mode));
+          renderFeed();
+          showToast(mode.textContent === 'قريب منك' ? 'تم عرض الإعلانات القريبة' : `تم اختيار ${mode.textContent}`, '✓');
+        }
+
+        const market = event.target.closest('[data-market]');
+        if (market) setMarket(market.dataset.market);
+
+        const category = event.target.closest('[data-category]');
+        if (category) {
+          $('#adCategory').value = category.dataset.category;
+          switchScreen('create');
+          showToast(`تم اختيار قسم ${category.dataset.category}`, '▦');
+        }
+
+        const save = event.target.closest('[data-save]');
+        if (save) toggleSave(save.dataset.save);
+
+        const share = event.target.closest('[data-share]');
+        if (share) shareAd(share.dataset.share);
+
+        const contact = event.target.closest('[data-contact]');
+        if (contact) contactAd(contact.dataset.contact);
+
+        const report = event.target.closest('[data-report]');
+        if (report) reportAd(report.dataset.report);
+
+        const reason = event.target.closest('[data-report-reason]');
+        if (reason) {
+          notify('تم استلام البلاغ', `سبب البلاغ: ${reason.dataset.reportReason}`, '🚩');
+          closeSheets();
+          showToast('شكرًا لك، تم إرسال البلاغ للمراجعة', '🚩');
+        }
+
+        const profileTab = event.target.closest('[data-profile-tab]');
+        if (profileTab) {
+          state.profileTab = profileTab.dataset.profileTab;
+          renderProfile();
+        }
+      });
+
+      $('#categorySearch').addEventListener('input', (event) => renderCategories(event.target.value));
+      $('#globalSearch').addEventListener('input', renderSearch);
+      $('#adCountry').addEventListener('change', renderCountryCitySelects);
+      $('#adMedia').addEventListener('change', (event) => handleMedia(event.target.files[0]));
+      $('#adForm').addEventListener('submit', publishAd);
+
+      $('#postForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        state.posts.unshift({
+          id: `post-${Date.now()}`,
+          title: $('#postTitle').value.trim(),
+          body: $('#postBody').value.trim(),
+          createdAt: Date.now()
+        });
+        writeStore(STORAGE.posts, state.posts);
+        $('#postForm').reset();
+        closeSheets();
+        renderProfile();
+        showToast('تم نشر المنشور في ملفك مجانًا', '✍️');
+      });
+
+      $('#profileForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        state.profile.name = $('#profileNameInput').value.trim();
+        state.profile.bio = $('#profileBioInput').value.trim() || 'حساب مجاني لعرض الإعلانات والمنشورات المحلية.';
+        writeStore(STORAGE.profile, state.profile);
+        closeSheets();
+        renderProfile();
+        showToast('تم حفظ الملف الشخصي', '✅');
+      });
+
+      $('#profileAvatarInput').addEventListener('change', async (event) => {
+        const dataUrl = await compressProfileImage(event.target.files[0]);
+        if (!dataUrl) return;
+        state.profile.avatar = dataUrl;
+        writeStore(STORAGE.profile, state.profile);
+        renderProfile();
+        showToast('تم تحديث الصورة الشخصية', '🖼️');
+      });
+
+      $('#profileCoverInput').addEventListener('change', async (event) => {
+        const dataUrl = await compressProfileImage(event.target.files[0]);
+        if (!dataUrl) return;
+        state.profile.cover = dataUrl;
+        writeStore(STORAGE.profile, state.profile);
+        renderProfile();
+        showToast('تم تحديث الغلاف', '🖼️');
+      });
+
+      $('#markAllRead').addEventListener('click', () => {
+        state.notifications = state.notifications.map((note) => ({ ...note, unread: false }));
+        writeStore(STORAGE.notifications, state.notifications);
+        renderNotifications();
+        updateUnreadBadge();
+        showToast('تم تحديد الإشعارات كمقروءة', '🔔');
+      });
+    }
+
+    function init() {
+      hydrateState();
+      tickerItems();
+      renderMarkets();
+      renderCategories();
+      renderFormOptions();
+      renderReportReasons();
+      renderFeed();
+      renderSaved();
+      renderSearch();
+      renderNotifications();
+      renderProfile();
+      updateUnreadBadge();
+      bindEvents();
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

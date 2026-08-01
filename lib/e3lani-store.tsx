@@ -10,9 +10,11 @@ import {
 } from "react";
 
 import {
+  DEFAULT_LAUNCH_MODE,
   extendAdPeriod,
   moderatePendingAd,
   republishExpiredAd,
+  resolveCreateStatus,
   seedAds,
   seedBrand,
   type Ad,
@@ -22,13 +24,16 @@ import {
   type AuditLog,
   type BrandProfile,
   type Invoice,
+  type LaunchMode,
   type Metrics,
   type NotificationItem,
   type Order,
+  type ProfilePost,
   type PromotionCode,
   type ReportItem,
   type UserProfile,
 } from "./e3lani-data";
+import type { MarketCode } from "./feed/rank";
 
 type NewAd = {
   title: string;
@@ -46,6 +51,7 @@ type State = {
   user: UserProfile | null;
   brand: BrandProfile | null;
   ads: Ad[];
+  posts: ProfilePost[];
   savedIds: string[];
   metrics: Record<string, Metrics>;
   notifications: NotificationItem[];
@@ -54,6 +60,9 @@ type State = {
   invoices: Invoice[];
   audit: AuditLog[];
   blockedOwners: string[];
+  marketCode: MarketCode;
+  launchMode: LaunchMode;
+  categoryFilter: string;
 };
 
 type Value = State & {
@@ -63,6 +72,9 @@ type Value = State & {
   upsertBrand: (data: Partial<BrandProfile>) => void;
   requestVerification: () => void;
   createAd: (data: NewAd) => Ad;
+  createPost: (data: { title: string; text: string; media?: AdMedia }) => ProfilePost;
+  setMarket: (code: MarketCode) => void;
+  setCategoryFilter: (categoryId: string) => void;
   toggleSave: (id: string) => void;
   recordMetric: (id: string, key: keyof Metrics) => void;
   submitReport: (id: string, reason: string, details?: string) => void;
@@ -89,8 +101,12 @@ const initial: State = {
   user: null,
   brand: seedBrand,
   ads: seedAds,
+  posts: [],
   savedIds: [],
   blockedOwners: [],
+  marketCode: "SA",
+  launchMode: DEFAULT_LAUNCH_MODE,
+  categoryFilter: "",
   metrics: {
     AD10001: { impressions: 128547, views: 128547, saves: 1926, shares: 3842, contacts: 1243 },
     AD10002: { impressions: 26480, views: 21970, saves: 318, shares: 229, contacts: 156 },
@@ -99,7 +115,7 @@ const initial: State = {
     {
       id: "N1",
       title: "مرحبًا بك في إعلاني",
-      body: "اكتشف الإعلانات المرئية أو ابدأ نشر إعلانك.",
+      body: "النشر مجاني حاليًا. اكتشف الإعلانات المرئية أو ابدأ نشر إعلانك.",
       read: false,
       createdAt: new Date().toISOString(),
       kind: "system",
@@ -123,7 +139,16 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
     try {
       const raw = await AsyncStorage.getItem(KEY);
       const stored = raw ? (JSON.parse(raw) as Partial<State>) : {};
-      setState({ ...initial, ...stored, ready: true, loadError: null });
+      setState({
+        ...initial,
+        ...stored,
+        posts: stored.posts ?? [],
+        marketCode: stored.marketCode ?? "SA",
+        launchMode: stored.launchMode ?? DEFAULT_LAUNCH_MODE,
+        categoryFilter: stored.categoryFilter ?? "",
+        ready: true,
+        loadError: null,
+      });
     } catch {
       setState((current) => ({ ...current, ready: true, loadError: "storage_load_failed" }));
     }
@@ -188,25 +213,56 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
           ],
         })),
       createAd: (data) => {
+        const now = new Date().toISOString();
+        const lifecycle = resolveCreateStatus(state.launchMode, now);
         const ad: Ad = {
           id: uid("AD"),
           ownerId: state.user?.id ?? "U1",
           brandId: state.brand?.id,
           ...data,
-          status: "awaiting_payment",
+          ...lifecycle,
           revision: 1,
           verified: Boolean(state.brand?.verified),
           featured: data.promotions.length > 0,
           sponsored: data.promotions.length > 0,
-          createdAt: new Date().toISOString(),
+          createdAt: now,
         };
         setState((current) => ({
           ...current,
           ads: [ad, ...current.ads],
           metrics: { ...current.metrics, [ad.id]: { ...zero } },
+          notifications: [
+            {
+              id: uid("N"),
+              title: lifecycle.status === "active" ? "تم نشر إعلانك" : "تم إنشاء إعلانك",
+              body:
+                lifecycle.status === "active"
+                  ? `${ad.title} أصبح ظاهرًا في الموجز المحلي.`
+                  : `${ad.title} بانتظار استكمال مسار النشر.`,
+              read: false,
+              createdAt: now,
+              kind: "system",
+            },
+            ...current.notifications,
+          ],
         }));
         return ad;
       },
+      createPost: (data) => {
+        const post: ProfilePost = {
+          id: uid("POST"),
+          ownerId: state.user?.id ?? "U1",
+          title: data.title,
+          text: data.text,
+          media: data.media,
+          createdAt: new Date().toISOString(),
+        };
+        setState((current) => ({ ...current, posts: [post, ...current.posts] }));
+        return post;
+      },
+      setMarket: (code) => setState((current) => ({ ...current, marketCode: code })),
+      setCategoryFilter: (categoryId) =>
+        setState((current) => ({ ...current, categoryFilter: categoryId })),
       toggleSave: (id) =>
         setState((current) => {
           const has = current.savedIds.includes(id);

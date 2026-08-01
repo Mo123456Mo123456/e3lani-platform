@@ -13,11 +13,29 @@ export type Invoice={id:string;orderId:string;number:string;totalHalalas:number;
 export const REPUBLISH_COOLDOWN_MS=72*60*60*1000;
 export function canRepublish(lastRepublishedAt?:string,nowMs=Date.now()){if(!lastRepublishedAt)return true;const value=new Date(lastRepublishedAt).getTime();return Number.isFinite(value)&&nowMs-value>=REPUBLISH_COOLDOWN_MS}
 export type ModerationDecision="approved"|"changes_requested"|"rejected";
+export type LaunchMode="PROFILE_ONLY"|"FREE_LAUNCH"|"PAID_ONLY";
+export type ProfilePost={id:string;ownerId:string;title:string;text:string;media?:AdMedia;createdAt:string};
+/** Default operating mode for the current product phase. */
+export const DEFAULT_LAUNCH_MODE:LaunchMode="FREE_LAUNCH";
+export const FUTURE_PROMO_PRICE_HALALAS=5900;
 export function addDaysIso(iso:string,days:number){const value=new Date(iso).getTime();if(!Number.isFinite(value))throw new Error("INVALID_ISO_DATE");return new Date(value+days*24*60*60*1000).toISOString()}
 export function transitionToPendingReview(ad:Ad,items:PromotionCode[]){if(ad.status!=="awaiting_payment")return ad;return{...ad,status:"pending_review" as const,promotions:[...new Set(items)]}}
 export function moderatePendingAd(ad:Ad,decision:ModerationDecision,nowIso:string){if(ad.status!=="pending_review")return ad;const status:AdStatus=decision==="approved"?"active":decision;return{...ad,status,activatedAt:decision==="approved"?nowIso:ad.activatedAt,expiresAt:decision==="approved"?addDaysIso(nowIso,30):ad.expiresAt}}
 export function extendAdPeriod(ad:Ad){if((ad.status!=="active"&&ad.status!=="paused")||!ad.expiresAt)return ad;return{...ad,expiresAt:addDaysIso(ad.expiresAt,15)}}
 export function republishExpiredAd(ad:Ad,nowIso:string){const nowMs=new Date(nowIso).getTime();if(ad.status!=="expired"||!Number.isFinite(nowMs)||!canRepublish(ad.lastRepublishedAt,nowMs))return ad;return{...ad,status:"active" as const,lastRepublishedAt:nowIso,activatedAt:nowIso,expiresAt:addDaysIso(nowIso,30)}}
+/** Resolve initial ad status from launch mode. FREE_LAUNCH activates immediately with no payment. */
+export function resolveCreateStatus(mode:LaunchMode,nowIso:string):Pick<Ad,"status"|"activatedAt"|"expiresAt">{
+  if(mode==="FREE_LAUNCH"){
+    return{status:"active",activatedAt:nowIso,expiresAt:addDaysIso(nowIso,30)};
+  }
+  if(mode==="PROFILE_ONLY"){
+    return{status:"draft"};
+  }
+  return{status:"awaiting_payment"};
+}
+export function isPaymentFlowVisible(mode:LaunchMode,paymentEnabled=false){
+  return mode==="PAID_ONLY"&&paymentEnabled;
+}
 export const seedBrand:BrandProfile={id:"brand-e3lani",ownerId:"seed-owner",name:"إعلاني E3lani",slug:"e3lani",bio:"منصة الإعلانات المرئية لكل شيء في السعودية.",website:"https://example.com",logoAsset:"wordmark",verified:true,verificationStatus:"verified"};
 export const seedAds:Ad[]=[
  {id:"AD10001",ownerId:"seed-owner",brandId:seedBrand.id,title:"اعرض إعلانك ووصل عملاءك مباشرة",description:"منصة سعودية للإعلانات المرئية تتيح لك نشر إعلان بصورة أو فيديو والوصول إلى الجمهور المناسب بسهولة.",categoryId:"services",cityId:"riyadh",media:[{id:"m1",kind:"image",uri:"asset:poster",localAsset:"poster"}],contacts:[{type:"store",value:"https://example.com"},{type:"whatsapp",value:"+966500000000"}],status:"active",revision:1,verified:true,featured:true,sponsored:true,createdAt:"2026-07-01T08:00:00.000Z",activatedAt:"2026-07-01T09:00:00.000Z",expiresAt:"2026-07-31T09:00:00.000Z",promotions:["highlight_7"]},
