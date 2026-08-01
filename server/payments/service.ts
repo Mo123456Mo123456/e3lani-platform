@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 
 import { ads, paymentIntents } from "../../drizzle/schema";
 import {
@@ -15,6 +15,50 @@ import { resolveServerPublishQuote } from "../pricing-service";
 
 function publicId() {
   return `pi_${randomBytes(10).toString("hex")}`.slice(0, 32);
+}
+
+function paymentIdempotencyKey(input: {
+  userId: number;
+  publicAdId: string;
+  providerId: string;
+  amount: number;
+  currency: string;
+}) {
+  const source = [
+    "payment-intent-v1",
+    input.userId,
+    input.publicAdId,
+    input.providerId,
+    input.amount,
+    input.currency.toUpperCase(),
+  ].join(":");
+  return createHash("sha256").update(source).digest("hex");
+}
+
+function intentResult(intent: typeof paymentIntents.$inferSelect, message: string) {
+  return {
+    status: intent.status,
+    intent: {
+      id: String(intent.id),
+      publicId: intent.publicId,
+      externalId: intent.externalId,
+      clientSecret: intent.clientSecret,
+      amount: intent.amount,
+      currency: intent.currency,
+      environment: intent.environment,
+    },
+    message,
+  };
+}
+
+async function findIntentByIdempotencyKey(idempotencyKey: string) {
+  const db = requireDatabase(await getDb());
+  const rows = await db
+    .select()
+    .from(paymentIntents)
+    .where(eq(paymentIntents.idempotencyKey, idempotencyKey))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function createPaymentIntentForAd(input: {
@@ -55,51 +99,97 @@ export async function createPaymentIntentForAd(input: {
 
   const db = requireDatabase(await getDb());
   const adRows = await db.select().from(ads).where(eq(ads.publicId, input.publicAdId)).limit(1);
-  if (!adRows[0]) throw new Error("AD_NOT_FOUND");
-  if (adRows[0].ownerId !== input.userId) throw new Error("AD_FORBIDDEN");
-
-  const created = await adapter.createPayment({
-    amount: quote.finalPrice,
-    currency: quote.currency,
-    countryCode: input.countryCode,
-    adId: input.publicAdId,
-    userId: String(input.userId),
-  });
-
-  if (!created.externalId || created.status === "not_required") {
-    throw new Error("PAYMENT_PROVIDER_INVALID_RESPONSE");
-  }
+  const ad = adRows[0];
+  if (!ad) throw new Error("AD_NOT_FOUND");
+  if (ad.ownerId !== input.userId) throw new Error("AD_FORBIDDEN");
 
   const environment: PaymentEnvironment = adapter.environment;
-  const intentPublicId = publicId();
-  const insert = await db.insert(paymentIntents).values({
-    publicId: intentPublicId,
+  const idempotencyKey = paymentIdempotencyKey({
     userId: input.userId,
-    adId: adRows[0].id,
-    provider: adapter.id,
-    environment,
+    publicAdId: input.publicAdId,
+    providerId: adapter.id,
     amount: quote.finalPrice,
     currency: quote.currency,
-    status: created.status,
-    externalId: created.externalId,
-    clientSecret: created.clientSecret,
-    webhookVerified: 0,
-    metadata: { quote },
   });
+  const existing = await findIntentByIdempotencyKey(idempotencyKey);
+  if (existing) {
+    return intentResult(existing, "Existing idempotent payment intent returned.");
+  }
 
-  return {
-    status: created.status,
-    intent: {
-      id: String(insert[0].insertId),
+  const intentPublicId = publicId();
+  let reservedId: number;
+  try {
+    const reserved = await db.insert(paymentIntents).values({
       publicId: intentPublicId,
-      externalId: created.externalId,
-      clientSecret: created.clientSecret,
+      idempotencyKey,
+      userId: input.userId,
+      adId: ad.id,
+      provider: adapter.id,
+      environment,
       amount: quote.finalPrice,
       currency: quote.currency,
-      environment,
-    },
-    message: created.message,
-  };
+      status: "processing",
+      externalId: null,
+      clientSecret: null,
+      webhookVerified: 0,
+      metadata: { quote, phase: "provider_request" },
+    });
+    reservedId = Number(reserved[0].insertId);
+  } catch (error) {
+    // A concurrent request may have reserved the same idempotency key.
+    const concurrent = await findIntentByIdempotencyKey(idempotencyKey);
+    if (concurrent) {
+      return intentResult(concurrent, "Concurrent idempotent payment intent returned.");
+    }
+    throw error;
+  }
+
+  try {
+    const created = await adapter.createPayment({
+      amount: quote.finalPrice,
+      currency: quote.currency,
+      countryCode: input.countryCode,
+      adId: input.publicAdId,
+      userId: String(input.userId),
+      metadata: { idempotencyKey, intentPublicId },
+    });
+
+    if (!created.externalId || created.status === "not_required") {
+      throw new Error("PAYMENT_PROVIDER_INVALID_RESPONSE");
+    }
+
+    await db
+      .update(paymentIntents)
+      .set({
+        status: created.status,
+        externalId: created.externalId,
+        clientSecret: created.clientSecret,
+        metadata: { quote, phase: "provider_created" },
+      })
+      .where(eq(paymentIntents.id, reservedId));
+
+    const rows = await db
+      .select()
+      .from(paymentIntents)
+      .where(eq(paymentIntents.id, reservedId))
+      .limit(1);
+    const saved = rows[0];
+    if (!saved) throw new Error("PAYMENT_INTENT_NOT_FOUND");
+    return intentResult(saved, created.message);
+  } catch (error) {
+    await db
+      .update(paymentIntents)
+      .set({
+        status: "failed",
+        metadata: {
+          quote,
+          phase: "provider_failed",
+          error: error instanceof Error ? error.message : "PAYMENT_PROVIDER_FAILED",
+        },
+      })
+      .where(eq(paymentIntents.id, reservedId));
+    throw error;
+  }
 }
 
 function transitionAllowed(current: PaymentStatus, next: PaymentStatus): boolean {
