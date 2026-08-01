@@ -110,6 +110,7 @@ export default function Settings() {
     const current = Boolean(launch[key]);
     const next = { [key]: !current } as Partial<LaunchPolicy>;
     if (key === "globalFreeMode" && !current) {
+      next.globalPaidMode = false;
       next.pricingMode = "free";
       next.paymentRequired = false;
     }
@@ -120,11 +121,10 @@ export default function Settings() {
       next.paymentsEnabled = true;
     }
     setDraft((prev) => ({ ...prev, ...next }));
-    store.setLaunchPolicy(next);
     setMessage(
       locale === "ar"
-        ? "معاينة محلية — اضغط اعتماد لحفظها في الخادم."
-        : "Local preview — tap Apply to save on the server.",
+        ? "هذه معاينة داخل صفحة الإدارة فقط. اضغط اعتماد لتطبيقها على الخادم."
+        : "This is an admin-page preview only. Apply to persist it on the server.",
     );
   };
 
@@ -135,18 +135,22 @@ export default function Settings() {
         setMessage(locale === "ar" ? "لا توجد تغييرات للاعتماد." : "Nothing to apply.");
         return;
       }
-      await updateMutation.mutateAsync(patch);
+      const updated = await updateMutation.mutateAsync(patch);
+      const serverPolicy = (updated as { launchPolicy?: unknown }).launchPolicy;
+      if (serverPolicy) {
+        store.hydrateLaunchPolicy(normalizeLaunchPolicy(serverPolicy));
+      }
       setDraft({});
       setMessage(
         locale === "ar"
-          ? "تم اعتماد المفاتيح. السجلات والمدفوعات السابقة لم تتأثر."
-          : "Flags saved. Past records and payments were not changed.",
+          ? "تم اعتماد المفاتيح على الخادم. السجلات والمدفوعات السابقة لم تتأثر."
+          : "Flags were saved on the server. Past records and payments were not changed.",
       );
     } catch {
       setMessage(
         locale === "ar"
-          ? "حُفظت المعاينة محليًا. تعذر الحفظ على الخادم (صلاحية أو اتصال)."
-          : "Preview kept locally. Server save failed (auth or network).",
+          ? "فشل اعتماد التغييرات على الخادم. لم تتغير إعدادات المنصة، وما زالت المعاينة محفوظة هنا للمراجعة."
+          : "Server apply failed. Platform settings were not changed; the draft remains here for review.",
       );
     }
   };
