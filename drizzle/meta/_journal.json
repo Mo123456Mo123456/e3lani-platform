@@ -57,6 +57,13 @@
       "when": 1785615600000,
       "tag": "0007_scoped_pricing_subjects",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1785619200000,
+      "tag": "0008_payment_intent_idempotency",
+      "breakpoints": true
     }
   ]
 }
