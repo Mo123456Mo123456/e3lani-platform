@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   },
   mediaLabelText: { color: BRAND.white, fontSize: 9, fontWeight: "900" },
   actions: { position: "absolute", right: 12, bottom: 88, gap: 13 },
-  actionsFullscreen: { left: 8, right: undefined, bottom: 18, gap: 8 },
+  actionsFullscreen: { left: 8, right: undefined, bottom: 10, gap: 8 },
   action: { minWidth: 40, minHeight: 40, alignItems: "center", justifyContent: "center", gap: 1 },
   actionIcon: {
     width: 38,
