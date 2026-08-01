@@ -111,6 +111,9 @@ jobs:
       - name: Verify commercial schema and launch defaults
         run: node scripts/verify-commercial-schema.mjs
 
+      - name: Verify OTP registration and reuse prevention
+        run: pnpm exec tsx scripts/verify-otp-flow.ts
+
       - name: Verify cross-account ad publishing flow
         run: pnpm exec tsx scripts/verify-server-ad-flow.ts
 
