@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
 
-import { countries, scopedPricingRules } from "../drizzle/schema";
+import { categories, countries, scopedPricingRules } from "../drizzle/schema";
 import {
   isPublishingFree,
   normalizeLaunchPolicy,
@@ -21,6 +21,8 @@ export type ServerQuoteInput = {
   accountType?: string;
   userId?: number;
   brandId?: number;
+  campaignId?: number;
+  adType?: string;
 };
 
 export async function loadLaunchPolicy(): Promise<LaunchPolicy> {
@@ -39,6 +41,7 @@ export async function listActiveScopedRules(): Promise<ScopedPricingRule[]> {
       countryCode: countries.code,
       categoryId: scopedPricingRules.categoryId,
       accountType: scopedPricingRules.accountType,
+      scopeRef: scopedPricingRules.scopeRef,
       adType: scopedPricingRules.adType,
       basePrice: scopedPricingRules.basePrice,
       discountPrice: scopedPricingRules.discountPrice,
@@ -67,17 +70,28 @@ export async function listActiveScopedRules(): Promise<ScopedPricingRule[]> {
     countryId: row.countryCode ?? null,
     categoryId: row.categoryId != null ? String(row.categoryId) : null,
     accountType: row.accountType,
+    scopeRef: row.scopeRef,
     adType: row.adType,
     basePrice: row.basePrice,
     discountPrice: row.discountPrice,
     currency: row.currency,
-    // DB stores basis points; quote engine uses fraction.
     taxRate: (row.taxRate ?? 0) / 10_000,
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     isActive: row.isActive === 1,
     priority: row.priority,
   }));
+}
+
+async function resolveCategoryReference(categorySlug?: string): Promise<string | undefined> {
+  if (!categorySlug) return undefined;
+  const db = requireDatabase(await getDb());
+  const rows = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(eq(categories.slug, categorySlug), eq(categories.isActive, 1)))
+    .limit(1);
+  return rows[0] ? String(rows[0].id) : undefined;
 }
 
 export async function resolveServerPublishQuote(input: ServerQuoteInput): Promise<{
@@ -87,18 +101,23 @@ export async function resolveServerPublishQuote(input: ServerQuoteInput): Promis
   paymentProviderReady: boolean;
   blockPublishReason: string | null;
 }> {
-  const [policy, rules, config] = await Promise.all([
+  const [policy, rules, config, categoryId] = await Promise.all([
     loadLaunchPolicy(),
     listActiveScopedRules().catch(() => [] as ScopedPricingRule[]),
     getPublicProductConfig(),
+    resolveCategoryReference(input.categorySlug),
   ]);
 
   const quote = resolvePublishQuote({
     policy,
     rules,
-    countryId: input.countryCode,
-    categoryId: input.categorySlug,
+    countryId: input.countryCode?.toUpperCase(),
+    categoryId,
     accountType: input.accountType,
+    userId: input.userId != null ? String(input.userId) : undefined,
+    brandId: input.brandId != null ? String(input.brandId) : undefined,
+    campaignId: input.campaignId != null ? String(input.campaignId) : undefined,
+    adType: input.adType,
   });
 
   const paymentUiVisible = shouldShowPaymentUi(policy);
