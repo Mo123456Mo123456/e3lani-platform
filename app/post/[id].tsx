@@ -57,7 +57,7 @@ export default function ProfilePostDetail() {
         </Pressable>
       </View>
       <FlatList
-        data={post.media.length ? post.media : [{ id: 0, kind: "image" as const, uri: "" }]}
+        data={post.media.length ? post.media : [{ id: 0, kind: "image" as const, uri: "", mediaAssetId: 0 }]}
         horizontal
         pagingEnabled
         keyExtractor={(item) => String(item.id)}

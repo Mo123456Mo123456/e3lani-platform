@@ -44,7 +44,7 @@ describe("visitor-first launch policy", () => {
 
 describe("guest content migration", () => {
   const migration = readFileSync(
-    new URL("../drizzle/0010_guest_profiles_posts_sharing.sql", import.meta.url),
+    new URL("../drizzle/0010_guest_profiles_posts_sharing.sql", import.meta.url).pathname,
     "utf8",
   );
 

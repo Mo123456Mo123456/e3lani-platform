@@ -23,6 +23,7 @@ type FeedLike = {
   aiLabel?: Ad["aiLabel"];
   paymentStatus?: string;
   priceSnapshot?: Ad["priceSnapshot"];
+  metrics?: Ad["metrics"];
 };
 
 export function mapFeedAd(dto: FeedLike): Ad {
@@ -64,5 +65,6 @@ export function mapFeedAd(dto: FeedLike): Ad {
     aiLabel: dto.aiLabel,
     paymentStatus,
     priceSnapshot: dto.priceSnapshot,
+    metrics: dto.metrics,
   };
 }

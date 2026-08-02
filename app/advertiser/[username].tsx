@@ -184,7 +184,7 @@ export default function AdvertiserPage() {
                 <Text style={s.tileMetaText}>
                   {entry.kind === "post"
                     ? entry.item.views.toLocaleString()
-                    : entry.item.metrics.views.toLocaleString()}
+                    : (entry.item.metrics?.views ?? 0).toLocaleString()}
                 </Text>
               </View>
               {entry.kind === "post" && entry.item.isOwner ? (
