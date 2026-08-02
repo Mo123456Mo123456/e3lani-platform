@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: e3lani-live
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: cursor/global-free-launch-0f65
+    autoDeployTrigger: checksPass
+    buildCommand: corepack enable && corepack prepare pnpm@9.12.0 --activate && pnpm install --frozen-lockfile && pnpm build:render
+    startCommand: pnpm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: EXPO_NO_TELEMETRY
+        value: "1"
+      - key: VITE_APP_ID
+        value: e3lani-live
+      - key: EXPO_PUBLIC_APP_ID
+        value: e3lani-live
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
