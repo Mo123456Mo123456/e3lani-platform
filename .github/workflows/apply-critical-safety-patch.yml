@@ -6,6 +6,7 @@ on:
       - cursor/global-free-launch-0f65
     paths:
       - scripts/apply-critical-safety-patch.mjs
+      - scripts/critical-patch.trigger
 
 permissions:
   contents: write
@@ -92,7 +93,7 @@ jobs:
 
       - name: Remove one-time patch machinery
         if: steps.patch.outcome == 'success'
-        run: rm -f scripts/apply-critical-safety-patch.mjs .github/workflows/apply-critical-safety-patch.yml critical-patch.log
+        run: rm -f scripts/apply-critical-safety-patch.mjs scripts/critical-patch.trigger .github/workflows/apply-critical-safety-patch.yml critical-patch.log
 
       - name: Commit verified fixes
         if: steps.patch.outcome == 'success'
