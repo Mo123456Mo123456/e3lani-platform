@@ -13,6 +13,7 @@ import {
   storageGetSignedUrl,
   storagePut,
 } from "./storage";
+import { createVideoPoster } from "./video-processing";
 
 type MediaOwner = ContentIdentity | number;
 
@@ -329,6 +330,17 @@ export async function completeMediaUpload(owner: MediaOwner, ticket: string) {
     });
   }
 
+  const ownerRef = identity.kind === "user" ? identity.userId : identity.visitorSessionId;
+  const ownerKey = `${identity.kind}-${ownerRef}`;
+  const assetId = createHash("sha256").update(payload.key).digest("hex").slice(0, 32);
+  const poster = await createVideoPoster(source).catch(() => {
+    throw new Error("MEDIA_VIDEO_INVALID");
+  });
+  const storedPoster = await storagePut(
+    `media/${ownerKey}/${assetId}/poster.jpg`,
+    poster,
+    "image/jpeg",
+  );
   return createOwnedMediaAsset(identity, {
     storageKey: payload.key,
     originalUrl: `/manus-storage/${payload.key}`,
@@ -347,6 +359,13 @@ export async function completeMediaUpload(owner: MediaOwner, ticket: string) {
         bytes: source.length,
         width: payload.width,
         height: payload.height,
+      },
+      poster: {
+        ...storedPoster,
+        mimeType: "image/jpeg",
+        bytes: poster.length,
+        width: 1200,
+        height: 1200,
       },
     },
   });

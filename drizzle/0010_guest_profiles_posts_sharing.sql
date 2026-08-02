@@ -62,6 +62,26 @@ ALTER TABLE `ads`
 CREATE INDEX `ads_visitor_owner_idx` ON `ads` (`ownerVisitorSessionId`,`adStatus`);
 CREATE INDEX `ads_advertiser_profile_idx` ON `ads` (`advertiserProfileId`,`adStatus`);
 
+-- Create public advertiser identities for existing account-owned ads.
+INSERT INTO `advertiser_profiles` (
+  `publicId`, `userId`, `visitorSessionId`, `username`, `displayName`, `status`
+)
+SELECT
+  CONCAT('profile_user_', u.`id`),
+  u.`id`,
+  NULL,
+  CONCAT('advertiser_', u.`id`),
+  COALESCE(NULLIF(u.`name`, ''), 'معلن إعلاني'),
+  'active'
+FROM `users` u
+WHERE EXISTS (SELECT 1 FROM `ads` a WHERE a.`ownerId` = u.`id`)
+ON DUPLICATE KEY UPDATE `userId` = VALUES(`userId`);
+
+UPDATE `ads` a
+INNER JOIN `advertiser_profiles` p ON p.`userId` = a.`ownerId`
+SET a.`advertiserProfileId` = p.`id`
+WHERE a.`advertiserProfileId` IS NULL;
+
 ALTER TABLE `ad_revisions`
   MODIFY `createdBy` int NULL,
   ADD `createdByVisitorSessionId` int;
@@ -144,6 +164,15 @@ ALTER TABLE `identity_action_events`
   FOREIGN KEY (`visitorSessionId`) REFERENCES `visitor_sessions`(`id`) ON DELETE no action ON UPDATE no action;
 CREATE INDEX `identity_action_user_window_idx` ON `identity_action_events` (`userId`,`actionType`,`createdAt`);
 CREATE INDEX `identity_action_visitor_window_idx` ON `identity_action_events` (`visitorSessionId`,`actionType`,`createdAt`);
+
+-- Preserve rolling-limit history for existing account-owned ads.
+INSERT INTO `identity_action_events` (
+  `userId`, `visitorSessionId`, `actionType`, `contentPublicId`, `idempotencyKey`, `createdAt`
+)
+SELECT
+  a.`ownerId`, NULL, 'main_ad', a.`publicId`, CONCAT('migration:ad:', a.`publicId`), a.`createdAt`
+FROM `ads` a
+WHERE a.`ownerId` IS NOT NULL;
 
 CREATE TABLE `profile_follows` (
   `id` int AUTO_INCREMENT NOT NULL,

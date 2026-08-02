@@ -38,6 +38,7 @@ import {
 import {
   deactivatePricingRule,
   listActiveScopedRules,
+  loadLaunchPolicy,
   resolveServerPublishQuote,
 } from "./pricing-service";
 import { requestOtp, verifyOtp } from "./otp/service";
@@ -49,14 +50,22 @@ import {
   deleteProfilePost,
   getAdvertiserProfileByUsername,
   getOwnAdvertiserProfile,
+  getProfilePost,
   getPostConversionDraft,
   listOwnProfilePosts,
   listProfilePosts,
   recordProfilePostEvent,
+  reportProfilePost,
   toggleProfileFollow,
   updateAdvertiserProfile,
   updateProfilePost,
 } from "./profile-service";
+import {
+  cleanupExpiredShareVariants,
+  createVideoShareVariant,
+  retryVideoShareVariant,
+} from "./share-media-service";
+import { decideReport, listReports, setIdentitySuspension } from "./report-service";
 import { writeAuditLog } from "./audit-service";
 import { eq } from "drizzle-orm";
 import { countries, scopedPricingRules } from "../drizzle/schema";
@@ -148,9 +157,12 @@ function mapServiceError(error: unknown): never {
     message.startsWith("USERNAME_") ||
     message.startsWith("CONTACT_") ||
     message.startsWith("GUEST_") ||
+    message.startsWith("PHONE_") ||
     message.startsWith("PUBLISHING_") ||
     message.startsWith("POST_") ||
-    message.startsWith("IDEMPOTENCY_")
+    message.startsWith("IDEMPOTENCY_") ||
+    message.startsWith("SHARE_") ||
+    message.startsWith("VIDEO_")
   ) {
     throw new TRPCError({ code: "BAD_REQUEST", message });
   }
@@ -200,6 +212,8 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         try {
+          const policy = await loadLaunchPolicy();
+          if (!policy.phoneVerificationEnabled) throw new Error("PHONE_VERIFICATION_DISABLED");
           return await requestOtp(input);
         } catch (error) {
           return mapServiceError(error);
@@ -217,11 +231,13 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         try {
+          const policy = await loadLaunchPolicy();
+          if (!policy.phoneVerificationEnabled) throw new Error("PHONE_VERIFICATION_DISABLED");
           const { user } = await verifyOtp(input);
           const merged = await mergeVisitorIntoUser({
             visitor: ctx.visitor,
             userId: user.id,
-          }).catch(() => ({ merged: false as const, favoritesAdded: 0 }));
+          });
           const session = await sdk.createManagedSession(user, ctx.req, input.clientType, {
             expiresInMs: SESSION_TTL_MS,
           });
@@ -340,6 +356,7 @@ export const appRouter = router({
             forceCountryFilter: z.boolean().optional(),
             categoryFilter: z.string().trim().max(120).optional(),
             countryGateCompleted: z.boolean().optional(),
+            blockedOwners: z.array(z.string().trim().min(1).max(64)).max(500).optional(),
           }),
           savedAdPublicIds: z.array(z.string().trim().min(2).max(32)).max(200).optional(),
         }),
@@ -407,6 +424,18 @@ export const appRouter = router({
       }),
   }),
   profilePosts: router({
+    get: publicProcedure
+      .input(z.object({ id: z.string().trim().min(2).max(32) }))
+      .query(async ({ ctx, input }) => {
+        try {
+          return await getProfilePost(
+            input.id,
+            contentIdentity(ctx.user, ctx.visitor ?? null),
+          );
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
     list: publicProcedure
       .input(z.object({ username: z.string().trim().min(3).max(31) }))
       .query(async ({ ctx, input }) => {
@@ -485,6 +514,68 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         try {
           return await recordProfilePostEvent(input.id, input.eventType);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    report: identityProcedure
+      .input(
+        z.object({
+          id: z.string().trim().min(2).max(32),
+          reason: z.enum([
+            "spam",
+            "fraud",
+            "prohibited",
+            "misleading",
+            "copyright",
+            "impersonation",
+            "sexual",
+            "weapons",
+            "drugs",
+            "other",
+          ]),
+          details: z.string().trim().max(2000).optional(),
+          idempotencyKey: z.string().trim().min(16).max(96),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await reportProfilePost({
+            identity: ctx.identity,
+            publicPostId: input.id,
+            reason: input.reason,
+            details: input.details,
+            idempotencyKey: input.idempotencyKey,
+          });
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+  }),
+  sharing: router({
+    createVideoVariant: identityProcedure
+      .input(
+        z.object({
+          adId: z.string().trim().min(2).max(32),
+          idempotencyKey: z.string().trim().min(16).max(96),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await createVideoShareVariant({
+            identity: ctx.identity,
+            publicAdId: input.adId,
+            idempotencyKey: input.idempotencyKey,
+          });
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    retryVideoVariant: identityProcedure
+      .input(z.object({ id: z.string().trim().min(2).max(32) }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await retryVideoShareVariant(ctx.identity, input.id);
         } catch (error) {
           return mapServiceError(error);
         }
@@ -592,6 +683,73 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         try {
           return await adsService.cleanupOrphanMediaAssets(input);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    cleanupShareVariants: adminProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(1000).optional() }).optional())
+      .mutation(async ({ input }) => {
+        try {
+          return await cleanupExpiredShareVariants(input?.limit);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    reports: adminProcedure
+      .input(
+        z
+          .object({
+            status: z.enum(["open", "assigned", "resolved", "dismissed"]).optional(),
+            limit: z.number().int().min(1).max(500).optional(),
+          })
+          .optional(),
+      )
+      .query(async ({ input }) => {
+        try {
+          return await listReports(input);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    decideReport: adminProcedure
+      .input(
+        z.object({
+          reportId: z.string().trim().min(2).max(32),
+          action: z.enum([
+            "dismiss",
+            "resolve",
+            "remove_content",
+            "restore_content",
+            "suspend_reporter",
+          ]),
+          reason: z.string().trim().min(3).max(1000),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await decideReport({
+            actorId: ctx.user.id,
+            reportPublicId: input.reportId,
+            action: input.action,
+            reason: input.reason,
+          });
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    setIdentitySuspension: adminProcedure
+      .input(
+        z.object({
+          subjectType: z.enum(["user", "visitor"]),
+          subjectId: z.number().int().positive(),
+          suspended: z.boolean(),
+          reason: z.string().trim().min(3).max(1000),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await setIdentitySuspension({ actorId: ctx.user.id, ...input });
         } catch (error) {
           return mapServiceError(error);
         }

@@ -18,6 +18,7 @@ import {
   profileFollows,
   profilePostMedia,
   profilePosts,
+  reports,
   users,
 } from "../drizzle/schema";
 import { scanAdContent } from "../lib/moderation/ai-scan";
@@ -385,6 +386,23 @@ export async function listProfilePosts(username: string, identity?: ContentIdent
   return mapPosts(rows, identity);
 }
 
+export async function getProfilePost(publicPostId: string, identity?: ContentIdentity | null) {
+  const db = requireDatabase(await getDb());
+  const rows = await db
+    .select()
+    .from(profilePosts)
+    .where(and(eq(profilePosts.publicId, publicPostId), isNull(profilePosts.deletedAt)))
+    .limit(1);
+  if (!rows[0]) throw new Error("PROFILE_POST_NOT_FOUND");
+  const owner =
+    Boolean(identity) &&
+    (identity!.kind === "user"
+      ? rows[0].ownerId === identity!.userId
+      : rows[0].ownerVisitorSessionId === identity!.visitorSessionId);
+  if (rows[0].postStatus !== "active" && !owner) throw new Error("PROFILE_POST_NOT_FOUND");
+  return (await mapPosts(rows, identity))[0];
+}
+
 export async function listOwnProfilePosts(identity: ContentIdentity) {
   const db = requireDatabase(await getDb());
   const rows = await db
@@ -547,6 +565,85 @@ export async function recordProfilePostEvent(
     .update(profilePosts)
     .set({ [eventType === "view" ? "views" : "shares"]: sql`${column} + 1` })
     .where(and(eq(profilePosts.publicId, publicPostId), eq(profilePosts.postStatus, "active")));
+  return { ok: true as const };
+}
+
+export async function reportProfilePost(input: {
+  identity: ContentIdentity;
+  publicPostId: string;
+  idempotencyKey: string;
+  reason:
+    | "spam"
+    | "fraud"
+    | "prohibited"
+    | "misleading"
+    | "copyright"
+    | "impersonation"
+    | "sexual"
+    | "weapons"
+    | "drugs"
+    | "other";
+  details?: string;
+}) {
+  const db = requireDatabase(await getDb());
+  const policy = await loadLaunchPolicy();
+  const post = await db
+    .select({ id: profilePosts.id })
+    .from(profilePosts)
+    .where(
+      and(
+        eq(profilePosts.publicId, input.publicPostId),
+        eq(profilePosts.postStatus, "active"),
+        isNull(profilePosts.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!post[0]) throw new Error("PROFILE_POST_NOT_FOUND");
+  const reportPublicId = publicId("rep");
+  await db.transaction(async (tx) => {
+    await lockIdentity(tx, input.identity);
+    const duplicate = await findIdempotentAction(tx, input.idempotencyKey, "report");
+    if (duplicate) return duplicate;
+    await enforceRollingLimit(tx, {
+      identity: input.identity,
+      actionType: "report",
+      limit: policy.reportDailyLimit,
+    });
+    await tx.insert(reports).values({
+      publicId: reportPublicId,
+      reporterId: input.identity.userId,
+      reporterVisitorSessionId: input.identity.visitorSessionId,
+      profilePostId: post[0].id,
+      reason: input.reason,
+      details: input.details?.trim().slice(0, 2000) ?? null,
+      status: "open",
+    });
+    const open = await tx
+      .select({ id: moderationCases.id })
+      .from(moderationCases)
+      .where(
+        and(
+          eq(moderationCases.profilePostId, post[0].id),
+          inArray(moderationCases.status, ["queued", "in_review", "appealed"]),
+        ),
+      )
+      .limit(1);
+    if (!open[0]) {
+      await tx.insert(moderationCases).values({
+        profilePostId: post[0].id,
+        status: "queued",
+        riskScore: input.reason === "weapons" || input.reason === "drugs" || input.reason === "sexual" ? 85 : 50,
+        automatedSignals: { source: "user_report", reason: input.reason },
+      });
+    }
+    await recordIdentityAction(tx, {
+      identity: input.identity,
+      actionType: "report",
+      contentPublicId: reportPublicId,
+      idempotencyKey: input.idempotencyKey,
+    });
+    return reportPublicId;
+  });
   return { ok: true as const };
 }
 

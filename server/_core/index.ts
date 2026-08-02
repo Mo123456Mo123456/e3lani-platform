@@ -9,6 +9,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { registerPublicShareRoutes } from "../public-share-routes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -57,6 +58,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   registerStorageProxy(app);
+  registerPublicShareRoutes(app);
   registerOAuthRoutes(app);
 
   app.get("/api/health", (_req, res) => {

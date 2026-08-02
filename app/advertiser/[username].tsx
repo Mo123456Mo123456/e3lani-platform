@@ -21,11 +21,13 @@ import { BRAND } from "@/lib/e3lani-data";
 import { useI18n } from "@/lib/i18n";
 import { mapFeedAd } from "@/lib/map-feed-ad";
 import { trpc } from "@/lib/trpc";
+import { useE3lani } from "@/lib/e3lani-store";
 
 type Tab = "posts" | "ads";
 
 export default function AdvertiserPage() {
   const { username = "" } = useLocalSearchParams<{ username: string }>();
+  const { launchPolicy } = useE3lani();
   const { width } = useWindowDimensions();
   const { locale, isRTL } = useI18n();
   const [tab, setTab] = useState<Tab>("posts");
@@ -104,7 +106,7 @@ export default function AdvertiserPage() {
               )}
               <View style={s.nameRow}>
                 <Text style={s.name}>{profile.displayName}</Text>
-                {profile.isVerified ? <MaterialIcons name="verified" size={20} color={BRAND.yellowDark} /> : null}
+                {launchPolicy.brandVerificationEnabled && profile.isVerified ? <MaterialIcons name="verified" size={20} color={BRAND.yellowDark} /> : null}
               </View>
               <Text style={s.username}>@{profile.username}</Text>
               {profile.bio ? <Text style={s.bio}>{profile.bio}</Text> : null}
@@ -167,6 +169,7 @@ export default function AdvertiserPage() {
                   router.push({ pathname: "/ad/[id]", params: { id: item.id } } as never);
                 } else {
                   void postEvent.mutateAsync({ id: item.id, eventType: "view" }).catch(() => undefined);
+                  router.push({ pathname: "/post/[id]", params: { id: item.id } } as never);
                 }
               }}
               style={[s.tile, { width: tileWidth, height: tileWidth * 1.33 }]}
@@ -180,11 +183,11 @@ export default function AdvertiserPage() {
                 <MaterialIcons name={tab === "posts" ? "visibility" : "campaign"} size={14} color={BRAND.white} />
                 <Text style={s.tileMetaText}>
                   {entry.kind === "post"
-                    ? item.views.toLocaleString()
-                    : item.metrics.views.toLocaleString()}
+                    ? entry.item.views.toLocaleString()
+                    : entry.item.metrics.views.toLocaleString()}
                 </Text>
               </View>
-              {entry.kind === "post" && item.isOwner ? (
+              {entry.kind === "post" && entry.item.isOwner ? (
                 <Pressable
                   onPress={() => router.push({ pathname: "/create-ad", params: { sourcePostId: item.id } } as never)}
                   style={s.convert}

@@ -40,8 +40,6 @@ type Prefs = {
   blockedOwners: string[];
   launchMode: LaunchMode;
   launchPolicy: LaunchPolicy;
-  /** Stable anonymous visitor id for merge-after-login and event attribution. */
-  anonymousId: string;
 };
 
 type State = Prefs & {
@@ -99,8 +97,6 @@ const PREFS_KEY = "e3lani.prefs.v2";
 const uid = (prefix: string) =>
   `${prefix}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
-const makeAnonymousId = () => `anon_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-
 const defaultPrefs: Prefs = {
   accountCountry: "SA",
   marketCode: GLOBAL_MARKET,
@@ -110,7 +106,6 @@ const defaultPrefs: Prefs = {
   blockedOwners: [],
   launchMode: DEFAULT_LAUNCH_MODE,
   launchPolicy: DEFAULT_LAUNCH_POLICY,
-  anonymousId: makeAnonymousId(),
 };
 
 const initial: State = {
@@ -151,7 +146,6 @@ function pickPrefs(state: State): Prefs {
     blockedOwners: state.blockedOwners,
     launchMode: state.launchMode,
     launchPolicy: state.launchPolicy,
-    anonymousId: state.anonymousId || makeAnonymousId(),
   };
 }
 
@@ -189,10 +183,6 @@ export function E3laniProvider({ children }: { children: ReactNode }) {
         ...legacyPrefs,
         ...stored,
         marketCode: stored.marketCode ?? legacyPrefs.marketCode ?? GLOBAL_MARKET,
-        anonymousId:
-          (typeof stored.anonymousId === "string" && stored.anonymousId) ||
-          (typeof legacyPrefs.anonymousId === "string" && legacyPrefs.anonymousId) ||
-          makeAnonymousId(),
         ads: [],
         notifications: [],
         ready: true,

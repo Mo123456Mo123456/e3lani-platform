@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AdminShell } from "@/components/e3lani/admin-shell";
-import { PrimaryButton } from "@/components/e3lani/ui";
+import { Field, PrimaryButton } from "@/components/e3lani/ui";
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import {
@@ -14,7 +14,9 @@ import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
 
-type FlagKey = keyof LaunchPolicy;
+type FlagKey = {
+  [Key in keyof LaunchPolicy]: LaunchPolicy[Key] extends boolean ? Key : never;
+}[keyof LaunchPolicy];
 
 const TOGGLE_FLAGS: { key: FlagKey; en: string; ar: string }[] = [
   { key: "globalFreeMode", en: "Global Free Mode", ar: "وضع المجاني العالمي" },
@@ -34,6 +36,14 @@ const TOGGLE_FLAGS: { key: FlagKey; en: string; ar: string }[] = [
   { key: "aiModeration", en: "AI Moderation", ar: "مراجعة الذكاء الاصطناعي" },
   { key: "manualPreApproval", en: "Manual Pre-Approval", ar: "موافقة بشرية مسبقة" },
   { key: "postPublishReports", en: "Post-Publish Reports", ar: "البلاغات بعد النشر" },
+  { key: "authenticationRequired", en: "Authentication Required", ar: "التسجيل مطلوب" },
+  { key: "guestPublishingEnabled", en: "Guest Publishing", ar: "نشر الزوار" },
+  { key: "phoneVerificationEnabled", en: "Phone Verification", ar: "التحقق بالجوال" },
+  { key: "emailVerificationEnabled", en: "Email Verification", ar: "التحقق بالبريد" },
+  { key: "verificationRequiredForPublishing", en: "Verification Before Publishing", ar: "التحقق مطلوب للنشر" },
+  { key: "brandVerificationEnabled", en: "Brand Verification", ar: "توثيق البراند" },
+  { key: "watermarkEnabled", en: "Video Share Watermark", ar: "العلامة المائية للفيديو" },
+  { key: "postToAdEnabled", en: "Post to Ad Conversion", ar: "تحويل المنشور إلى إعلان" },
 ];
 
 export default function Settings() {
@@ -184,6 +194,59 @@ export default function Settings() {
           );
         })}
 
+        <Text style={s.section}>{locale === "ar" ? "الحدود والمراجعة" : "Limits and moderation"}</Text>
+        <Field
+          label={locale === "ar" ? "حد الإعلانات خلال 24 ساعة" : "Ads per 24 hours"}
+          value={String(launch.mainAdsDailyLimit)}
+          onChangeText={(value) => {
+            const number = Number.parseInt(value, 10);
+            if (Number.isInteger(number)) setDraft((current) => ({ ...current, mainAdsDailyLimit: number }));
+          }}
+          keyboardType="number-pad"
+        />
+        <Field
+          label={locale === "ar" ? "حد المنشورات خلال 24 ساعة" : "Posts per 24 hours"}
+          value={String(launch.profilePostsDailyLimit)}
+          onChangeText={(value) => {
+            const number = Number.parseInt(value, 10);
+            if (Number.isInteger(number)) setDraft((current) => ({ ...current, profilePostsDailyLimit: number }));
+          }}
+          keyboardType="number-pad"
+        />
+        <Field
+          label={locale === "ar" ? "حد البلاغات خلال 24 ساعة" : "Reports per 24 hours"}
+          value={String(launch.reportDailyLimit)}
+          onChangeText={(value) => {
+            const number = Number.parseInt(value, 10);
+            if (Number.isInteger(number)) setDraft((current) => ({ ...current, reportDailyLimit: number }));
+          }}
+          keyboardType="number-pad"
+        />
+        <View style={s.modeRow}>
+          {(["post_publish", "pre_publish"] as const).map((mode) => (
+            <Pressable
+              key={mode}
+              onPress={() => setDraft((current) => ({
+                ...current,
+                moderationMode: mode,
+                manualPreApproval: mode === "pre_publish",
+              }))}
+              style={[s.mode, launch.moderationMode === mode && s.rowOn]}
+            >
+              <Text style={s.label}>
+                {mode === "post_publish"
+                  ? locale === "ar" ? "مراجعة بعد النشر" : "Post-publish"
+                  : locale === "ar" ? "مراجعة مسبقة" : "Pre-publish"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <Field
+          label={locale === "ar" ? "نص العلامة المائية" : "Watermark text"}
+          value={launch.watermarkText}
+          onChangeText={(value) => setDraft((current) => ({ ...current, watermarkText: value }))}
+        />
+
         <Text style={s.section}>
           {locale === "ar" ? "أثر التغيير قبل الاعتماد" : "Impact before applying"}
         </Text>
@@ -266,6 +329,17 @@ const s = StyleSheet.create({
     gap: 12,
   },
   rowOn: { borderColor: BRAND.yellowDark, backgroundColor: "#FFF8D6" },
+  modeRow: { flexDirection: "row-reverse", gap: 8 },
+  mode: {
+    flex: 1,
+    minHeight: 54,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
   label: {
     flex: 1,
     color: BRAND.black,

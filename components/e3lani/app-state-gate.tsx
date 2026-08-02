@@ -55,6 +55,7 @@ function VisitorIdentitySync() {
           forceCountryFilter: store.forceCountryFilter,
           categoryFilter: store.categoryFilter,
           countryGateCompleted: store.countryGateCompleted,
+          blockedOwners: store.blockedOwners.slice(0, 500),
         },
         savedAdPublicIds: store.savedIds.slice(0, 200),
       });
@@ -71,6 +72,7 @@ function VisitorIdentitySync() {
     store.forceCountryFilter,
     store.categoryFilter,
     store.countryGateCompleted,
+    store.blockedOwners,
     store.savedIds,
   ]);
 

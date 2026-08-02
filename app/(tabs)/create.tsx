@@ -13,6 +13,7 @@ export default function Create() {
   const { user, launchPolicy } = useE3lani();
   const { t, locale } = useI18n();
   const paymentVisible = shouldShowPaymentUi(launchPolicy);
+  const requiresLogin = launchPolicy.authenticationRequired && !user;
 
   return (
     <ScreenContainer className="px-6">
@@ -56,11 +57,21 @@ export default function Create() {
 
         <View style={styles.button}>
           <PrimaryButton
-            label={user ? t("publishNow") : t("signIn")}
-            icon={user ? "campaign" : "login"}
-            onPress={() => router.push((user ? "/create-ad" : "/login") as never)}
+            label={requiresLogin ? t("signIn") : t("publishNow")}
+            icon={requiresLogin ? "login" : "campaign"}
+            onPress={() => router.push((requiresLogin ? "/login" : "/create-ad") as never)}
           />
         </View>
+        {!requiresLogin && launchPolicy.guestPublishingEnabled ? (
+          <View style={styles.buttonSecondary}>
+            <PrimaryButton
+              label={locale === "ar" ? "منشور صفحة المعلن" : "Advertiser profile post"}
+              icon="add-box"
+              tone="dark"
+              onPress={() => router.push("/create-post" as never)}
+            />
+          </View>
+        ) : null}
       </View>
     </ScreenContainer>
   );
@@ -130,4 +141,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   button: { width: "100%", maxWidth: 420, marginTop: 24 },
+  buttonSecondary: { width: "100%", maxWidth: 420, marginTop: 10 },
 });

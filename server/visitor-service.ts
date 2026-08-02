@@ -7,7 +7,10 @@ import {
   favorites,
   identityActionEvents,
   mediaAssets,
+  profileFollows,
   profilePosts,
+  reports,
+  shareMediaVariants,
   visitorSessions,
 } from "../drizzle/schema";
 import type { AuthenticatedVisitor } from "./visitor-token";
@@ -19,6 +22,7 @@ export type VisitorPrefs = {
   forceCountryFilter?: boolean;
   categoryFilter?: string;
   countryGateCompleted?: boolean;
+  blockedOwners?: string[];
 };
 
 export async function upsertVisitorSession(input: {
@@ -77,11 +81,32 @@ export async function mergeVisitorIntoUser(input: {
       .for("update");
     if (!rows[0]) return { merged: false as const, favoritesAdded: 0 };
 
+    const legacySavedIds = Array.isArray(rows[0].savedAdPublicIds)
+      ? rows[0].savedAdPublicIds
+      : [];
+    let favoritesAdded = 0;
+    for (const publicAdId of legacySavedIds) {
+      const ad = await tx
+        .select({ id: ads.id })
+        .from(ads)
+        .where(eq(ads.publicId, publicAdId))
+        .limit(1);
+      if (!ad[0]) continue;
+      const duplicate = await tx
+        .select({ id: favorites.id })
+        .from(favorites)
+        .where(and(eq(favorites.userId, input.userId), eq(favorites.adId, ad[0].id)))
+        .limit(1);
+      if (!duplicate[0]) {
+        await tx.insert(favorites).values({ userId: input.userId, adId: ad[0].id });
+        favoritesAdded += 1;
+      }
+    }
+
     const guestFavorites = await tx
       .select({ id: favorites.id, adId: favorites.adId })
       .from(favorites)
       .where(eq(favorites.visitorSessionId, input.visitor!.id));
-    let favoritesAdded = 0;
     for (const favorite of guestFavorites) {
       const duplicate = await tx
         .select({ id: favorites.id })
@@ -147,6 +172,39 @@ export async function mergeVisitorIntoUser(input: {
       .update(identityActionEvents)
       .set({ userId: input.userId, visitorSessionId: null })
       .where(eq(identityActionEvents.visitorSessionId, input.visitor!.id));
+    await tx
+      .update(reports)
+      .set({ reporterId: input.userId, reporterVisitorSessionId: null })
+      .where(eq(reports.reporterVisitorSessionId, input.visitor!.id));
+    await tx
+      .update(shareMediaVariants)
+      .set({ requestedByUserId: input.userId, requestedByVisitorSessionId: null })
+      .where(eq(shareMediaVariants.requestedByVisitorSessionId, input.visitor!.id));
+
+    const guestFollows = await tx
+      .select()
+      .from(profileFollows)
+      .where(eq(profileFollows.visitorSessionId, input.visitor!.id));
+    for (const follow of guestFollows) {
+      const duplicate = await tx
+        .select({ id: profileFollows.id })
+        .from(profileFollows)
+        .where(
+          and(
+            eq(profileFollows.advertiserProfileId, follow.advertiserProfileId),
+            eq(profileFollows.userId, input.userId),
+          ),
+        )
+        .limit(1);
+      if (duplicate[0]) {
+        await tx.delete(profileFollows).where(eq(profileFollows.id, follow.id));
+      } else {
+        await tx
+          .update(profileFollows)
+          .set({ userId: input.userId, visitorSessionId: null })
+          .where(eq(profileFollows.id, follow.id));
+      }
+    }
 
     await tx
       .update(visitorSessions)

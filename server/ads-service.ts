@@ -265,10 +265,10 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
 
   const requestedPublicId = publicId("ad");
 
-  const adPublicId = await db.transaction(async (tx) => {
+  const creation = await db.transaction(async (tx) => {
     await lockIdentity(tx, input.identity);
     const duplicate = await findIdempotentAction(tx, input.idempotencyKey, "main_ad");
-    if (duplicate) return duplicate;
+    if (duplicate) return { publicId: duplicate, duplicate: true as const };
     await enforceRollingLimit(tx, {
       identity: input.identity,
       actionType: "main_ad",
@@ -392,10 +392,11 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
       contentPublicId: requestedPublicId,
       idempotencyKey: input.idempotencyKey,
     });
-    return requestedPublicId;
+    return { publicId: requestedPublicId, duplicate: false as const };
   });
+  const adPublicId = creation.publicId;
 
-  if (couponId && input.identity.userId) {
+  if (!creation.duplicate && couponId && input.identity.userId) {
     const adRows = await db
       .select({ id: ads.id })
       .from(ads)
@@ -413,9 +414,9 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
   const dto = await getFeedAdByPublicId(adPublicId);
   if (!dto) throw new Error("AD_CREATE_FAILED");
 
-  if (dto.status === "active" && input.identity.userId) {
+  if (!creation.duplicate && dto.status === "active" && input.identity.userId) {
     await notifyAdPublished(input.identity.userId, dto.id, dto.title).catch(() => undefined);
-  } else if (dto.status === "paused" && input.identity.userId) {
+  } else if (!creation.duplicate && dto.status === "paused" && input.identity.userId) {
     await notifyAdPaused(
       input.identity.userId,
       dto.id,
@@ -423,15 +424,17 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     ).catch(() => undefined);
   }
 
-  await writeAuditLog({
-    actorId: input.identity.userId,
-    actorVisitorSessionId: input.identity.visitorSessionId,
-    actorRole: input.identity.kind === "user" ? "advertiser" : "visitor",
-    action: "ad.create",
-    entityType: "ad",
-    entityId: dto.id,
-    afterState: { status: dto.status, paymentStatus: dto.paymentStatus, countryCode: dto.countryCode },
-  }).catch(() => undefined);
+  if (!creation.duplicate) {
+    await writeAuditLog({
+      actorId: input.identity.userId,
+      actorVisitorSessionId: input.identity.visitorSessionId,
+      actorRole: input.identity.kind === "user" ? "advertiser" : "visitor",
+      action: "ad.create",
+      entityType: "ad",
+      entityId: dto.id,
+      afterState: { status: dto.status, paymentStatus: dto.paymentStatus, countryCode: dto.countryCode },
+    }).catch(() => undefined);
+  }
 
   return dto;
 }
@@ -759,7 +762,11 @@ export async function reportAd(input: {
 }) {
   const db = requireDatabase(await getDb());
   const policy = await loadLaunchPolicy();
-  const adRows = await db.select({ id: ads.id }).from(ads).where(eq(ads.publicId, input.publicAdId)).limit(1);
+  const adRows = await db
+    .select({ id: ads.id, revisionId: ads.currentRevisionId })
+    .from(ads)
+    .where(eq(ads.publicId, input.publicAdId))
+    .limit(1);
   if (!adRows[0]) throw new Error("AD_NOT_FOUND");
   const reportPublicId = publicId("rep", 32);
   await db.transaction(async (tx) => {
@@ -780,6 +787,27 @@ export async function reportAd(input: {
       details: input.details?.trim().slice(0, 2000) ?? null,
       status: "open",
     });
+    if (adRows[0].revisionId) {
+      const openCase = await tx
+        .select({ id: moderationCases.id })
+        .from(moderationCases)
+        .where(
+          and(
+            eq(moderationCases.adId, adRows[0].id),
+            inArray(moderationCases.status, ["queued", "in_review", "appealed"]),
+          ),
+        )
+        .limit(1);
+      if (!openCase[0]) {
+        await tx.insert(moderationCases).values({
+          adId: adRows[0].id,
+          revisionId: adRows[0].revisionId,
+          status: "queued",
+          riskScore: input.reason === "weapons" || input.reason === "drugs" || input.reason === "sexual" ? 85 : 50,
+          automatedSignals: { source: "user_report", reason: input.reason },
+        });
+      }
+    }
     await recordIdentityAction(tx, {
       identity: input.identity,
       actionType: "report",
