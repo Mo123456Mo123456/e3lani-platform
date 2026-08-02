@@ -31,6 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: cursor/global-free-launch-0f65
 
       - name: Apply approved critical safety patch
         run: |
@@ -147,7 +148,7 @@ jobs:
         run: docker build --tag e3lani-ci:${{ github.sha }} .
 
       - name: Commit verified safety fixes to branch
-        if: github.event_name == 'push' && github.ref_name == 'cursor/global-free-launch-0f65'
+        if: github.event_name == 'pull_request' && github.head_ref == 'cursor/global-free-launch-0f65'
         run: |
           node <<'NODE'
           const fs = require("node:fs");
@@ -156,6 +157,10 @@ jobs:
           source = source.replace(
             "permissions:\n  contents: write",
             "permissions:\n  contents: read",
+          );
+          source = source.replace(
+            "with:\n          fetch-depth: 0\n          ref: cursor/global-free-launch-0f65",
+            "with:\n          fetch-depth: 0",
           );
           source = source.replace(
             /\n      - name: Apply approved critical safety patch[\s\S]*?\n      - name: Install pnpm/,
@@ -170,6 +175,9 @@ jobs:
           }
           if (source.includes("contents: write")) {
             throw new Error("Permanent CI retained write permissions");
+          }
+          if (source.includes("ref: cursor/global-free-launch-0f65")) {
+            throw new Error("Permanent CI retained the temporary branch checkout");
           }
           fs.writeFileSync(path, source);
           NODE
