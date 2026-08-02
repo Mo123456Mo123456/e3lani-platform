@@ -32,6 +32,7 @@ import {
 } from "./content-identity";
 import { getDb, requireDatabase } from "./db";
 import { loadLaunchPolicy } from "./pricing-service";
+import { moderateProfilePostMediaAfterPublish } from "./media-moderation-service";
 
 function publicId(prefix: string, max = 32): string {
   return `${prefix}_${randomBytes(10).toString("hex")}`.slice(0, max);
@@ -439,6 +440,8 @@ export async function createProfilePost(input: {
   const scan = policy.aiModeration
     ? scanAdContent({ title: input.title, description: input.description })
     : { autoAction: "keep_published" as const, reasons: [], confidence: 0, label: "SAFE" as const };
+  const severe = scan.autoAction === "auto_pause";
+  const postPublishModeration = policy.moderationMode === "post_publish";
 
   const resultId = await db.transaction(async (tx) => {
     await lockIdentity(tx, input.identity);
@@ -459,7 +462,6 @@ export async function createProfilePost(input: {
       throw new Error("MEDIA_ASSET_NOT_READY");
     }
 
-    const severe = scan.autoAction === "auto_pause";
     const inserted = await tx.insert(profilePosts).values({
       publicId: postPublicId,
       advertiserProfileId: profile.id,
@@ -467,8 +469,11 @@ export async function createProfilePost(input: {
       ownerVisitorSessionId: input.identity.visitorSessionId,
       title: input.title.trim().slice(0, 160),
       description: input.description.trim(),
-      postStatus: severe ? "paused" : "active",
-      moderationStatus: severe ? "rejected" : scan.autoAction === "flag_for_admin" ? "queued" : "approved",
+      postStatus: severe && !postPublishModeration ? "paused" : "active",
+      moderationStatus:
+        severe
+          ? postPublishModeration ? "queued" : "rejected"
+          : scan.autoAction === "flag_for_admin" ? "queued" : "approved",
     });
     const postId = Number(inserted[0].insertId);
     for (const [index, mediaAssetId] of input.mediaAssetIds.entries()) {
@@ -492,6 +497,16 @@ export async function createProfilePost(input: {
     });
     return postPublicId;
   });
+
+  if (severe && postPublishModeration) {
+    await db
+      .update(profilePosts)
+      .set({ postStatus: "paused", moderationStatus: "rejected" })
+      .where(eq(profilePosts.publicId, resultId));
+  }
+  if (postPublishModeration && policy.aiModeration) {
+    await moderateProfilePostMediaAfterPublish(resultId);
+  }
 
   const rows = await db
     .select()

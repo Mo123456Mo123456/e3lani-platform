@@ -35,6 +35,7 @@ import { getDb, requireDatabase } from "./db";
 import { notifyAdPaused, notifyAdPublished } from "./notifications-service";
 import { loadLaunchPolicy, resolveServerPublishQuote } from "./pricing-service";
 import { ensureAdvertiserProfile } from "./profile-service";
+import { moderateAdMediaAfterPublish } from "./media-moderation-service";
 
 function publicId(prefix: string, max = 24) {
   return `${prefix}${randomBytes(8).toString("hex")}`.slice(0, max);
@@ -245,13 +246,15 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
   let moderationStatus: (typeof ads.$inferInsert)["moderationStatus"] = "approved";
   let activatedAt: Date | null = now;
   let pausedAt: Date | null = null;
+  const postPublishModeration =
+    policy.moderationMode === "post_publish" && quote.paymentStatus !== "pending";
 
   if (quote.paymentStatus === "pending") {
     adStatus = "awaiting_payment";
     paymentStatus = "pending";
     moderationStatus = "not_submitted";
     activatedAt = null;
-  } else if (scan.autoAction === "auto_pause") {
+  } else if (!postPublishModeration && scan.autoAction === "auto_pause") {
     adStatus = "paused";
     pausedAt = now;
     moderationStatus = "rejected";
@@ -259,7 +262,10 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     adStatus = "pending_review";
     moderationStatus = "queued";
     activatedAt = null;
-  } else if (scan.autoAction === "flag_for_admin") {
+  } else if (
+    scan.autoAction === "flag_for_admin" ||
+    (postPublishModeration && scan.autoAction === "auto_pause")
+  ) {
     moderationStatus = "queued";
   }
 
@@ -395,6 +401,20 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     return { publicId: requestedPublicId, duplicate: false as const };
   });
   const adPublicId = creation.publicId;
+
+  if (!creation.duplicate && postPublishModeration && scan.autoAction === "auto_pause") {
+    await db
+      .update(ads)
+      .set({
+        adStatus: "paused",
+        moderationStatus: "rejected",
+        pausedAt: new Date(),
+      })
+      .where(eq(ads.publicId, adPublicId));
+  }
+  if (!creation.duplicate && postPublishModeration && policy.aiModeration) {
+    await moderateAdMediaAfterPublish(adPublicId);
+  }
 
   if (!creation.duplicate && couponId && input.identity.userId) {
     const adRows = await db
