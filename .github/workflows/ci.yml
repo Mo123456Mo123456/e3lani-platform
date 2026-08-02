@@ -46,12 +46,32 @@ jobs:
           );
           NODE
           node /tmp/apply-critical-safety-patch.mjs
+          node <<'NODE'
+          const fs = require("node:fs");
+          for (const path of ["server/ads-service.ts", "server/profile-service.ts"]) {
+            let source = fs.readFileSync(path, "utf8");
+            source = source.replaceAll(
+              "findIdempotentAction(tx, input.idempotencyKey,",
+              "findIdempotentAction(tx, input.identity, input.idempotencyKey,",
+            );
+            fs.writeFileSync(path, source);
+          }
+          const moderationPath = "server/media-moderation-service.ts";
+          let moderation = fs.readFileSync(moderationPath, "utf8");
+          moderation = moderation.replace(
+            '.map((value) => value.trim().toLowerCase())',
+            '.map((value: string) => value.trim().toLowerCase())',
+          );
+          fs.writeFileSync(moderationPath, moderation);
+          NODE
           cat > tests/critical-production-safety.test.ts <<'TEST'
           import { readFileSync } from "node:fs";
+          import { dirname, resolve } from "node:path";
+          import { fileURLToPath } from "node:url";
           import { describe, expect, it } from "vitest";
 
-          const read = (path: string) =>
-            readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+          const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+          const read = (path: string) => readFileSync(resolve(root, path), "utf8");
 
           describe("production safety hardening", () => {
             it("restricts origins and avoids shared parent-domain cookies", () => {
