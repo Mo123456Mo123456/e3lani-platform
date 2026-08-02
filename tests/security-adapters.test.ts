@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   generateOtpCode,
   hashOtpCode,
   hashOtpSubject,
   productionOtpAdapter,
+  twilioOtpAdapter,
 } from "../server/otp/providers";
 import { sandboxPaymentAdapter } from "../lib/payments/providers";
 
@@ -12,6 +13,7 @@ const originalEnv = { ...process.env };
 
 afterEach(() => {
   process.env = { ...originalEnv };
+  vi.restoreAllMocks();
 });
 
 describe("OTP provider security", () => {
@@ -29,7 +31,7 @@ describe("OTP provider security", () => {
     expect(hashOtpCode("123456")).toBe(codeHash);
   });
 
-  it("fails closed when production provider credentials are absent", async () => {
+  it("fails closed when production HTTP provider credentials are absent", async () => {
     delete process.env.OTP_PROVIDER_URL;
     delete process.env.OTP_PROVIDER_API_KEY;
     await expect(
@@ -39,6 +41,44 @@ describe("OTP provider security", () => {
         purpose: "login",
       }),
     ).rejects.toThrow("OTP_PROVIDER_NOT_CONFIGURED");
+  });
+
+  it("fails closed when Twilio credentials are absent", async () => {
+    delete process.env.TWILIO_ACCOUNT_SID;
+    delete process.env.TWILIO_AUTH_TOKEN;
+    delete process.env.TWILIO_FROM_NUMBER;
+    delete process.env.TWILIO_MESSAGING_SERVICE_SID;
+    await expect(
+      twilioOtpAdapter.sendOtp({
+        phone: "+966500000000",
+        code: "123456",
+        purpose: "login",
+      }),
+    ).rejects.toThrow("TWILIO_OTP_NOT_CONFIGURED");
+  });
+
+  it("sends Twilio OTP using server-side basic authentication", async () => {
+    process.env.TWILIO_ACCOUNT_SID = "ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    process.env.TWILIO_AUTH_TOKEN = "test-auth-token";
+    process.env.TWILIO_FROM_NUMBER = "+15005550006";
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ sid: "SMtest" }), { status: 201 }));
+
+    await twilioOtpAdapter.sendOtp({
+      phone: "+966500000000",
+      code: "654321",
+      purpose: "register_advertiser",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/Messages.json");
+    expect(options?.headers).toMatchObject({
+      "content-type": "application/x-www-form-urlencoded",
+    });
+    expect(String(options?.body)).toContain("To=%2B966500000000");
+    expect(String(options?.body)).toContain("654321");
   });
 });
 
