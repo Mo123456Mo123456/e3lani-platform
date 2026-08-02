@@ -1,7 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
+import fs from "fs";
 import net from "net";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
@@ -31,7 +33,7 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // Enable CORS for all routes - reflect the request origin to support credentials
+  // Enable CORS for all routes - reflect the request origin to support credentials.
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin) {
@@ -44,7 +46,6 @@ async function startServer() {
     );
     res.header("Access-Control-Allow-Credentials", "true");
 
-    // Handle preflight requests
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
       return;
@@ -70,16 +71,46 @@ async function startServer() {
     }),
   );
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  // In hosted production, serve the Expo web export and API from one origin.
+  // This avoids CORS configuration and gives the user a single public URL.
+  if (process.env.NODE_ENV === "production") {
+    const webRoot = path.resolve(process.cwd(), "dist-web");
+    const indexFile = path.join(webRoot, "index.html");
 
-  if (port !== preferredPort) {
+    if (fs.existsSync(indexFile)) {
+      app.use(
+        express.static(webRoot, {
+          index: "index.html",
+          maxAge: "1h",
+        }),
+      );
+
+      app.get("*", (req, res, next) => {
+        if (req.path.startsWith("/api/")) {
+          next();
+          return;
+        }
+        res.sendFile(indexFile);
+      });
+    } else {
+      console.warn(`[web] Expo export not found at ${webRoot}; API-only mode is active`);
+    }
+  }
+
+  const preferredPort = Number.parseInt(process.env.PORT || "3000", 10);
+  const isProduction = process.env.NODE_ENV === "production";
+  const port = isProduction ? preferredPort : await findAvailablePort(preferredPort);
+
+  if (!isProduction && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
-    console.log(`[api] server listening on port ${port}`);
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`[app] server listening on http://0.0.0.0:${port}`);
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((error) => {
+  console.error("[app] failed to start", error);
+  process.exitCode = 1;
+});
