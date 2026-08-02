@@ -1,0 +1,82 @@
+name: Aiven Staging Database
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - cursor/global-free-launch-0f65
+    paths:
+      - .github/workflows/aiven-staging.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e3lani-aiven-staging
+  cancel-in-progress: false
+
+jobs:
+  initialize-and-verify:
+    name: Initialize and verify Aiven MySQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NODE_ENV: test
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      VITE_APP_ID: e3lani-aiven-staging
+      JWT_SECRET: aiven-staging-ci-only-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate protected database secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL repository secret is missing."
+            exit 1
+          fi
+          case "$DATABASE_URL" in
+            mysql://*|mysql2://*) ;;
+            *)
+              echo "DATABASE_URL must be a MySQL connection URI."
+              exit 1
+              ;;
+          esac
+          if [[ "$DATABASE_URL" == *"127.0.0.1"* || "$DATABASE_URL" == *"localhost"* ]]; then
+            echo "Refusing to initialize a local database from the Aiven workflow."
+            exit 1
+          fi
+          echo "Protected MySQL secret is configured."
+
+      - name: Apply current Drizzle schema to Aiven
+        run: pnpm exec drizzle-kit push --force
+
+      - name: Seed central product data
+        run: pnpm db:seed
+
+      - name: Verify commercial schema and launch defaults
+        run: node scripts/verify-commercial-schema.mjs
+
+      - name: Verify OTP registration and reuse prevention
+        run: pnpm exec tsx scripts/verify-otp-flow.ts
+
+      - name: Verify cross-account ad publishing flow
+        run: pnpm exec tsx scripts/verify-server-ad-flow.ts
