@@ -36,7 +36,7 @@ type ReportReason =
   | "drugs"
   | "other";
 
-const REPORT_REASONS: Array<{ id: ReportReason; ar: string; en: string }> = [
+const REPORT_REASONS: { id: ReportReason; ar: string; en: string }[] = [
   { id: "spam", ar: "محتوى مزعج أو متكرر", en: "Spam or repeated content" },
   { id: "fraud", ar: "احتيال أو طلب مالي مشبوه", en: "Fraud or suspicious payment" },
   { id: "prohibited", ar: "محتوى غير قانوني", en: "Illegal content" },

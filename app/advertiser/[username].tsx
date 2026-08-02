@@ -70,10 +70,10 @@ export default function AdvertiserPage() {
   );
   type PostGridItem = (typeof posts)[number];
   type AdGridItem = (typeof ads)[number];
-  const data: Array<
+  const data: (
     | { kind: "post"; item: PostGridItem }
     | { kind: "ad"; item: AdGridItem }
-  > =
+  )[] =
     tab === "posts"
       ? posts.map((item) => ({ kind: "post" as const, item }))
       : ads.map((item) => ({ kind: "ad" as const, item }));
