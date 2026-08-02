@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: e3lani-aiven-staging
@@ -49,6 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "secret-validation" > /tmp/aiven-stage
           if [ -z "${DATABASE_URL:-}" ]; then
             echo "DATABASE_URL repository secret is missing."
             exit 1
@@ -67,16 +70,42 @@ jobs:
           echo "Protected MySQL secret is configured."
 
       - name: Apply current Drizzle schema to Aiven
-        run: pnpm exec drizzle-kit push --force
+        run: |
+          echo "schema" > /tmp/aiven-stage
+          pnpm exec drizzle-kit push --force
 
       - name: Seed central product data
-        run: pnpm db:seed
+        run: |
+          echo "seed" > /tmp/aiven-stage
+          pnpm db:seed
 
       - name: Verify commercial schema and launch defaults
-        run: node scripts/verify-commercial-schema.mjs
+        run: |
+          echo "commercial-verification" > /tmp/aiven-stage
+          node scripts/verify-commercial-schema.mjs
 
       - name: Verify OTP registration and reuse prevention
-        run: pnpm exec tsx scripts/verify-otp-flow.ts
+        run: |
+          echo "otp-verification" > /tmp/aiven-stage
+          pnpm exec tsx scripts/verify-otp-flow.ts
 
       - name: Verify cross-account ad publishing flow
-        run: pnpm exec tsx scripts/verify-server-ad-flow.ts
+        run: |
+          echo "ad-flow-verification" > /tmp/aiven-stage
+          pnpm exec tsx scripts/verify-server-ad-flow.ts
+
+      - name: Publish protected staging result to PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          stage="$(cat /tmp/aiven-stage 2>/dev/null || echo setup)"
+          if [ "$JOB_STATUS" = "success" ]; then
+            body="✅ اكتمل ربط قاعدة Aiven MySQL بنجاح: تم تطبيق المخطط، تشغيل البذور، والتحقق من الإطلاق المجاني وOTP وتدفق الإعلان بين حسابين.\n\nتشغيل GitHub Actions: $RUN_URL"
+          else
+            body="❌ فشل تهيئة قاعدة Aiven MySQL عند مرحلة: \`$stage\`. لم يتم كشف أي قيمة سرية.\n\nتشغيل GitHub Actions: $RUN_URL"
+          fi
+          gh pr comment 11 --repo "$GITHUB_REPOSITORY" --body "$body"
