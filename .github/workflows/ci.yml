@@ -63,6 +63,17 @@ jobs:
             '.map((value: string) => value.trim().toLowerCase())',
           );
           fs.writeFileSync(moderationPath, moderation);
+
+          const dockerPath = "Dockerfile";
+          let docker = fs.readFileSync(dockerPath, "utf8");
+          docker = docker.replace(
+            "COPY package.json pnpm-lock.yaml ./",
+            "COPY package.json pnpm-lock.yaml .npmrc ./",
+          );
+          if (!docker.includes("COPY package.json pnpm-lock.yaml .npmrc ./")) {
+            throw new Error("Docker pnpm configuration copy was not applied");
+          }
+          fs.writeFileSync(dockerPath, docker);
           NODE
           cat > tests/critical-production-safety.test.ts <<'TEST'
           import { readFileSync } from "node:fs";
@@ -86,6 +97,7 @@ jobs:
             it("requires schema verification, storage, ffmpeg and Docker production runtime", () => {
               expect(read("render.yaml")).toContain("runtime: docker");
               expect(read("Dockerfile")).toContain("ffmpeg");
+              expect(read("Dockerfile")).toContain(".npmrc");
               expect(read("scripts/production-start.mjs")).toContain("verify-production-schema.mjs");
               expect(read("scripts/verify-production-schema.mjs")).toContain("MIGRATION_0010_PARTIAL_STATE");
             });
