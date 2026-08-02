@@ -58,8 +58,6 @@ export const sandboxOtpAdapter: OtpProviderAdapter = {
  * - OTP_PROVIDER_AUTH_SCHEME (defaults to Bearer)
  *
  * The endpoint receives JSON: { to, code, purpose, sender }.
- * A provider-specific adapter can replace this implementation later without
- * changing the OTP service contract.
  */
 export const productionOtpAdapter: OtpProviderAdapter = {
   id: "production-http",
@@ -106,11 +104,89 @@ export const productionOtpAdapter: OtpProviderAdapter = {
   },
 };
 
+/**
+ * Twilio Programmable Messaging adapter.
+ *
+ * Required environment variables:
+ * - OTP_PROVIDER=twilio
+ * - TWILIO_ACCOUNT_SID
+ * - TWILIO_AUTH_TOKEN
+ * - TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID
+ *
+ * Credentials stay server-side and are never returned to the client.
+ */
+export const twilioOtpAdapter: OtpProviderAdapter = {
+  id: "twilio",
+  async sendOtp(input) {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+    const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+    const fromNumber = process.env.TWILIO_FROM_NUMBER?.trim();
+    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
+
+    if (!accountSid || !authToken || (!fromNumber && !messagingServiceSid)) {
+      throw new Error("TWILIO_OTP_NOT_CONFIGURED");
+    }
+    if (!/^AC[0-9a-fA-F]{32}$/.test(accountSid)) {
+      throw new Error("TWILIO_ACCOUNT_SID_INVALID");
+    }
+    if (fromNumber && !/^\+[1-9]\d{7,14}$/.test(fromNumber)) {
+      throw new Error("TWILIO_FROM_NUMBER_INVALID");
+    }
+    if (messagingServiceSid && !/^MG[0-9a-fA-F]{32}$/.test(messagingServiceSid)) {
+      throw new Error("TWILIO_MESSAGING_SERVICE_SID_INVALID");
+    }
+
+    const form = new URLSearchParams({
+      To: input.phone,
+      Body: `E3lani verification code: ${input.code}. Expires in 5 minutes.`,
+    });
+    if (messagingServiceSid) {
+      form.set("MessagingServiceSid", messagingServiceSid);
+    } else if (fromNumber) {
+      form.set("From", fromNumber);
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const credentials = Buffer.from(`${accountSid}:${authToken}`, "utf8").toString("base64");
+
+    try {
+      const response = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Basic ${credentials}`,
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: form.toString(),
+          signal: controller.signal,
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`TWILIO_OTP_SEND_FAILED_${response.status}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("TWILIO_OTP_TIMEOUT");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  },
+};
+
 export function getOtpProvider(): OtpProviderAdapter {
-  if (ENV.isProduction) {
-    return productionOtpAdapter;
+  if (!ENV.isProduction) {
+    return sandboxOtpAdapter;
   }
-  return sandboxOtpAdapter;
+
+  const provider = process.env.OTP_PROVIDER?.trim().toLowerCase();
+  if (provider === "twilio") return twilioOtpAdapter;
+  if (!provider || provider === "http") return productionOtpAdapter;
+  throw new Error(`OTP_PROVIDER_UNSUPPORTED_${provider}`);
 }
 
 export function isOtpSandboxMode(): boolean {
