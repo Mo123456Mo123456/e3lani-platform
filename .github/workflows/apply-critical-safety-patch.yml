@@ -1,0 +1,77 @@
+name: Apply critical safety patch
+
+on:
+  push:
+    branches:
+      - cursor/global-free-launch-0f65
+    paths:
+      - scripts/apply-critical-safety-patch.mjs
+
+permissions:
+  contents: write
+
+concurrency:
+  group: e3lani-critical-safety-patch
+  cancel-in-progress: false
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      NODE_ENV: test
+      EXPO_NO_TELEMETRY: "1"
+      VITE_APP_ID: e3lani-ci
+      JWT_SECRET: ci-only-secret-not-for-production
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cursor/global-free-launch-0f65
+          fetch-depth: 0
+
+      - name: Apply exact critical fixes
+        run: node scripts/apply-critical-safety-patch.mjs
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify TypeScript
+        run: pnpm check
+
+      - name: Verify lint
+        run: pnpm lint
+
+      - name: Verify tests
+        run: pnpm test
+
+      - name: Verify server build
+        run: pnpm build
+
+      - name: Verify web export
+        run: pnpm exec expo export --platform web --output-dir dist-web
+
+      - name: Remove one-time patch machinery
+        run: rm -f scripts/apply-critical-safety-patch.mjs .github/workflows/apply-critical-safety-patch.yml
+
+      - name: Commit verified fixes
+        run: |
+          git config user.name "E3lani Safety Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: harden production launch safety"
+          git push origin HEAD:cursor/global-free-launch-0f65
