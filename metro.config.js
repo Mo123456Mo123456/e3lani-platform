@@ -2,12 +2,15 @@ const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
-const isCI = process.env.CI === "true";
+const isIsolatedBuild =
+  process.env.CI === "true" ||
+  process.env.RENDER === "true" ||
+  process.env.NODE_ENV === "production";
 
 module.exports = withNativeWind(config, {
   input: "./global.css",
-  // Keep the filesystem cache for local native development, but use virtual
-  // modules in CI/static web exports. Metro does not watch node_modules cache
-  // files reliably in isolated build runners.
-  forceWriteFileSystem: !isCI,
+  // Static/hosted builders can miss generated files under node_modules while
+  // Metro is crawling. Use virtual modules there; keep filesystem output only
+  // for local native development.
+  forceWriteFileSystem: !isIsolatedBuild,
 });
