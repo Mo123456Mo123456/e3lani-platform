@@ -66,7 +66,12 @@ export default function AdvertiserPage() {
   const socialEntries = Object.entries(profile.socialLinks).filter((entry): entry is [string, string] =>
     Boolean(entry[1]),
   );
-  const data =
+  type PostGridItem = (typeof posts)[number];
+  type AdGridItem = (typeof ads)[number];
+  const data: Array<
+    | { kind: "post"; item: PostGridItem }
+    | { kind: "ad"; item: AdGridItem }
+  > =
     tab === "posts"
       ? posts.map((item) => ({ kind: "post" as const, item }))
       : ads.map((item) => ({ kind: "ad" as const, item }));

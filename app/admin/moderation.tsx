@@ -36,7 +36,7 @@ export default function Moderation() {
           items.map((item) => (
             <View key={item.caseId} style={s.card}>
               <View style={s.row}>
-                <StatusBadge status={item.adStatus} />
+                <StatusBadge status={item.adStatus ?? "queued"} />
                 <Text style={s.id}>
                   {item.adPublicId} · case #{item.caseId}
                 </Text>
