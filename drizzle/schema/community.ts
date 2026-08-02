@@ -1,4 +1,5 @@
 import {
+  foreignKey,
   index,
   int,
   mysqlEnum,
@@ -125,7 +126,7 @@ export const shareMediaVariants = mysqlTable("share_media_variants", {
   adId: int("adId").notNull().references(() => ads.id),
   sourceMediaAssetId: int("sourceMediaAssetId").notNull().references(() => mediaAssets.id),
   requestedByUserId: int("requestedByUserId").references(() => users.id),
-  requestedByVisitorSessionId: int("requestedByVisitorSessionId").references(() => visitorSessions.id),
+  requestedByVisitorSessionId: int("requestedByVisitorSessionId"),
   status: mysqlEnum("status", ["processing", "ready", "failed"]).default("processing").notNull(),
   watermarkText: varchar("watermarkText", { length: 160 }).notNull(),
   storageKey: varchar("storageKey", { length: 768 }),
@@ -138,6 +139,11 @@ export const shareMediaVariants = mysqlTable("share_media_variants", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
+  foreignKey({
+    columns: [table.requestedByVisitorSessionId],
+    foreignColumns: [visitorSessions.id],
+    name: "share_variants_visitor_sessions_fk",
+  }),
   uniqueIndex("share_media_variants_publicId_unique").on(table.publicId),
   uniqueIndex("share_media_variants_idempotency_unique").on(table.idempotencyKey),
   index("share_media_variants_expiry_idx").on(table.status, table.expiresAt),
