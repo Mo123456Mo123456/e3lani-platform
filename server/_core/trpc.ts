@@ -34,7 +34,7 @@ const requireUser = t.middleware(async (opts) => {
 export const protectedProcedure = t.procedure.use(requireUser);
 
 const requireIdentity = t.middleware(async ({ ctx, next }) => {
-  const identity = contentIdentity(ctx.user, ctx.visitor);
+  const identity = contentIdentity(ctx.user, ctx.visitor ?? null);
   if (!identity) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "IDENTITY_REQUIRED" });
   }

@@ -360,7 +360,7 @@ export const appRouter = router({
         try {
           return await getAdvertiserProfileByUsername(
             input.username,
-            contentIdentity(ctx.user, ctx.visitor),
+            contentIdentity(ctx.user, ctx.visitor ?? null),
           );
         } catch (error) {
           return mapServiceError(error);
@@ -413,7 +413,7 @@ export const appRouter = router({
         try {
           return await listProfilePosts(
             input.username,
-            contentIdentity(ctx.user, ctx.visitor),
+            contentIdentity(ctx.user, ctx.visitor ?? null),
           );
         } catch (error) {
           return mapServiceError(error);

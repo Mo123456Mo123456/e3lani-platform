@@ -77,9 +77,22 @@ async function main() {
   });
   const mediaAssetId = Number(mediaInsert[0].insertId);
   assert(mediaAssetId > 0, "media asset was not created");
+  const advertiserIdentity = {
+    kind: "user" as const,
+    userId: advertiser.id,
+    visitorSessionId: null,
+    accountType: "advertiser",
+  };
+  const viewerIdentity = {
+    kind: "user" as const,
+    userId: viewer.id,
+    visitorSessionId: null,
+    accountType: "viewer",
+  };
 
   const createdAd = await createServerAd({
-    ownerId: advertiser.id,
+    identity: advertiserIdentity,
+    idempotencyKey: `ci-ad-${suffix}`,
     title: "سيارة تجريبية لاختبار الخادم",
     description: "إعلان تكاملي نظيف للتأكد من الحفظ المركزي والظهور العالمي بين حسابين مختلفين.",
     categorySlug: "cars",
@@ -104,9 +117,9 @@ async function main() {
   assert(visibleToViewer, "ad was not visible in the global server feed to another account");
   assert(visibleToViewer.countryCode === "SA", "ad country was not preserved");
 
-  const saved = await toggleFavorite(viewer.id, createdAd.id);
+  const saved = await toggleFavorite(viewerIdentity, createdAd.id);
   assert(saved.saved, "viewer could not save advertiser ad");
-  const savedIds = await listSavedAdIds(viewer.id);
+  const savedIds = await listSavedAdIds(viewerIdentity);
   assert(savedIds.includes(createdAd.id), "saved ad was not persisted for viewer");
 
   await recordAdEvent({
@@ -129,8 +142,9 @@ async function main() {
   });
 
   await reportAd({
+    identity: viewerIdentity,
+    idempotencyKey: `ci-report-${suffix}`,
     publicAdId: createdAd.id,
-    reporterId: viewer.id,
     reason: "other",
     details: "CI integration report",
   });

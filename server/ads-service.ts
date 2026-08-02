@@ -524,7 +524,7 @@ async function mapAdRows(adIds: number[]): Promise<FeedAdDto[]> {
     snapshots = [];
   }
 
-  let moderation: { adId: number; signals: unknown; status: string }[] = [];
+  let moderation: { adId: number | null; signals: unknown; status: string }[] = [];
   try {
     moderation = await db
       .select({

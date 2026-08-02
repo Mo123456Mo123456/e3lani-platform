@@ -13,6 +13,7 @@ import { useI18n } from "@/lib/i18n";
 import { mapFeedAd } from "@/lib/map-feed-ad";
 import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 const urls = (type: ContactType, value: string) =>
   type === "whatsapp"
@@ -31,10 +32,14 @@ export default function Detail() {
   const adQuery = trpc.ads.get.useQuery({ id }, { enabled: Boolean(id) });
   const reportMutation = trpc.ads.report.useMutation();
   const eventMutation = trpc.ads.recordEvent.useMutation();
+  const saveMutation = trpc.ads.toggleSave.useMutation();
   const ad = adQuery.data ? mapFeedAd(adQuery.data) : store.ads.find((item) => item.id === id);
   const recordedAdId = useRef("");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportSent, setReportSent] = useState(false);
+  const reportKey = useRef(
+    `report_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`,
+  );
 
   useEffect(() => {
     if (ad && recordedAdId.current !== ad.id) {
@@ -63,8 +68,16 @@ export default function Detail() {
   const saved = store.savedIds.includes(ad.id);
 
   const share = async () => {
+    const apiBase = getApiBaseUrl().replace(/\/$/, "");
+    const publicUrl = apiBase ? `${apiBase}/share/ad/${ad.id}` : `e3lani://ad/${ad.id}`;
+    const result = await Share.share({ message: `${ad.title}\n${publicUrl}`, url: publicUrl });
+    if (result.action !== Share.sharedAction) return;
     store.recordMetric(ad.id, "shares");
-    await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
+    await eventMutation.mutateAsync({
+      id: ad.id,
+      eventType: "share",
+      dedupeSuffix: `detail-share-${Date.now()}`,
+    }).catch(() => undefined);
   };
 
   const contact = async (type: ContactType, value: string) => {
@@ -81,11 +94,18 @@ export default function Detail() {
     setReportOpen((current) => !current);
   };
 
-  const submitReport = (reason: "misleading" | "prohibited") => {
-    store.submitReport(ad.id, reason);
-    void reportMutation.mutateAsync({ id: ad.id, reason }).catch(() => undefined);
-    setReportOpen(false);
-    setReportSent(true);
+  const submitReport = async (reason: "misleading" | "prohibited") => {
+    try {
+      await reportMutation.mutateAsync({
+        id: ad.id,
+        reason,
+        idempotencyKey: reportKey.current,
+      });
+      setReportOpen(false);
+      setReportSent(true);
+    } catch (error) {
+      Alert.alert(t("error"), error instanceof Error ? error.message : undefined);
+    }
   };
 
   return (
@@ -125,20 +145,31 @@ export default function Detail() {
             />
 
             <View style={s.copy}>
-              <View style={[s.brand, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+              <Pressable
+                onPress={() =>
+                  ad.advertiser?.username
+                    ? router.push({
+                        pathname: "/advertiser/[username]",
+                        params: { username: ad.advertiser.username },
+                      } as never)
+                    : undefined
+                }
+                style={[s.brand, { flexDirection: isRTL ? "row-reverse" : "row" }]}
+              >
                 <View style={s.avatar}>
                   <Text style={s.avatarText}>{store.brand?.name.slice(0, 1) ?? "إ"}</Text>
                 </View>
                 <View style={s.brandCopy}>
                   <View style={[s.brandNameRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-                    <Text style={s.brandName}>{store.brand?.name}</Text>
+                    <Text style={s.brandName}>{ad.advertiser?.displayName ?? store.brand?.name}</Text>
                     {ad.verified ? (
                       <MaterialIcons name="verified" size={19} color={BRAND.yellowDark} />
                     ) : null}
                   </View>
                   <Text style={s.muted}>{locale === "ar" ? "المعلن" : "Advertiser"}</Text>
                 </View>
-              </View>
+                  {ad.advertiser?.username ? <Text style={s.muted}>@{ad.advertiser.username}</Text> : null}
+              </Pressable>
 
               <Text style={[s.title, { textAlign: isRTL ? "right" : "left" }]}>{ad.title}</Text>
               <Text style={[s.description, { textAlign: isRTL ? "right" : "left" }]}>
@@ -184,7 +215,10 @@ export default function Detail() {
                 <OutlineButton
                   label={saved ? t("savedDone") : t("save")}
                   icon={saved ? "bookmark" : "bookmark-border"}
-                  onPress={() => store.toggleSave(ad.id)}
+                  onPress={() => {
+                    store.toggleSave(ad.id);
+                    void saveMutation.mutateAsync({ id: ad.id }).catch(() => store.toggleSave(ad.id));
+                  }}
                 />
                 <OutlineButton label={t("report")} icon="flag" onPress={toggleReportForm} />
                 <OutlineButton
@@ -208,7 +242,7 @@ export default function Detail() {
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={locale === "ar" ? "الإبلاغ عن محتوى مضلل" : "Report misleading content"}
-                      onPress={() => submitReport("misleading")}
+                      onPress={() => void submitReport("misleading")}
                       style={({ pressed }) => [s.reportChoice, pressed && s.pressed]}
                     >
                       <MaterialIcons accessible={false} name="report-problem" size={21} color={BRAND.error} />
@@ -219,7 +253,7 @@ export default function Detail() {
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={locale === "ar" ? "الإبلاغ عن محتوى محظور" : "Report prohibited content"}
-                      onPress={() => submitReport("prohibited")}
+                      onPress={() => void submitReport("prohibited")}
                       style={({ pressed }) => [s.reportChoice, pressed && s.pressed]}
                     >
                       <MaterialIcons accessible={false} name="gpp-bad" size={21} color={BRAND.error} />

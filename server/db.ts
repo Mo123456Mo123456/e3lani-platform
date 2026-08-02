@@ -543,14 +543,16 @@ export async function getOwnedMediaAsset(ownerId: number, mediaAssetId: number) 
 
 export async function createMediaAsset(input: typeof mediaAssets.$inferInsert) {
   const database = requireDatabase(await getDb());
+  if (typeof input.ownerId !== "number") throw new Error("MEDIA_OWNER_REQUIRED");
+  const ownerId = input.ownerId;
   try {
     await database.insert(mediaAssets).values(input);
   } catch (error) {
-    const existing = await getOwnedMediaAssetByStorageKey(input.ownerId, input.storageKey);
+    const existing = await getOwnedMediaAssetByStorageKey(ownerId, input.storageKey);
     if (existing) return existing;
     throw error;
   }
-  const created = await getOwnedMediaAssetByStorageKey(input.ownerId, input.storageKey);
+  const created = await getOwnedMediaAssetByStorageKey(ownerId, input.storageKey);
   if (!created) throw new Error("MEDIA_DATABASE_WRITE_FAILED");
   return created;
 }

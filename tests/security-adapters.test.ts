@@ -13,6 +13,7 @@ const originalEnv = { ...process.env };
 
 afterEach(() => {
   process.env = { ...originalEnv };
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -84,7 +85,7 @@ describe("OTP provider security", () => {
 
 describe("payment webhook verification", () => {
   it("derives external id and status from a signed payload", async () => {
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
     process.env.PAYMENT_SANDBOX_WEBHOOK_SECRET = "test-webhook-secret";
     const verified = await sandboxPaymentAdapter.verifyWebhook({
       signature: "test-webhook-secret",
@@ -104,7 +105,7 @@ describe("payment webhook verification", () => {
   });
 
   it("rejects an invalid signature", async () => {
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
     process.env.PAYMENT_SANDBOX_WEBHOOK_SECRET = "expected";
     const verified = await sandboxPaymentAdapter.verifyWebhook({
       signature: "wrong",
@@ -115,7 +116,7 @@ describe("payment webhook verification", () => {
   });
 
   it("rejects client payloads without a valid provider status", async () => {
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
     process.env.PAYMENT_SANDBOX_WEBHOOK_SECRET = "expected";
     const verified = await sandboxPaymentAdapter.verifyWebhook({
       signature: "expected",

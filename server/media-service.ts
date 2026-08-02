@@ -14,6 +14,14 @@ import {
   storagePut,
 } from "./storage";
 
+type MediaOwner = ContentIdentity | number;
+
+function normalizeMediaOwner(owner: MediaOwner): ContentIdentity {
+  return typeof owner === "number"
+    ? { kind: "user", userId: owner, visitorSessionId: null, accountType: "advertiser" }
+    : owner;
+}
+
 const TICKET_TTL_MS = 15 * 60 * 1000;
 const IMAGE_PIXEL_LIMIT = 40_000_000;
 
@@ -189,7 +197,7 @@ async function createImageVariants(ownerKey: string, sourceKey: string, source: 
 }
 
 export async function prepareMediaUpload(
-  identity: ContentIdentity,
+  owner: MediaOwner,
   input: {
     fileName: string;
     mimeType: string;
@@ -199,6 +207,7 @@ export async function prepareMediaUpload(
     durationMs?: number | null;
   },
 ): Promise<PreparedMediaUpload> {
+  const identity = normalizeMediaOwner(owner);
   const policy = await db.getPublicMediaPolicy();
   const { maxBytes } = validateMediaMetadata(input, policy);
   const extension = extensionForMime(input.mimeType);
@@ -279,7 +288,8 @@ async function createOwnedMediaAsset(
   return created;
 }
 
-export async function completeMediaUpload(identity: ContentIdentity, ticket: string) {
+export async function completeMediaUpload(owner: MediaOwner, ticket: string) {
+  const identity = normalizeMediaOwner(owner);
   const payload = readTicket(ticket, identity);
   const existing = await getOwnedMediaAssetByStorageKey(identity, payload.key);
   if (existing) return existing;
@@ -342,7 +352,8 @@ export async function completeMediaUpload(identity: ContentIdentity, ticket: str
   });
 }
 
-export async function listOwnedMediaAssets(identity: ContentIdentity, limit = 50) {
+export async function listOwnedMediaAssets(owner: MediaOwner, limit = 50) {
+  const identity = normalizeMediaOwner(owner);
   const database = db.requireDatabase(await db.getDb());
   return database
     .select()
@@ -352,7 +363,8 @@ export async function listOwnedMediaAssets(identity: ContentIdentity, limit = 50
     .limit(Math.min(Math.max(limit, 1), 100));
 }
 
-export async function deleteOwnedMediaAsset(identity: ContentIdentity, mediaAssetId: number) {
+export async function deleteOwnedMediaAsset(owner: MediaOwner, mediaAssetId: number) {
+  const identity = normalizeMediaOwner(owner);
   const database = db.requireDatabase(await db.getDb());
   const asset = await database
     .select()

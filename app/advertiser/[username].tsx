@@ -66,7 +66,10 @@ export default function AdvertiserPage() {
   const socialEntries = Object.entries(profile.socialLinks).filter((entry): entry is [string, string] =>
     Boolean(entry[1]),
   );
-  const data = tab === "posts" ? posts : ads;
+  const data =
+    tab === "posts"
+      ? posts.map((item) => ({ kind: "post" as const, item }))
+      : ads.map((item) => ({ kind: "ad" as const, item }));
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -74,7 +77,7 @@ export default function AdvertiserPage() {
         data={data}
         numColumns={3}
         key={tab}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(entry) => entry.item.id}
         contentContainerStyle={s.page}
         columnWrapperStyle={s.gridRow}
         ListHeaderComponent={
@@ -149,12 +152,13 @@ export default function AdvertiserPage() {
             </View>
           </View>
         }
-        renderItem={({ item }) => {
+        renderItem={({ item: entry }) => {
+          const item = entry.item;
           const media = item.media[0];
           return (
             <Pressable
               onPress={() => {
-                if (tab === "ads") {
+                if (entry.kind === "ad") {
                   router.push({ pathname: "/ad/[id]", params: { id: item.id } } as never);
                 } else {
                   void postEvent.mutateAsync({ id: item.id, eventType: "view" }).catch(() => undefined);
@@ -170,10 +174,12 @@ export default function AdvertiserPage() {
               <View style={s.tileMeta}>
                 <MaterialIcons name={tab === "posts" ? "visibility" : "campaign"} size={14} color={BRAND.white} />
                 <Text style={s.tileMetaText}>
-                  {tab === "posts" ? item.views.toLocaleString() : item.metrics.views.toLocaleString()}
+                  {entry.kind === "post"
+                    ? item.views.toLocaleString()
+                    : item.metrics.views.toLocaleString()}
                 </Text>
               </View>
-              {tab === "posts" && item.isOwner ? (
+              {entry.kind === "post" && item.isOwner ? (
                 <Pressable
                   onPress={() => router.push({ pathname: "/create-ad", params: { sourcePostId: item.id } } as never)}
                   style={s.convert}
