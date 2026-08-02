@@ -1,6 +1,16 @@
 import { and, eq, isNull } from "drizzle-orm";
 
-import { ads, favorites, visitorSessions } from "../drizzle/schema";
+import {
+  adRevisions,
+  advertiserProfiles,
+  ads,
+  favorites,
+  identityActionEvents,
+  mediaAssets,
+  profilePosts,
+  visitorSessions,
+} from "../drizzle/schema";
+import type { AuthenticatedVisitor } from "./visitor-token";
 import { getDb, requireDatabase } from "./db";
 
 export type VisitorPrefs = {
@@ -12,20 +22,17 @@ export type VisitorPrefs = {
 };
 
 export async function upsertVisitorSession(input: {
-  anonymousId: string;
+  visitor: AuthenticatedVisitor;
   prefs: VisitorPrefs;
   savedAdPublicIds?: string[];
 }) {
   const database = await getDb();
   if (!database) return { ok: true as const, merged: false as const, skipped: true as const };
   const db = requireDatabase(database);
-  const anonymousId = input.anonymousId.trim().slice(0, 128);
-  if (!anonymousId) throw new Error("ANONYMOUS_ID_REQUIRED");
-
   const existing = await db
     .select({ id: visitorSessions.id, mergedUserId: visitorSessions.mergedUserId })
     .from(visitorSessions)
-    .where(eq(visitorSessions.anonymousId, anonymousId))
+    .where(eq(visitorSessions.id, input.visitor.id))
     .limit(1);
 
   if (existing[0]) {
@@ -42,60 +49,119 @@ export async function upsertVisitorSession(input: {
     return { ok: true as const, merged: false as const };
   }
 
-  await db.insert(visitorSessions).values({
-    anonymousId,
-    prefsJson: input.prefs,
-    savedAdPublicIds: input.savedAdPublicIds ?? null,
-  });
-  return { ok: true as const, merged: false as const };
+  throw new Error("VISITOR_NOT_FOUND");
 }
 
-/** Merge anonymous prefs/favorites into a logged-in user after OTP verify. */
+/** Atomically transfer all guest-owned data into the verified account. */
 export async function mergeVisitorIntoUser(input: {
-  anonymousId?: string | null;
+  visitor?: AuthenticatedVisitor | null;
   userId: number;
 }) {
-  const anonymousId = input.anonymousId?.trim();
-  if (!anonymousId) return { merged: false as const, favoritesAdded: 0 };
+  if (!input.visitor) return { merged: false as const, favoritesAdded: 0 };
 
   const database = await getDb();
   if (!database) return { merged: false as const, favoritesAdded: 0, skipped: true as const };
   const db = requireDatabase(database);
-  const rows = await db
-    .select()
-    .from(visitorSessions)
-    .where(and(eq(visitorSessions.anonymousId, anonymousId), isNull(visitorSessions.mergedUserId)))
-    .limit(1);
-  if (!rows[0]) return { merged: false as const, favoritesAdded: 0 };
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(visitorSessions)
+      .where(
+        and(
+          eq(visitorSessions.id, input.visitor!.id),
+          isNull(visitorSessions.mergedUserId),
+          eq(visitorSessions.status, "active"),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!rows[0]) return { merged: false as const, favoritesAdded: 0 };
 
-  const savedIds = Array.isArray(rows[0].savedAdPublicIds) ? rows[0].savedAdPublicIds : [];
-  let favoritesAdded = 0;
-
-  for (const publicId of savedIds) {
-    const adRows = await db
-      .select({ id: ads.id })
-      .from(ads)
-      .where(eq(ads.publicId, publicId))
-      .limit(1);
-    if (!adRows[0]) continue;
-    const existing = await db
-      .select({ id: favorites.id })
+    const guestFavorites = await tx
+      .select({ id: favorites.id, adId: favorites.adId })
       .from(favorites)
-      .where(and(eq(favorites.userId, input.userId), eq(favorites.adId, adRows[0].id)))
+      .where(eq(favorites.visitorSessionId, input.visitor!.id));
+    let favoritesAdded = 0;
+    for (const favorite of guestFavorites) {
+      const duplicate = await tx
+        .select({ id: favorites.id })
+        .from(favorites)
+        .where(and(eq(favorites.userId, input.userId), eq(favorites.adId, favorite.adId)))
+        .limit(1);
+      if (duplicate[0]) {
+        await tx.delete(favorites).where(eq(favorites.id, favorite.id));
+      } else {
+        await tx
+          .update(favorites)
+          .set({ userId: input.userId, visitorSessionId: null })
+          .where(eq(favorites.id, favorite.id));
+        favoritesAdded += 1;
+      }
+    }
+
+    const guestProfile = await tx
+      .select()
+      .from(advertiserProfiles)
+      .where(eq(advertiserProfiles.visitorSessionId, input.visitor!.id))
       .limit(1);
-    if (existing[0]) continue;
-    await db.insert(favorites).values({ userId: input.userId, adId: adRows[0].id });
-    favoritesAdded += 1;
-  }
+    const accountProfile = await tx
+      .select()
+      .from(advertiserProfiles)
+      .where(eq(advertiserProfiles.userId, input.userId))
+      .limit(1);
 
-  await db
-    .update(visitorSessions)
-    .set({ mergedUserId: input.userId, mergedAt: new Date() })
-    .where(eq(visitorSessions.id, rows[0].id));
+    if (guestProfile[0] && accountProfile[0]) {
+      await tx
+        .update(ads)
+        .set({ advertiserProfileId: accountProfile[0].id })
+        .where(eq(ads.advertiserProfileId, guestProfile[0].id));
+      await tx
+        .update(profilePosts)
+        .set({ advertiserProfileId: accountProfile[0].id })
+        .where(eq(profilePosts.advertiserProfileId, guestProfile[0].id));
+      await tx.delete(advertiserProfiles).where(eq(advertiserProfiles.id, guestProfile[0].id));
+    } else if (guestProfile[0]) {
+      await tx
+        .update(advertiserProfiles)
+        .set({ userId: input.userId, visitorSessionId: null })
+        .where(eq(advertiserProfiles.id, guestProfile[0].id));
+    }
 
-  return {
-    merged: true as const,
-    favoritesAdded,
-    prefs: rows[0].prefsJson as VisitorPrefs,
-  };
+    await tx
+      .update(mediaAssets)
+      .set({ ownerId: input.userId, ownerVisitorSessionId: null })
+      .where(eq(mediaAssets.ownerVisitorSessionId, input.visitor!.id));
+    await tx
+      .update(ads)
+      .set({ ownerId: input.userId, ownerVisitorSessionId: null })
+      .where(eq(ads.ownerVisitorSessionId, input.visitor!.id));
+    await tx
+      .update(adRevisions)
+      .set({ createdBy: input.userId, createdByVisitorSessionId: null })
+      .where(eq(adRevisions.createdByVisitorSessionId, input.visitor!.id));
+    await tx
+      .update(profilePosts)
+      .set({ ownerId: input.userId, ownerVisitorSessionId: null })
+      .where(eq(profilePosts.ownerVisitorSessionId, input.visitor!.id));
+    await tx
+      .update(identityActionEvents)
+      .set({ userId: input.userId, visitorSessionId: null })
+      .where(eq(identityActionEvents.visitorSessionId, input.visitor!.id));
+
+    await tx
+      .update(visitorSessions)
+      .set({
+        mergedUserId: input.userId,
+        mergedAt: new Date(),
+        status: "merged",
+        tokenVersion: rows[0].tokenVersion + 1,
+      })
+      .where(eq(visitorSessions.id, rows[0].id));
+
+    return {
+      merged: true as const,
+      favoritesAdded,
+      prefs: rows[0].prefsJson as VisitorPrefs,
+    };
+  });
 }

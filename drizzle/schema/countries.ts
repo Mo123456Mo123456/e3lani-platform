@@ -106,8 +106,11 @@ export const visitorSessions = mysqlTable("visitor_sessions", {
   anonymousId: varchar("anonymousId", { length: 128 }).notNull(),
   prefsJson: json("prefsJson").notNull(),
   savedAdPublicIds: json("savedAdPublicIds").$type<string[]>(),
+  status: mysqlEnum("status", ["active", "suspended", "merged"]).default("active").notNull(),
+  tokenVersion: int("tokenVersion").default(1).notNull(),
   mergedUserId: int("mergedUserId").references(() => users.id),
   mergedAt: timestamp("mergedAt"),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [

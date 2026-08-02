@@ -16,7 +16,7 @@ import { useCountries } from "@/lib/use-countries";
 export default function Login() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const purpose = params.mode === "register" ? "register_advertiser" : "login";
-  const { login, setAccountCountry, accountCountry, anonymousId } = useE3lani();
+  const { login, setAccountCountry, accountCountry } = useE3lani();
   const { countries, fromDatabase } = useCountries();
   const { locale, isRTL, t } = useI18n();
   const [phone, setPhone] = useState("+966");
@@ -71,7 +71,6 @@ export default function Login() {
         purpose,
         countryCode,
         clientType: "web",
-        anonymousId,
       });
       if (result.token) await Auth.setSessionToken(result.token);
       setAccountCountry(countryCode);

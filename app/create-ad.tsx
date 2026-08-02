@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -42,11 +42,16 @@ type UploadItem = {
 };
 
 export default function CreateAd() {
+  const { sourcePostId } = useLocalSearchParams<{ sourcePostId?: string }>();
   const store = useE3lani();
   const productData = useProductData();
   const { countries } = useCountries();
   const { locale, isRTL, t } = useI18n();
   const createMutation = trpc.ads.create.useMutation();
+  const conversionQuery = trpc.profilePosts.conversionDraft.useQuery(
+    { id: sourcePostId ?? "" },
+    { enabled: Boolean(sourcePostId) },
+  );
   const quoteQuery = trpc.product.quote.useQuery({
     countryCode: store.accountCountry,
     categorySlug: undefined,
@@ -72,6 +77,10 @@ export default function CreateAd() {
   const [promotions, setPromotions] = useState<PromotionCode[]>([]);
   const uploadControllers = useRef(new Map<string, UploadController>());
   const cancelledUploads = useRef(new Set<string>());
+  const conversionApplied = useRef(false);
+  const idempotencyKey = useRef(
+    `ad_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`,
+  );
   const prepareUploadMutation = trpc.media.prepareUpload.useMutation();
   const completeUploadMutation = trpc.media.completeUpload.useMutation();
   const deleteMediaMutation = trpc.media.delete.useMutation();
@@ -80,6 +89,34 @@ export default function CreateAd() {
     if (!categoryId && productData.categories[0]) setCategoryId(productData.categories[0].id);
     if (!cityId && productData.cities[0]) setCityId(productData.cities[0].id);
   }, [categoryId, cityId, productData.categories, productData.cities]);
+
+  useEffect(() => {
+    const post = conversionQuery.data;
+    if (!post || conversionApplied.current) return;
+    conversionApplied.current = true;
+    setTitle(post.title);
+    setDescription(post.description);
+    setMedia(
+      post.media.map((item) => ({
+        id: `media-${item.mediaAssetId}`,
+        mediaAssetId: item.mediaAssetId,
+        kind: item.kind,
+        uri: item.uri,
+        processingStatus: "ready",
+      })),
+    );
+    setUploads(
+      post.media.map((item) => ({
+        id: `converted-${item.mediaAssetId}`,
+        source: { uri: item.uri, type: item.kind } as ImagePicker.ImagePickerAsset,
+        previewUri: item.uri,
+        kind: item.kind,
+        status: "ready",
+        progress: 1,
+        mediaAssetId: item.mediaAssetId,
+      })),
+    );
+  }, [conversionQuery.data]);
 
   const updateUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
     setUploads((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -170,7 +207,7 @@ export default function CreateAd() {
     [completeUploadMutation, deleteMediaMutation, mediaMessage, prepareUploadMutation, productData.config?.mediaPolicy, updateUpload],
   );
 
-  if (!store.user) {
+  if (store.launchPolicy.authenticationRequired && !store.user) {
     return (
       <ScreenContainer>
         <View style={styles.gate}>
@@ -317,6 +354,7 @@ export default function CreateAd() {
         );
       }
       const created = await createMutation.mutateAsync({
+        idempotencyKey: idempotencyKey.current,
         title: title.trim(),
         description: description.trim(),
         categorySlug: categoryId,
@@ -325,6 +363,7 @@ export default function CreateAd() {
         countryCode: adCountry,
         mediaAssetIds,
         contacts,
+        sourcePostId,
       });
       const ad = mapFeedAd(created);
       store.upsertServerAd(ad);

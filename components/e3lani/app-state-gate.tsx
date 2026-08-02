@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Redirect, usePathname } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
@@ -11,6 +11,7 @@ import { normalizeLaunchPolicy } from "@/lib/launch-policy";
 import { useI18n } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
+import { getVisitorToken, setVisitorToken } from "@/lib/_core/auth";
 
 function LaunchPolicyHydrator() {
   const { hydrateLaunchPolicy } = useE3lani();
@@ -24,15 +25,30 @@ function LaunchPolicyHydrator() {
   return null;
 }
 
-function VisitorPrefsSync() {
+function VisitorIdentitySync() {
   const store = useE3lani();
+  const ensure = trpc.visitor.ensure.useMutation();
   const upsert = trpc.visitor.upsert.useMutation();
+  const [identityReady, setIdentityReady] = useState(false);
 
   useEffect(() => {
-    if (!store.ready || store.loadError || !store.anonymousId) return;
+    if (!store.ready || store.loadError || identityReady || ensure.isPending) return;
+    let active = true;
+    void (async () => {
+      const current = await getVisitorToken();
+      const result = await ensure.mutateAsync();
+      if (result.token !== current) await setVisitorToken(result.token);
+      if (active) setIdentityReady(true);
+    })().catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [ensure, identityReady, store.loadError, store.ready]);
+
+  useEffect(() => {
+    if (!store.ready || store.loadError || !identityReady) return;
     const timer = setTimeout(() => {
       upsert.mutate({
-        anonymousId: store.anonymousId,
         prefs: {
           accountCountry: store.accountCountry,
           marketCode: String(store.marketCode),
@@ -49,7 +65,7 @@ function VisitorPrefsSync() {
   }, [
     store.ready,
     store.loadError,
-    store.anonymousId,
+    identityReady,
     store.accountCountry,
     store.marketCode,
     store.forceCountryFilter,
@@ -125,7 +141,7 @@ export function AppStateGate({ children }: { children: ReactNode }) {
     return (
       <>
         <LaunchPolicyHydrator />
-        <VisitorPrefsSync />
+        <VisitorIdentitySync />
         <Redirect href="/welcome" />
       </>
     );
@@ -134,7 +150,7 @@ export function AppStateGate({ children }: { children: ReactNode }) {
   return (
     <>
       <LaunchPolicyHydrator />
-      <VisitorPrefsSync />
+      <VisitorIdentitySync />
       {children}
     </>
   );

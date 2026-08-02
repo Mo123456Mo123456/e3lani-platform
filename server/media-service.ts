@@ -1,8 +1,11 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import sharp from "sharp";
 
+import { adMedia, mediaAssets, profilePostMedia } from "../drizzle/schema";
 import type { PublicMediaPolicy } from "../shared/media-policy";
 import { validateMediaMetadata } from "../shared/media-policy";
+import type { ContentIdentity } from "./content-identity";
 import { ENV } from "./_core/env";
 import * as db from "./db";
 import {
@@ -15,8 +18,9 @@ const TICKET_TTL_MS = 15 * 60 * 1000;
 const IMAGE_PIXEL_LIMIT = 40_000_000;
 
 type UploadTicketPayload = {
-  version: 1;
-  userId: number;
+  version: 2;
+  ownerKind: "user" | "visitor";
+  ownerRef: number;
   key: string;
   mimeType: string;
   bytes: number;
@@ -67,7 +71,7 @@ function signTicket(payload: UploadTicketPayload): string {
   return `${encoded}.${signature(encoded)}`;
 }
 
-function readTicket(ticket: string, userId: number): UploadTicketPayload {
+function readTicket(ticket: string, identity: ContentIdentity): UploadTicketPayload {
   const [encoded, providedSignature, extra] = ticket.split(".");
   if (!encoded || !providedSignature || extra) throw new Error("MEDIA_TICKET_INVALID");
   const expected = signature(encoded);
@@ -81,7 +85,14 @@ function readTicket(ticket: string, userId: number): UploadTicketPayload {
   }
 
   const payload = JSON.parse(decodeBase64Url(encoded)) as UploadTicketPayload;
-  if (payload.version !== 1 || payload.userId !== userId || payload.expiresAt <= Date.now()) {
+  const expectedKind = identity.kind;
+  const expectedRef = identity.kind === "user" ? identity.userId : identity.visitorSessionId;
+  if (
+    payload.version !== 2 ||
+    payload.ownerKind !== expectedKind ||
+    payload.ownerRef !== expectedRef ||
+    payload.expiresAt <= Date.now()
+  ) {
     throw new Error(payload.expiresAt <= Date.now() ? "MEDIA_TICKET_EXPIRED" : "MEDIA_TICKET_INVALID");
   }
   return payload;
@@ -130,7 +141,7 @@ async function fetchUploadedObject(payload: UploadTicketPayload): Promise<Buffer
   return buffer;
 }
 
-async function createImageVariants(userId: number, sourceKey: string, source: Buffer): Promise<{
+async function createImageVariants(ownerKey: string, sourceKey: string, source: Buffer): Promise<{
   width: number;
   height: number;
   variants: Record<string, MediaVariant>;
@@ -154,7 +165,7 @@ async function createImageVariants(userId: number, sourceKey: string, source: Bu
       .webp({ quality, effort: 4 })
       .toBuffer({ resolveWithObject: true });
     const stored = await storagePut(
-      `media/users/${userId}/${assetId}/${name}.webp`,
+      `media/${ownerKey}/${assetId}/${name}.webp`,
       output.data,
       "image/webp",
     );
@@ -178,7 +189,7 @@ async function createImageVariants(userId: number, sourceKey: string, source: Bu
 }
 
 export async function prepareMediaUpload(
-  userId: number,
+  identity: ContentIdentity,
   input: {
     fileName: string;
     mimeType: string;
@@ -192,18 +203,21 @@ export async function prepareMediaUpload(
   const { maxBytes } = validateMediaMetadata(input, policy);
   const extension = extensionForMime(input.mimeType);
   const now = new Date();
+  const ownerRef = identity.kind === "user" ? identity.userId : identity.visitorSessionId;
+  const ownerKey = identity.kind === "user" ? `user-${ownerRef}` : `visitor-${ownerRef}`;
   const key = [
     "media",
     "incoming",
-    `user-${userId}`,
+    ownerKey,
     String(now.getUTCFullYear()),
     String(now.getUTCMonth() + 1).padStart(2, "0"),
     `${randomUUID()}.${extension}`,
   ].join("/");
   const expiresAt = Date.now() + TICKET_TTL_MS;
   const payload: UploadTicketPayload = {
-    version: 1,
-    userId,
+    version: 2,
+    ownerKind: identity.kind,
+    ownerRef,
     key,
     mimeType: input.mimeType,
     bytes: input.bytes,
@@ -223,9 +237,51 @@ export async function prepareMediaUpload(
   };
 }
 
-export async function completeMediaUpload(userId: number, ticket: string) {
-  const payload = readTicket(ticket, userId);
-  const existing = await db.getOwnedMediaAssetByStorageKey(userId, payload.key);
+function mediaOwnerCondition(identity: ContentIdentity) {
+  return identity.kind === "user"
+    ? and(eq(mediaAssets.ownerId, identity.userId), isNull(mediaAssets.ownerVisitorSessionId))
+    : and(
+        eq(mediaAssets.ownerVisitorSessionId, identity.visitorSessionId),
+        isNull(mediaAssets.ownerId),
+      );
+}
+
+function mediaOwnerValues(identity: ContentIdentity) {
+  return identity.kind === "user"
+    ? { ownerId: identity.userId, ownerVisitorSessionId: null }
+    : { ownerId: null, ownerVisitorSessionId: identity.visitorSessionId };
+}
+
+async function getOwnedMediaAssetByStorageKey(identity: ContentIdentity, storageKey: string) {
+  const database = db.requireDatabase(await db.getDb());
+  const rows = await database
+    .select()
+    .from(mediaAssets)
+    .where(and(mediaOwnerCondition(identity), eq(mediaAssets.storageKey, storageKey)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+async function createOwnedMediaAsset(
+  identity: ContentIdentity,
+  input: Omit<typeof mediaAssets.$inferInsert, "ownerId" | "ownerVisitorSessionId">,
+) {
+  const database = db.requireDatabase(await db.getDb());
+  try {
+    await database.insert(mediaAssets).values({ ...mediaOwnerValues(identity), ...input });
+  } catch (error) {
+    const existing = await getOwnedMediaAssetByStorageKey(identity, input.storageKey);
+    if (existing) return existing;
+    throw error;
+  }
+  const created = await getOwnedMediaAssetByStorageKey(identity, input.storageKey);
+  if (!created) throw new Error("MEDIA_DATABASE_WRITE_FAILED");
+  return created;
+}
+
+export async function completeMediaUpload(identity: ContentIdentity, ticket: string) {
+  const payload = readTicket(ticket, identity);
+  const existing = await getOwnedMediaAssetByStorageKey(identity, payload.key);
   if (existing) return existing;
 
   const policy: PublicMediaPolicy = await db.getPublicMediaPolicy();
@@ -233,9 +289,13 @@ export async function completeMediaUpload(userId: number, ticket: string) {
   const source = await fetchUploadedObject(payload);
 
   if (kind === "image") {
-    const processed = await createImageVariants(userId, payload.key, source);
-    return db.createMediaAsset({
-      ownerId: userId,
+    const ownerRef = identity.kind === "user" ? identity.userId : identity.visitorSessionId;
+    const processed = await createImageVariants(
+      `${identity.kind}-${ownerRef}`,
+      payload.key,
+      source,
+    );
+    return createOwnedMediaAsset(identity, {
       storageKey: payload.key,
       originalUrl: `/manus-storage/${payload.key}`,
       mediaType: "image",
@@ -259,8 +319,7 @@ export async function completeMediaUpload(userId: number, ticket: string) {
     });
   }
 
-  return db.createMediaAsset({
-    ownerId: userId,
+  return createOwnedMediaAsset(identity, {
     storageKey: payload.key,
     originalUrl: `/manus-storage/${payload.key}`,
     mediaType: "video",
@@ -281,4 +340,37 @@ export async function completeMediaUpload(userId: number, ticket: string) {
       },
     },
   });
+}
+
+export async function listOwnedMediaAssets(identity: ContentIdentity, limit = 50) {
+  const database = db.requireDatabase(await db.getDb());
+  return database
+    .select()
+    .from(mediaAssets)
+    .where(mediaOwnerCondition(identity))
+    .orderBy(desc(mediaAssets.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 100));
+}
+
+export async function deleteOwnedMediaAsset(identity: ContentIdentity, mediaAssetId: number) {
+  const database = db.requireDatabase(await db.getDb());
+  const asset = await database
+    .select()
+    .from(mediaAssets)
+    .where(and(mediaOwnerCondition(identity), eq(mediaAssets.id, mediaAssetId)))
+    .limit(1);
+  if (!asset[0]) throw new Error("MEDIA_ASSET_NOT_FOUND");
+  const [adLinks, postLinks] = await Promise.all([
+    database.select({ id: adMedia.id }).from(adMedia).where(eq(adMedia.mediaAssetId, mediaAssetId)).limit(1),
+    database
+      .select({ id: profilePostMedia.id })
+      .from(profilePostMedia)
+      .where(eq(profilePostMedia.mediaAssetId, mediaAssetId))
+      .limit(1),
+  ]);
+  if (adLinks[0] || postLinks[0]) throw new Error("MEDIA_ASSET_IN_USE");
+  await database
+    .delete(mediaAssets)
+    .where(and(mediaOwnerCondition(identity), eq(mediaAssets.id, mediaAssetId)));
+  return { success: true as const };
 }

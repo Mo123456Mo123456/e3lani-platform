@@ -3,10 +3,21 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import {
+  adminProcedure,
+  identityProcedure,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "./_core/trpc";
 import { sdk } from "./_core/sdk";
 import * as db from "./db";
-import { completeMediaUpload, prepareMediaUpload } from "./media-service";
+import {
+  completeMediaUpload,
+  deleteOwnedMediaAsset,
+  listOwnedMediaAssets,
+  prepareMediaUpload,
+} from "./media-service";
 import { normalizeLaunchPolicy } from "../lib/launch-policy";
 import * as adsService from "./ads-service";
 import { listAuditLogs } from "./audit-service";
@@ -32,10 +43,25 @@ import {
 import { requestOtp, verifyOtp } from "./otp/service";
 import { createPaymentIntentForAd, handlePaymentWebhook } from "./payments/service";
 import { mergeVisitorIntoUser, upsertVisitorSession } from "./visitor-service";
+import { ensureVisitorToken, visitorTokenFromHeader } from "./visitor-token";
+import {
+  createProfilePost,
+  deleteProfilePost,
+  getAdvertiserProfileByUsername,
+  getOwnAdvertiserProfile,
+  getPostConversionDraft,
+  listOwnProfilePosts,
+  listProfilePosts,
+  recordProfilePostEvent,
+  toggleProfileFollow,
+  updateAdvertiserProfile,
+  updateProfilePost,
+} from "./profile-service";
 import { writeAuditLog } from "./audit-service";
 import { eq } from "drizzle-orm";
 import { countries, scopedPricingRules } from "../drizzle/schema";
 import { randomBytes } from "crypto";
+import { contentIdentity } from "./content-identity";
 
 const mediaMetadataInput = z.object({
   fileName: z.string().trim().min(1).max(180),
@@ -66,6 +92,26 @@ function mediaError(error: unknown): never {
 
 function mapServiceError(error: unknown): never {
   const message = error instanceof Error ? error.message : "OPERATION_FAILED";
+  if (message.startsWith("MAIN_AD_DAILY_LIMIT_REACHED:")) {
+    const limit = message.split(":")[1] || "10";
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: `لقد وصلت إلى الحد اليومي البالغ ${limit} إعلانات. يمكنك النشر مجددًا بعد انتهاء المدة.`,
+    });
+  }
+  if (message.startsWith("PROFILE_POST_DAILY_LIMIT_REACHED:")) {
+    const limit = message.split(":")[1] || "30";
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: `لقد وصلت إلى الحد اليومي البالغ ${limit} منشورًا. يمكنك النشر مجددًا بعد انتهاء المدة.`,
+    });
+  }
+  if (message.startsWith("REPORT_DAILY_LIMIT_REACHED:")) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "لقد وصلت إلى الحد اليومي للبلاغات. حاول مجددًا بعد انتهاء المدة.",
+    });
+  }
   if (
     message.endsWith("_NOT_FOUND") ||
     message === "CATEGORY_NOT_FOUND" ||
@@ -97,7 +143,14 @@ function mapServiceError(error: unknown): never {
     message === "ZERO_AMOUNT_PAYMENT_FORBIDDEN" ||
     message.startsWith("PAYMENT_PROVIDER") ||
     message.startsWith("COUPON_") ||
-    message.startsWith("AD_")
+    message.startsWith("AD_") ||
+    message.startsWith("PROFILE_") ||
+    message.startsWith("USERNAME_") ||
+    message.startsWith("CONTACT_") ||
+    message.startsWith("GUEST_") ||
+    message.startsWith("PUBLISHING_") ||
+    message.startsWith("POST_") ||
+    message.startsWith("IDEMPOTENCY_")
   ) {
     throw new TRPCError({ code: "BAD_REQUEST", message });
   }
@@ -160,14 +213,13 @@ export const appRouter = router({
           purpose: z.enum(["login", "register_advertiser"]).default("login"),
           countryCode: z.string().trim().length(2).optional(),
           clientType: z.enum(["web", "native"]).default("web"),
-          anonymousId: z.string().trim().max(128).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
         try {
           const { user } = await verifyOtp(input);
           const merged = await mergeVisitorIntoUser({
-            anonymousId: input.anonymousId,
+            visitor: ctx.visitor,
             userId: user.id,
           }).catch(() => ({ merged: false as const, favoritesAdded: 0 }));
           const session = await sdk.createManagedSession(user, ctx.req, input.clientType, {
@@ -270,10 +322,18 @@ export const appRouter = router({
       }),
   }),
   visitor: router({
-    upsert: publicProcedure
+    ensure: publicProcedure.mutation(async ({ ctx }) => {
+      try {
+        return await ensureVisitorToken(
+          visitorTokenFromHeader(ctx.req.headers["x-visitor-token"]),
+        );
+      } catch (error) {
+        return mapServiceError(error);
+      }
+    }),
+    upsert: identityProcedure
       .input(
         z.object({
-          anonymousId: z.string().trim().min(8).max(128),
           prefs: z.object({
             accountCountry: z.string().trim().max(8).optional(),
             marketCode: z.string().trim().max(8).optional(),
@@ -284,9 +344,147 @@ export const appRouter = router({
           savedAdPublicIds: z.array(z.string().trim().min(2).max(32)).max(200).optional(),
         }),
       )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          if (!ctx.visitor) return { ok: true as const, merged: true as const };
+          return await upsertVisitorSession({ visitor: ctx.visitor, ...input });
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+  }),
+  advertisers: router({
+    get: publicProcedure
+      .input(z.object({ username: z.string().trim().min(3).max(31) }))
+      .query(async ({ ctx, input }) => {
+        try {
+          return await getAdvertiserProfileByUsername(
+            input.username,
+            contentIdentity(ctx.user, ctx.visitor),
+          );
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    mine: identityProcedure.query(async ({ ctx }) => {
+      try {
+        return await getOwnAdvertiserProfile(ctx.identity);
+      } catch (error) {
+        return mapServiceError(error);
+      }
+    }),
+    update: identityProcedure
+      .input(
+        z.object({
+          username: z.string().trim().min(3).max(31).optional(),
+          displayName: z.string().trim().min(2).max(120).optional(),
+          avatarUrl: z.string().trim().max(1024).nullable().optional(),
+          coverUrl: z.string().trim().max(1024).nullable().optional(),
+          bio: z.string().trim().max(280).nullable().optional(),
+          tiktokUrl: z.string().trim().max(1024).nullable().optional(),
+          snapchatUrl: z.string().trim().max(1024).nullable().optional(),
+          instagramUrl: z.string().trim().max(1024).nullable().optional(),
+          whatsappUrl: z.string().trim().max(1024).nullable().optional(),
+          websiteUrl: z.string().trim().max(1024).nullable().optional(),
+          storeUrl: z.string().trim().max(1024).nullable().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await updateAdvertiserProfile(ctx.identity, input);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    toggleFollow: identityProcedure
+      .input(z.object({ username: z.string().trim().min(3).max(31) }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await toggleProfileFollow(ctx.identity, input.username);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+  }),
+  profilePosts: router({
+    list: publicProcedure
+      .input(z.object({ username: z.string().trim().min(3).max(31) }))
+      .query(async ({ ctx, input }) => {
+        try {
+          return await listProfilePosts(
+            input.username,
+            contentIdentity(ctx.user, ctx.visitor),
+          );
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    mine: identityProcedure.query(async ({ ctx }) => {
+      try {
+        return await listOwnProfilePosts(ctx.identity);
+      } catch (error) {
+        return mapServiceError(error);
+      }
+    }),
+    create: identityProcedure
+      .input(
+        z.object({
+          title: z.string().trim().min(1).max(160),
+          description: z.string().trim().min(1).max(5000),
+          mediaAssetIds: z.array(z.number().int().positive()).max(10).default([]),
+          idempotencyKey: z.string().trim().min(16).max(96),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await createProfilePost({ identity: ctx.identity, ...input });
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    update: identityProcedure
+      .input(
+        z.object({
+          id: z.string().trim().min(2).max(32),
+          title: z.string().trim().min(1).max(160).optional(),
+          description: z.string().trim().min(1).max(5000).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await updateProfilePost(ctx.identity, input);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    delete: identityProcedure
+      .input(z.object({ id: z.string().trim().min(2).max(32) }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await deleteProfilePost(ctx.identity, input.id);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    conversionDraft: identityProcedure
+      .input(z.object({ id: z.string().trim().min(2).max(32) }))
+      .query(async ({ ctx, input }) => {
+        try {
+          return await getPostConversionDraft(ctx.identity, input.id);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    recordEvent: publicProcedure
+      .input(
+        z.object({
+          id: z.string().trim().min(2).max(32),
+          eventType: z.enum(["view", "share"]),
+        }),
+      )
       .mutation(async ({ input }) => {
         try {
-          return await upsertVisitorSession(input);
+          return await recordProfilePostEvent(input.id, input.eventType);
         } catch (error) {
           return mapServiceError(error);
         }
@@ -619,6 +817,19 @@ export const appRouter = router({
             aiModeration: z.boolean().optional(),
             manualPreApproval: z.boolean().optional(),
             postPublishReports: z.boolean().optional(),
+            authenticationRequired: z.boolean().optional(),
+            guestPublishingEnabled: z.boolean().optional(),
+            phoneVerificationEnabled: z.boolean().optional(),
+            emailVerificationEnabled: z.boolean().optional(),
+            verificationRequiredForPublishing: z.boolean().optional(),
+            brandVerificationEnabled: z.boolean().optional(),
+            mainAdsDailyLimit: z.number().int().min(1).max(1000).optional(),
+            profilePostsDailyLimit: z.number().int().min(1).max(5000).optional(),
+            reportDailyLimit: z.number().int().min(1).max(1000).optional(),
+            moderationMode: z.enum(["pre_publish", "post_publish"]).optional(),
+            watermarkEnabled: z.boolean().optional(),
+            watermarkText: z.string().trim().min(1).max(80).optional(),
+            postToAdEnabled: z.boolean().optional(),
             defaultFeedMarket: z.string().min(2).max(8).optional(),
             pricingMode: z.enum(["free", "paid", "discount"]).optional(),
             bannerMessageAr: z.string().max(240).optional(),
@@ -678,14 +889,23 @@ export const appRouter = router({
           return mapServiceError(error);
         }
       }),
-    mine: protectedProcedure.query(async ({ ctx }) => {
+    byAdvertiser: publicProcedure
+      .input(z.object({ username: z.string().trim().min(3).max(31) }))
+      .query(async ({ input }) => {
+        try {
+          return await adsService.listAdvertiserAds(input.username);
+        } catch (error) {
+          return mapServiceError(error);
+        }
+      }),
+    mine: identityProcedure.query(async ({ ctx }) => {
       try {
-        return await adsService.listMineAds(ctx.user.id);
+        return await adsService.listMineAds(ctx.identity);
       } catch (error) {
         return mapServiceError(error);
       }
     }),
-    create: protectedProcedure
+    create: identityProcedure
       .input(
         z.object({
           title: z.string().trim().min(4).max(120),
@@ -705,12 +925,15 @@ export const appRouter = router({
             .min(1)
             .max(4),
           couponCode: z.string().trim().max(64).optional(),
+          sourcePostId: z.string().trim().min(2).max(32).optional(),
+          idempotencyKey: z.string().trim().min(16).max(96),
         }),
       )
       .mutation(async ({ ctx, input }) => {
         try {
           return await adsService.createServerAd({
-            ownerId: ctx.user.id,
+            identity: ctx.identity,
+            idempotencyKey: input.idempotencyKey,
             title: input.title,
             description: input.description,
             categorySlug: input.categorySlug,
@@ -719,14 +942,15 @@ export const appRouter = router({
             countryCode: input.countryCode,
             mediaAssetIds: input.mediaAssetIds,
             contacts: input.contacts,
-            accountType: ctx.user.accountType,
+            accountType: ctx.identity.accountType,
             couponCode: input.couponCode,
+            sourcePostId: input.sourcePostId,
           });
         } catch (error) {
           return mapServiceError(error);
         }
       }),
-    update: protectedProcedure
+    update: identityProcedure
       .input(
         z.object({
           id: z.string().trim().min(2).max(32),
@@ -748,7 +972,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         try {
           return await adsService.updateServerAd({
-            ownerId: ctx.user.id,
+            identity: ctx.identity,
             publicAdId: input.id,
             title: input.title,
             description: input.description,
@@ -759,12 +983,12 @@ export const appRouter = router({
           return mapServiceError(error);
         }
       }),
-    pause: protectedProcedure
+    pause: identityProcedure
       .input(z.object({ id: z.string().trim().min(2).max(32), reason: z.string().trim().max(500).optional() }))
       .mutation(async ({ ctx, input }) => {
         try {
           return await adsService.pauseServerAd({
-            ownerId: ctx.user.id,
+            identity: ctx.identity,
             publicAdId: input.id,
             reason: input.reason,
           });
@@ -772,66 +996,79 @@ export const appRouter = router({
           return mapServiceError(error);
         }
       }),
-    publish: protectedProcedure
+    publish: identityProcedure
       .input(z.object({ id: z.string().trim().min(2).max(32) }))
       .mutation(async ({ ctx, input }) => {
         try {
           return await adsService.publishServerAd({
-            ownerId: ctx.user.id,
+            identity: ctx.identity,
             publicAdId: input.id,
           });
         } catch (error) {
           return mapServiceError(error);
         }
       }),
-    delete: protectedProcedure
+    delete: identityProcedure
       .input(z.object({ id: z.string().trim().min(2).max(32) }))
       .mutation(async ({ ctx, input }) => {
         try {
           return await adsService.deleteServerAd({
-            ownerId: ctx.user.id,
+            identity: ctx.identity,
             publicAdId: input.id,
           });
         } catch (error) {
           return mapServiceError(error);
         }
       }),
-    toggleSave: protectedProcedure
+    toggleSave: identityProcedure
       .input(z.object({ id: z.string().trim().min(2).max(32) }))
       .mutation(async ({ ctx, input }) => {
         try {
-          return await adsService.toggleFavorite(ctx.user.id, input.id);
+          return await adsService.toggleFavorite(ctx.identity, input.id);
         } catch (error) {
           return mapServiceError(error);
         }
       }),
-    saved: protectedProcedure.query(async ({ ctx }) => {
+    saved: identityProcedure.query(async ({ ctx }) => {
       try {
-        return await adsService.listSavedAds(ctx.user.id);
+        return await adsService.listSavedAds(ctx.identity);
       } catch (error) {
         return mapServiceError(error);
       }
     }),
-    savedIds: protectedProcedure.query(async ({ ctx }) => {
+    savedIds: identityProcedure.query(async ({ ctx }) => {
       try {
-        return await adsService.listSavedAdIds(ctx.user.id);
+        return await adsService.listSavedAdIds(ctx.identity);
       } catch (error) {
         return mapServiceError(error);
       }
     }),
-    report: publicProcedure
+    report: identityProcedure
       .input(
         z.object({
           id: z.string().trim().min(2).max(32),
-          reason: z.enum(["spam", "fraud", "prohibited", "misleading", "copyright", "other"]),
+          reason: z.enum([
+            "spam",
+            "fraud",
+            "prohibited",
+            "misleading",
+            "copyright",
+            "impersonation",
+            "sexual",
+            "weapons",
+            "drugs",
+            "other",
+          ]),
           details: z.string().trim().max(2000).optional(),
+          idempotencyKey: z.string().trim().min(16).max(96),
         }),
       )
       .mutation(async ({ ctx, input }) => {
         try {
           return await adsService.reportAd({
+            identity: ctx.identity,
+            idempotencyKey: input.idempotencyKey,
             publicAdId: input.id,
-            reporterId: ctx.user?.id ?? null,
             reason: input.reason,
             details: input.details,
           });
@@ -855,7 +1092,6 @@ export const appRouter = router({
             "report",
           ]),
           dedupeSuffix: z.string().trim().min(1).max(120),
-          anonymousId: z.string().trim().max(128).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -863,7 +1099,7 @@ export const appRouter = router({
           return await adsService.recordAdEvent({
             publicAdId: input.id,
             userId: ctx.user?.id ?? null,
-            anonymousId: input.anonymousId,
+            anonymousId: ctx.visitor ? `visitor:${ctx.visitor.id}` : null,
             eventType: input.eventType,
             dedupeSuffix: input.dedupeSuffix,
           });
@@ -956,25 +1192,25 @@ export const appRouter = router({
   }),
   media: router({
     policy: publicProcedure.query(() => db.getPublicMediaPolicy()),
-    prepareUpload: protectedProcedure.input(mediaMetadataInput).mutation(async ({ ctx, input }) => {
+    prepareUpload: identityProcedure.input(mediaMetadataInput).mutation(async ({ ctx, input }) => {
       try {
-        return await prepareMediaUpload(ctx.user.id, input);
+        return await prepareMediaUpload(ctx.identity, input);
       } catch (error) {
         return mediaError(error);
       }
     }),
-    completeUpload: protectedProcedure
+    completeUpload: identityProcedure
       .input(z.object({ ticket: z.string().min(32).max(4096) }))
       .mutation(async ({ ctx, input }) => {
         try {
-          return await completeMediaUpload(ctx.user.id, input.ticket);
+          return await completeMediaUpload(ctx.identity, input.ticket);
         } catch (error) {
           return mediaError(error);
         }
       }),
-    listMine: protectedProcedure
+    listMine: identityProcedure
       .input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional())
-      .query(({ ctx, input }) => db.listOwnedMediaAssets(ctx.user.id, input?.limit ?? 50)),
+      .query(({ ctx, input }) => listOwnedMediaAssets(ctx.identity, input?.limit ?? 50)),
     attachToRevision: protectedProcedure
       .input(
         z.object({
@@ -1010,11 +1246,11 @@ export const appRouter = router({
           return mediaError(error);
         }
       }),
-    delete: protectedProcedure
+    delete: identityProcedure
       .input(z.object({ mediaAssetId: z.number().int().positive() }))
       .mutation(async ({ ctx, input }) => {
         try {
-          return await db.deleteOwnedMediaAsset(ctx.user.id, input.mediaAssetId);
+          return await deleteOwnedMediaAsset(ctx.identity, input.mediaAssetId);
         } catch (error) {
           return mediaError(error);
         }

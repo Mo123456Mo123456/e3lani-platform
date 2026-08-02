@@ -12,7 +12,7 @@ import { trpc } from "@/lib/trpc";
 export default function MyAds() {
   const store = useE3lani();
   const { t, locale } = useI18n();
-  const mineQuery = trpc.ads.mine.useQuery(undefined, { enabled: Boolean(store.user) });
+  const mineQuery = trpc.ads.mine.useQuery();
   const utils = trpc.useUtils();
   const refresh = () => void utils.ads.mine.invalidate();
   const appeal = trpc.ads.appeal.useMutation({ onSuccess: refresh });
@@ -20,20 +20,6 @@ export default function MyAds() {
   const publish = trpc.ads.publish.useMutation({ onSuccess: refresh });
   const remove = trpc.ads.delete.useMutation({ onSuccess: refresh });
   const data = (mineQuery.data ?? []).map((item) => mapFeedAd(item));
-
-  if (!store.user) {
-    return (
-      <ScreenContainer className="px-4">
-        <EmptyState
-          icon="lock"
-          title={t("signIn")}
-          text={t("loginHelp")}
-          actionLabel={t("signIn")}
-          onAction={() => router.push("/login" as never)}
-        />
-      </ScreenContainer>
-    );
-  }
 
   return (
     <ScreenContainer className="px-4">
@@ -69,7 +55,7 @@ export default function MyAds() {
                     onPress={() => void publish.mutateAsync({ id: item.id })}
                   />
                 ) : null}
-                {item.status === "paused" ? (
+                {item.status === "paused" && store.user ? (
                   <OutlineButton
                     label={locale === "ar" ? "طلب استئناف" : "Request appeal"}
                     icon="gavel"

@@ -1,4 +1,3 @@
-import { router } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 
@@ -12,9 +11,9 @@ import { mapFeedAd } from "@/lib/map-feed-ad";
 import { trpc } from "@/lib/trpc";
 
 export default function Saved() {
-  const { user, setSavedIds } = useE3lani();
+  const { setSavedIds } = useE3lani();
   const { t } = useI18n();
-  const savedQuery = trpc.ads.saved.useQuery(undefined, { enabled: Boolean(user) });
+  const savedQuery = trpc.ads.saved.useQuery();
   const items = (savedQuery.data ?? []).map((item) => mapFeedAd(item));
 
   useEffect(() => {
@@ -24,15 +23,7 @@ export default function Saved() {
   return (
     <ScreenContainer className="px-4">
       <ScreenTitle title={t("saved")} />
-      {!user ? (
-        <EmptyState
-          icon="lock"
-          title={t("signIn")}
-          text={t("loginHelp")}
-          actionLabel={t("signIn")}
-          onAction={() => router.push("/login" as never)}
-        />
-      ) : savedQuery.isLoading ? (
+      {savedQuery.isLoading ? (
         <ActivityIndicator color={BRAND.yellowDark} />
       ) : items.length === 0 ? (
         <EmptyState icon="bookmark-border" title={t("emptySaved")} text={t("save")} />

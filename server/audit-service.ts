@@ -5,6 +5,7 @@ import { getDb, requireDatabase } from "./db";
 
 export type AuditWriteInput = {
   actorId?: number | null;
+  actorVisitorSessionId?: number | null;
   actorRole?: string | null;
   action: string;
   entityType: string;
@@ -21,6 +22,7 @@ export async function writeAuditLog(input: AuditWriteInput) {
   const db = requireDatabase(await getDb());
   await db.insert(auditLogs).values({
     actorId: input.actorId ?? null,
+    actorVisitorSessionId: input.actorVisitorSessionId ?? null,
     actorRole: input.actorRole ?? null,
     action: input.action.slice(0, 120),
     entityType: input.entityType.slice(0, 64),

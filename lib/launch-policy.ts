@@ -4,6 +4,7 @@
  */
 
 export type PricingMode = "free" | "paid" | "discount";
+export type ModerationMode = "pre_publish" | "post_publish";
 
 export type LaunchPolicy = {
   globalFreeMode: boolean;
@@ -24,6 +25,19 @@ export type LaunchPolicy = {
   aiModeration: boolean;
   manualPreApproval: boolean;
   postPublishReports: boolean;
+  authenticationRequired: boolean;
+  guestPublishingEnabled: boolean;
+  phoneVerificationEnabled: boolean;
+  emailVerificationEnabled: boolean;
+  verificationRequiredForPublishing: boolean;
+  brandVerificationEnabled: boolean;
+  mainAdsDailyLimit: number;
+  profilePostsDailyLimit: number;
+  reportDailyLimit: number;
+  moderationMode: ModerationMode;
+  watermarkEnabled: boolean;
+  watermarkText: string;
+  postToAdEnabled: boolean;
   defaultFeedMarket: "ALL" | string;
   pricingMode: PricingMode;
   bannerMessageAr: string;
@@ -49,6 +63,19 @@ export const DEFAULT_LAUNCH_POLICY: LaunchPolicy = {
   aiModeration: true,
   manualPreApproval: false,
   postPublishReports: true,
+  authenticationRequired: false,
+  guestPublishingEnabled: true,
+  phoneVerificationEnabled: false,
+  emailVerificationEnabled: false,
+  verificationRequiredForPublishing: false,
+  brandVerificationEnabled: false,
+  mainAdsDailyLimit: 10,
+  profilePostsDailyLimit: 30,
+  reportDailyLimit: 20,
+  moderationMode: "post_publish",
+  watermarkEnabled: true,
+  watermarkText: "إعلاني | E3lani",
+  postToAdEnabled: true,
   defaultFeedMarket: "ALL",
   pricingMode: "free",
   bannerMessageAr: "النشر مجاني حاليًا بمناسبة إطلاق إعلاني.",
@@ -64,6 +91,14 @@ export function normalizeLaunchPolicy(raw: unknown): LaunchPolicy {
     value.pricingMode === "paid" || value.pricingMode === "discount" || value.pricingMode === "free"
       ? value.pricingMode
       : DEFAULT_LAUNCH_POLICY.pricingMode;
+  const moderationMode =
+    value.moderationMode === "pre_publish" || value.moderationMode === "post_publish"
+      ? value.moderationMode
+      : DEFAULT_LAUNCH_POLICY.moderationMode;
+  const integer = (key: keyof LaunchPolicy, fallback: number, minimum: number, maximum: number) =>
+    typeof value[key] === "number" && Number.isInteger(value[key])
+      ? Math.min(maximum, Math.max(minimum, value[key] as number))
+      : fallback;
 
   return {
     ...DEFAULT_LAUNCH_POLICY,
@@ -89,6 +124,55 @@ export function normalizeLaunchPolicy(raw: unknown): LaunchPolicy {
     aiModeration: bool("aiModeration", DEFAULT_LAUNCH_POLICY.aiModeration),
     manualPreApproval: bool("manualPreApproval", DEFAULT_LAUNCH_POLICY.manualPreApproval),
     postPublishReports: bool("postPublishReports", DEFAULT_LAUNCH_POLICY.postPublishReports),
+    authenticationRequired: bool(
+      "authenticationRequired",
+      DEFAULT_LAUNCH_POLICY.authenticationRequired,
+    ),
+    guestPublishingEnabled: bool(
+      "guestPublishingEnabled",
+      DEFAULT_LAUNCH_POLICY.guestPublishingEnabled,
+    ),
+    phoneVerificationEnabled: bool(
+      "phoneVerificationEnabled",
+      DEFAULT_LAUNCH_POLICY.phoneVerificationEnabled,
+    ),
+    emailVerificationEnabled: bool(
+      "emailVerificationEnabled",
+      DEFAULT_LAUNCH_POLICY.emailVerificationEnabled,
+    ),
+    verificationRequiredForPublishing: bool(
+      "verificationRequiredForPublishing",
+      DEFAULT_LAUNCH_POLICY.verificationRequiredForPublishing,
+    ),
+    brandVerificationEnabled: bool(
+      "brandVerificationEnabled",
+      DEFAULT_LAUNCH_POLICY.brandVerificationEnabled,
+    ),
+    mainAdsDailyLimit: integer(
+      "mainAdsDailyLimit",
+      DEFAULT_LAUNCH_POLICY.mainAdsDailyLimit,
+      1,
+      1000,
+    ),
+    profilePostsDailyLimit: integer(
+      "profilePostsDailyLimit",
+      DEFAULT_LAUNCH_POLICY.profilePostsDailyLimit,
+      1,
+      5000,
+    ),
+    reportDailyLimit: integer(
+      "reportDailyLimit",
+      DEFAULT_LAUNCH_POLICY.reportDailyLimit,
+      1,
+      1000,
+    ),
+    moderationMode,
+    watermarkEnabled: bool("watermarkEnabled", DEFAULT_LAUNCH_POLICY.watermarkEnabled),
+    watermarkText:
+      typeof value.watermarkText === "string" && value.watermarkText.trim()
+        ? value.watermarkText.trim().slice(0, 80)
+        : DEFAULT_LAUNCH_POLICY.watermarkText,
+    postToAdEnabled: bool("postToAdEnabled", DEFAULT_LAUNCH_POLICY.postToAdEnabled),
     defaultFeedMarket:
       typeof value.defaultFeedMarket === "string" && value.defaultFeedMarket
         ? value.defaultFeedMarket

@@ -3,6 +3,7 @@ import type { Ad, AdContact, AdMedia, AdStatus } from "@/lib/e3lani-data";
 type FeedLike = {
   id: string;
   ownerId: string;
+  advertiser?: Ad["advertiser"];
   title: string;
   description: string;
   categoryId: string;
@@ -43,6 +44,7 @@ export function mapFeedAd(dto: FeedLike): Ad {
   return {
     id: dto.id,
     ownerId: dto.ownerId,
+    advertiser: dto.advertiser,
     title: dto.title,
     description: dto.description,
     categoryId: dto.categoryId,

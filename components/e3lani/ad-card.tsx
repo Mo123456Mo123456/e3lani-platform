@@ -91,7 +91,7 @@ export function AdCard({
   fullscreen?: boolean;
 }) {
   const { locale, isRTL, t } = useI18n();
-  const { brand, savedIds, toggleSave, recordMetric, metrics, user } = useE3lani();
+  const { brand, savedIds, toggleSave, recordMetric, metrics } = useE3lani();
   const productData = useProductData();
   const saveMutation = trpc.ads.toggleSave.useMutation();
   const eventMutation = trpc.ads.recordEvent.useMutation();
@@ -102,7 +102,7 @@ export function AdCard({
   const saves = metric?.saves?.toLocaleString() ?? "0";
   const shares = metric?.shares?.toLocaleString() ?? "0";
   const views = metric?.views?.toLocaleString() ?? "0";
-  const ownerName = brand?.name ?? "إعلاني";
+  const ownerName = ad.advertiser?.displayName ?? brand?.name ?? "إعلاني";
   const contact = ad.contacts[0];
   const ctaLabel =
     contact?.type === "whatsapp"
@@ -126,11 +126,9 @@ export function AdCard({
   const save = (event: GestureResponderEvent) => {
     event.stopPropagation();
     toggleSave(ad.id);
-    if (user) {
-      void saveMutation.mutateAsync({ id: ad.id }).catch(() => {
-        // The next saved-ids synchronization corrects an optimistic mismatch.
-      });
-    }
+    void saveMutation.mutateAsync({ id: ad.id }).catch(() => {
+      // The next saved-ids synchronization corrects an optimistic mismatch.
+    });
   };
 
   const share = async (event: GestureResponderEvent) => {

@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
-import { SESSION_TOKEN_KEY, USER_INFO_KEY } from "@/constants/oauth";
+import { SESSION_TOKEN_KEY, USER_INFO_KEY, VISITOR_TOKEN_KEY } from "@/constants/oauth";
 
 export type User = {
   id: number;
@@ -25,12 +25,7 @@ export async function getSessionToken(): Promise<string | null> {
     }
 
     // Use SecureStore for native
-    console.log("[Auth] Getting session token...");
     const token = await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
-    console.log(
-      "[Auth] Session token retrieved from SecureStore:",
-      token ? `present (${token.substring(0, 20)}...)` : "missing",
-    );
     return token;
   } catch (error) {
     console.error("[Auth] Failed to get session token:", error);
@@ -47,9 +42,7 @@ export async function setSessionToken(token: string): Promise<void> {
     }
 
     // Use SecureStore for native
-    console.log("[Auth] Setting session token...", token.substring(0, 20) + "...");
     await SecureStore.setItemAsync(SESSION_TOKEN_KEY, token);
-    console.log("[Auth] Session token stored in SecureStore successfully");
   } catch (error) {
     console.error("[Auth] Failed to set session token:", error);
     throw error;
@@ -65,9 +58,7 @@ export async function removeSessionToken(): Promise<void> {
     }
 
     // Use SecureStore for native
-    console.log("[Auth] Removing session token...");
     await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
-    console.log("[Auth] Session token removed from SecureStore successfully");
   } catch (error) {
     console.error("[Auth] Failed to remove session token:", error);
   }
@@ -130,5 +121,36 @@ export async function clearUserInfo(): Promise<void> {
     await SecureStore.deleteItemAsync(USER_INFO_KEY);
   } catch (error) {
     console.error("[Auth] Failed to clear user info:", error);
+  }
+}
+
+export async function getVisitorToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      return window.localStorage.getItem(VISITOR_TOKEN_KEY);
+    }
+    return await SecureStore.getItemAsync(VISITOR_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function setVisitorToken(token: string): Promise<void> {
+  if (Platform.OS === "web") {
+    window.localStorage.setItem(VISITOR_TOKEN_KEY, token);
+    return;
+  }
+  await SecureStore.setItemAsync(VISITOR_TOKEN_KEY, token);
+}
+
+export async function removeVisitorToken(): Promise<void> {
+  try {
+    if (Platform.OS === "web") {
+      window.localStorage.removeItem(VISITOR_TOKEN_KEY);
+      return;
+    }
+    await SecureStore.deleteItemAsync(VISITOR_TOKEN_KEY);
+  } catch {
+    // Best-effort local cleanup only.
   }
 }

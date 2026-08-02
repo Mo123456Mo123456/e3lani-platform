@@ -8,6 +8,7 @@ import {
   adMetricsDaily,
   adPriceSnapshots,
   adRevisions,
+  advertiserProfiles,
   ads,
   appeals,
   categories,
@@ -22,10 +23,18 @@ import {
 } from "../drizzle/schema";
 import { scanAdContent } from "../lib/moderation/ai-scan";
 import { writeAuditLog } from "./audit-service";
+import {
+  enforceRollingLimit,
+  findIdempotentAction,
+  lockIdentity,
+  recordIdentityAction,
+  type ContentIdentity,
+} from "./content-identity";
 import { recordCouponRedemption } from "./coupons-service";
 import { getDb, requireDatabase } from "./db";
 import { notifyAdPaused, notifyAdPublished } from "./notifications-service";
-import { resolveServerPublishQuote } from "./pricing-service";
+import { loadLaunchPolicy, resolveServerPublishQuote } from "./pricing-service";
+import { ensureAdvertiserProfile } from "./profile-service";
 
 function publicId(prefix: string, max = 24) {
   return `${prefix}${randomBytes(8).toString("hex")}`.slice(0, max);
@@ -34,6 +43,13 @@ function publicId(prefix: string, max = 24) {
 export type FeedAdDto = {
   id: string;
   ownerId: string;
+  advertiser: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    verified: boolean;
+  };
   title: string;
   description: string;
   categoryId: string;
@@ -67,7 +83,8 @@ export type FeedAdDto = {
 };
 
 export type CreateAdInput = {
-  ownerId: number;
+  identity: ContentIdentity;
+  idempotencyKey: string;
   title: string;
   description: string;
   categorySlug: string;
@@ -78,6 +95,7 @@ export type CreateAdInput = {
   contacts: { type: "store" | "product" | "whatsapp" | "phone"; value: string }[];
   accountType?: string;
   couponCode?: string;
+  sourcePostId?: string;
 };
 
 async function resolveCategoryId(slug: string) {
@@ -113,13 +131,45 @@ async function resolveCityId(cityCode: string) {
   return fallback[0];
 }
 
-async function recentOwnerTexts(ownerId: number): Promise<string[]> {
+function adOwnerCondition(identity: ContentIdentity) {
+  return identity.kind === "user"
+    ? eq(ads.ownerId, identity.userId)
+    : eq(ads.ownerVisitorSessionId, identity.visitorSessionId);
+}
+
+function mediaOwnerCondition(identity: ContentIdentity) {
+  return identity.kind === "user"
+    ? eq(mediaAssets.ownerId, identity.userId)
+    : eq(mediaAssets.ownerVisitorSessionId, identity.visitorSessionId);
+}
+
+function sanitizeContact(contact: CreateAdInput["contacts"][number]) {
+  const value = contact.value.trim();
+  if (contact.type === "phone" || contact.type === "whatsapp") {
+    const normalized = value.replace(/[\s()-]/g, "");
+    if (!/^\+[1-9]\d{7,14}$/.test(normalized)) throw new Error("CONTACT_PHONE_INVALID");
+    return { type: contact.type, value: normalized };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("CONTACT_URL_INVALID");
+  }
+  if (parsed.protocol !== "https:") throw new Error("CONTACT_URL_INVALID");
+  parsed.username = "";
+  parsed.password = "";
+  parsed.hash = "";
+  return { type: contact.type, value: parsed.toString().slice(0, 1024) };
+}
+
+async function recentOwnerTexts(identity: ContentIdentity): Promise<string[]> {
   const db = requireDatabase(await getDb());
   const rows = await db
     .select({ title: adRevisions.title, description: adRevisions.description })
     .from(ads)
     .innerJoin(adRevisions, eq(ads.currentRevisionId, adRevisions.id))
-    .where(and(eq(ads.ownerId, ownerId), isNull(ads.deletedAt)))
+    .where(and(adOwnerCondition(identity), isNull(ads.deletedAt)))
     .orderBy(desc(ads.createdAt))
     .limit(8);
   return rows.map((row) => `${row.title}\n${row.description}`);
@@ -151,24 +201,36 @@ export async function listCountries() {
 
 export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
   const db = requireDatabase(await getDb());
+  const profile = await ensureAdvertiserProfile(input.identity);
   const { policy, quote, blockPublishReason, couponId } = await resolveServerPublishQuote({
     countryCode: input.countryCode,
     categorySlug: input.categorySlug,
     accountType: input.accountType,
-    userId: input.ownerId,
+    userId: input.identity.userId ?? undefined,
     couponCode: input.couponCode,
   });
 
+  if (input.identity.kind === "visitor") {
+    if (policy.authenticationRequired || !policy.guestPublishingEnabled) {
+      throw new Error("GUEST_PUBLISHING_DISABLED");
+    }
+    if (policy.verificationRequiredForPublishing) {
+      throw new Error("PUBLISHING_VERIFICATION_REQUIRED");
+    }
+  }
   if (blockPublishReason) {
     throw new Error(blockPublishReason);
   }
 
-  const priorTexts = policy.aiModeration ? await recentOwnerTexts(input.ownerId).catch(() => []) : [];
+  const contacts = input.contacts.map(sanitizeContact);
+  const priorTexts = policy.aiModeration
+    ? await recentOwnerTexts(input.identity).catch(() => [])
+    : [];
   const scan = policy.aiModeration
     ? scanAdContent({
         title: input.title,
         description: input.description,
-        contactValue: input.contacts[0]?.value,
+        contactValue: contacts[0]?.value,
         recentOwnerTexts: priorTexts,
       })
     : { label: "SAFE" as const, reasons: [], autoAction: "keep_published" as const, confidence: 0 };
@@ -193,7 +255,7 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     adStatus = "paused";
     pausedAt = now;
     moderationStatus = "rejected";
-  } else if (policy.manualPreApproval) {
+  } else if (policy.moderationMode === "pre_publish" && policy.manualPreApproval) {
     adStatus = "pending_review";
     moderationStatus = "queued";
     activatedAt = null;
@@ -201,16 +263,24 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     moderationStatus = "queued";
   }
 
-  const adPublicId = publicId("ad");
+  const requestedPublicId = publicId("ad");
 
-  await db.transaction(async (tx) => {
+  const adPublicId = await db.transaction(async (tx) => {
+    await lockIdentity(tx, input.identity);
+    const duplicate = await findIdempotentAction(tx, input.idempotencyKey, "main_ad");
+    if (duplicate) return duplicate;
+    await enforceRollingLimit(tx, {
+      identity: input.identity,
+      actionType: "main_ad",
+      limit: policy.mainAdsDailyLimit,
+    });
     const ownedMedia =
       input.mediaAssetIds.length > 0
         ? await tx
             .select()
             .from(mediaAssets)
             .where(
-              and(eq(mediaAssets.ownerId, input.ownerId), inArray(mediaAssets.id, input.mediaAssetIds)),
+              and(mediaOwnerCondition(input.identity), inArray(mediaAssets.id, input.mediaAssetIds)),
             )
         : [];
     if (ownedMedia.length !== input.mediaAssetIds.length) {
@@ -221,8 +291,10 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     }
 
     const insertAd = await tx.insert(ads).values({
-      publicId: adPublicId,
-      ownerId: input.ownerId,
+      publicId: requestedPublicId,
+      ownerId: input.identity.userId,
+      ownerVisitorSessionId: input.identity.visitorSessionId,
+      advertiserProfileId: profile.id,
       categoryId: category.id,
       cityId: city.id,
       countryCode: input.countryCode.toUpperCase(),
@@ -247,7 +319,8 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
       submittedAt: now,
       decidedAt: adStatus === "active" || adStatus === "paused" ? now : null,
       decisionReason: scan.reasons.join(", ") || null,
-      createdBy: input.ownerId,
+      createdBy: input.identity.userId,
+      createdByVisitorSessionId: input.identity.visitorSessionId,
     });
     const revisionId = Number(insertRev[0].insertId);
 
@@ -261,7 +334,7 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
       });
     }
 
-    for (const [index, contact] of input.contacts.entries()) {
+    for (const [index, contact] of contacts.entries()) {
       await tx.insert(adContacts).values({
         revisionId,
         contactType: contact.type,
@@ -313,9 +386,16 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
         // optional
       }
     }
+    await recordIdentityAction(tx, {
+      identity: input.identity,
+      actionType: "main_ad",
+      contentPublicId: requestedPublicId,
+      idempotencyKey: input.idempotencyKey,
+    });
+    return requestedPublicId;
   });
 
-  if (couponId) {
+  if (couponId && input.identity.userId) {
     const adRows = await db
       .select({ id: ads.id })
       .from(ads)
@@ -324,7 +404,7 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     if (adRows[0]) {
       await recordCouponRedemption({
         couponId,
-        userId: input.ownerId,
+        userId: input.identity.userId,
         adId: adRows[0].id,
       }).catch(() => undefined);
     }
@@ -333,19 +413,20 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
   const dto = await getFeedAdByPublicId(adPublicId);
   if (!dto) throw new Error("AD_CREATE_FAILED");
 
-  if (dto.status === "active") {
-    await notifyAdPublished(input.ownerId, dto.id, dto.title).catch(() => undefined);
-  } else if (dto.status === "paused") {
+  if (dto.status === "active" && input.identity.userId) {
+    await notifyAdPublished(input.identity.userId, dto.id, dto.title).catch(() => undefined);
+  } else if (dto.status === "paused" && input.identity.userId) {
     await notifyAdPaused(
-      input.ownerId,
+      input.identity.userId,
       dto.id,
       scan.reasons.join(", ") || "Paused by moderation",
     ).catch(() => undefined);
   }
 
   await writeAuditLog({
-    actorId: input.ownerId,
-    actorRole: "advertiser",
+    actorId: input.identity.userId,
+    actorVisitorSessionId: input.identity.visitorSessionId,
+    actorRole: input.identity.kind === "user" ? "advertiser" : "visitor",
     action: "ad.create",
     entityType: "ad",
     entityId: dto.id,
@@ -365,6 +446,11 @@ async function mapAdRows(adIds: number[]): Promise<FeedAdDto[]> {
       publicId: ads.publicId,
       ownerId: ads.ownerId,
       ownerOpenId: users.openId,
+      profilePublicId: advertiserProfiles.publicId,
+      profileUsername: advertiserProfiles.username,
+      profileDisplayName: advertiserProfiles.displayName,
+      profileAvatarUrl: advertiserProfiles.avatarUrl,
+      profileVerified: advertiserProfiles.isVerified,
       categorySlug: categories.slug,
       cityCode: cities.code,
       cityNameAr: cities.nameAr,
@@ -383,7 +469,8 @@ async function mapAdRows(adIds: number[]): Promise<FeedAdDto[]> {
       version: adRevisions.version,
     })
     .from(ads)
-    .innerJoin(users, eq(ads.ownerId, users.id))
+    .leftJoin(users, eq(ads.ownerId, users.id))
+    .leftJoin(advertiserProfiles, eq(ads.advertiserProfileId, advertiserProfiles.id))
     .innerJoin(categories, eq(ads.categoryId, categories.id))
     .innerJoin(cities, eq(ads.cityId, cities.id))
     .leftJoin(adRevisions, eq(ads.currentRevisionId, adRevisions.id))
@@ -476,7 +563,14 @@ async function mapAdRows(adIds: number[]): Promise<FeedAdDto[]> {
 
     return {
       id: row.publicId,
-      ownerId: String(row.ownerId),
+      ownerId: row.profilePublicId ?? (row.ownerId ? `user-${row.ownerId}` : "legacy-advertiser"),
+      advertiser: {
+        id: row.profilePublicId ?? (row.ownerId ? `user-${row.ownerId}` : "legacy-advertiser"),
+        username: row.profileUsername ?? `advertiser_${row.ownerId ?? "legacy"}`,
+        displayName: row.profileDisplayName ?? "معلن إعلاني",
+        avatarUrl: row.profileAvatarUrl,
+        verified: row.profileVerified === 1,
+      },
       title: row.title ?? "",
       description: row.description ?? "",
       categoryId: row.categorySlug,
@@ -489,7 +583,7 @@ async function mapAdRows(adIds: number[]): Promise<FeedAdDto[]> {
       contacts,
       status: row.adStatus,
       revision: row.version ?? 1,
-      verified: false,
+      verified: row.profileVerified === 1,
       featured: false,
       sponsored: false,
       createdAt: row.createdAt.toISOString(),
@@ -555,18 +649,53 @@ export async function listFeedAds(input: {
   return mapAdRows(rows.map((row) => row.id));
 }
 
-export async function listMineAds(ownerId: number): Promise<FeedAdDto[]> {
+export async function listMineAds(identity: ContentIdentity): Promise<FeedAdDto[]> {
   const db = requireDatabase(await getDb());
   const rows = await db
     .select({ id: ads.id })
     .from(ads)
-    .where(and(eq(ads.ownerId, ownerId), isNull(ads.deletedAt)))
+    .where(and(adOwnerCondition(identity), isNull(ads.deletedAt)))
     .orderBy(desc(ads.createdAt))
     .limit(100);
   return mapAdRows(rows.map((row) => row.id));
 }
 
-export async function toggleFavorite(userId: number, publicAdId: string) {
+export async function listAdvertiserAds(username: string): Promise<FeedAdDto[]> {
+  const db = requireDatabase(await getDb());
+  const normalized = username.trim().toLowerCase().replace(/^@/, "");
+  const profile = await db
+    .select({ id: advertiserProfiles.id })
+    .from(advertiserProfiles)
+    .where(
+      and(
+        eq(advertiserProfiles.username, normalized),
+        eq(advertiserProfiles.status, "active"),
+      ),
+    )
+    .limit(1);
+  if (!profile[0]) throw new Error("ADVERTISER_PROFILE_NOT_FOUND");
+  const rows = await db
+    .select({ id: ads.id })
+    .from(ads)
+    .where(
+      and(
+        eq(ads.advertiserProfileId, profile[0].id),
+        eq(ads.adStatus, "active"),
+        isNull(ads.deletedAt),
+      ),
+    )
+    .orderBy(desc(ads.activatedAt), desc(ads.createdAt))
+    .limit(100);
+  return mapAdRows(rows.map((row) => row.id));
+}
+
+function favoriteIdentityCondition(identity: ContentIdentity) {
+  return identity.kind === "user"
+    ? eq(favorites.userId, identity.userId)
+    : eq(favorites.visitorSessionId, identity.visitorSessionId);
+}
+
+export async function toggleFavorite(identity: ContentIdentity, publicAdId: string) {
   const db = requireDatabase(await getDb());
   const adRows = await db.select({ id: ads.id }).from(ads).where(eq(ads.publicId, publicAdId)).limit(1);
   if (!adRows[0]) throw new Error("AD_NOT_FOUND");
@@ -574,61 +703,98 @@ export async function toggleFavorite(userId: number, publicAdId: string) {
   const existing = await db
     .select({ id: favorites.id })
     .from(favorites)
-    .where(and(eq(favorites.userId, userId), eq(favorites.adId, adId)))
+    .where(and(favoriteIdentityCondition(identity), eq(favorites.adId, adId)))
     .limit(1);
   if (existing[0]) {
     await db.delete(favorites).where(eq(favorites.id, existing[0].id));
     return { saved: false as const };
   }
-  await db.insert(favorites).values({ userId, adId });
+  await db.insert(favorites).values({
+    userId: identity.userId,
+    visitorSessionId: identity.visitorSessionId,
+    adId,
+  });
   await bumpDailyMetric(adId, "saves", 1);
   return { saved: true as const };
 }
 
-export async function listSavedAdIds(userId: number): Promise<string[]> {
+export async function listSavedAdIds(identity: ContentIdentity): Promise<string[]> {
   const db = requireDatabase(await getDb());
   const rows = await db
     .select({ publicId: ads.publicId })
     .from(favorites)
     .innerJoin(ads, eq(favorites.adId, ads.id))
-    .where(eq(favorites.userId, userId))
+    .where(favoriteIdentityCondition(identity))
     .orderBy(desc(favorites.createdAt));
   return rows.map((row) => row.publicId);
 }
 
-export async function listSavedAds(userId: number): Promise<FeedAdDto[]> {
+export async function listSavedAds(identity: ContentIdentity): Promise<FeedAdDto[]> {
   const db = requireDatabase(await getDb());
   const rows = await db
     .select({ id: ads.id })
     .from(favorites)
     .innerJoin(ads, eq(favorites.adId, ads.id))
-    .where(eq(favorites.userId, userId))
+    .where(favoriteIdentityCondition(identity))
     .orderBy(desc(favorites.createdAt));
   return mapAdRows(rows.map((row) => row.id));
 }
 
 export async function reportAd(input: {
+  identity: ContentIdentity;
+  idempotencyKey: string;
   publicAdId: string;
-  reporterId?: number | null;
-  reason: "spam" | "fraud" | "prohibited" | "misleading" | "copyright" | "other";
+  reason:
+    | "spam"
+    | "fraud"
+    | "prohibited"
+    | "misleading"
+    | "copyright"
+    | "impersonation"
+    | "sexual"
+    | "weapons"
+    | "drugs"
+    | "other";
   details?: string;
 }) {
   const db = requireDatabase(await getDb());
+  const policy = await loadLaunchPolicy();
   const adRows = await db.select({ id: ads.id }).from(ads).where(eq(ads.publicId, input.publicAdId)).limit(1);
   if (!adRows[0]) throw new Error("AD_NOT_FOUND");
-  await db.insert(reports).values({
-    publicId: publicId("rep", 32),
-    reporterId: input.reporterId ?? null,
-    adId: adRows[0].id,
-    reason: input.reason,
-    details: input.details ?? null,
-    status: "open",
+  const reportPublicId = publicId("rep", 32);
+  await db.transaction(async (tx) => {
+    await lockIdentity(tx, input.identity);
+    const duplicate = await findIdempotentAction(tx, input.idempotencyKey, "report");
+    if (duplicate) return duplicate;
+    await enforceRollingLimit(tx, {
+      identity: input.identity,
+      actionType: "report",
+      limit: policy.reportDailyLimit,
+    });
+    await tx.insert(reports).values({
+      publicId: reportPublicId,
+      reporterId: input.identity.userId,
+      reporterVisitorSessionId: input.identity.visitorSessionId,
+      adId: adRows[0].id,
+      reason: input.reason,
+      details: input.details?.trim().slice(0, 2000) ?? null,
+      status: "open",
+    });
+    await recordIdentityAction(tx, {
+      identity: input.identity,
+      actionType: "report",
+      contentPublicId: reportPublicId,
+      idempotencyKey: input.idempotencyKey,
+    });
+    return reportPublicId;
   });
   await recordAdEvent({
     publicAdId: input.publicAdId,
-    userId: input.reporterId ?? null,
+    userId: input.identity.userId,
+    anonymousId:
+      input.identity.kind === "visitor" ? `visitor:${input.identity.visitorSessionId}` : null,
     eventType: "report",
-    dedupeSuffix: `${input.reporterId ?? "anon"}-${Date.now()}`,
+    dedupeSuffix: input.idempotencyKey,
   });
   return { ok: true as const };
 }
@@ -758,13 +924,13 @@ export async function adminSetAdStatus(input: {
     })
     .where(eq(ads.id, adRows[0].id));
 
-  if (input.status === "paused") {
+  if (input.status === "paused" && adRows[0].ownerId) {
     await notifyAdPaused(
       adRows[0].ownerId,
       input.publicAdId,
       input.reason || "Paused by admin",
     ).catch(() => undefined);
-  } else if (input.status === "active") {
+  } else if (input.status === "active" && adRows[0].ownerId) {
     const rev = adRows[0].currentRevisionId
       ? await db
           .select({ title: adRevisions.title })
@@ -791,20 +957,19 @@ export async function adminSetAdStatus(input: {
   return { ok: true as const, reason: input.reason ?? null };
 }
 
-async function requireOwnedAd(ownerId: number, publicAdId: string) {
+async function requireOwnedAd(identity: ContentIdentity, publicAdId: string) {
   const db = requireDatabase(await getDb());
   const adRows = await db
     .select()
     .from(ads)
-    .where(and(eq(ads.publicId, publicAdId), isNull(ads.deletedAt)))
+    .where(and(eq(ads.publicId, publicAdId), adOwnerCondition(identity), isNull(ads.deletedAt)))
     .limit(1);
   if (!adRows[0]) throw new Error("AD_NOT_FOUND");
-  if (adRows[0].ownerId !== ownerId) throw new Error("AD_FORBIDDEN");
   return adRows[0];
 }
 
 export async function updateServerAd(input: {
-  ownerId: number;
+  identity: ContentIdentity;
   publicAdId: string;
   title?: string;
   description?: string;
@@ -812,7 +977,7 @@ export async function updateServerAd(input: {
   customCityName?: string | null;
 }) {
   const db = requireDatabase(await getDb());
-  const ad = await requireOwnedAd(input.ownerId, input.publicAdId);
+  const ad = await requireOwnedAd(input.identity, input.publicAdId);
   if (!ad.currentRevisionId) throw new Error("AD_REVISION_NOT_FOUND");
 
   const current = await db
@@ -839,7 +1004,8 @@ export async function updateServerAd(input: {
     reviewStatus: "approved",
     submittedAt: now,
     decidedAt: now,
-    createdBy: input.ownerId,
+    createdBy: input.identity.userId,
+    createdByVisitorSessionId: input.identity.visitorSessionId,
   });
   const revisionId = Number(insertRev[0].insertId);
 
@@ -858,7 +1024,7 @@ export async function updateServerAd(input: {
     });
   }
 
-  let contacts = input.contacts;
+  let contacts = input.contacts?.map(sanitizeContact);
   if (!contacts) {
     const contactRows = await db
       .select()
@@ -879,8 +1045,9 @@ export async function updateServerAd(input: {
 
   await db.update(ads).set({ currentRevisionId: revisionId }).where(eq(ads.id, ad.id));
   await writeAuditLog({
-    actorId: input.ownerId,
-    actorRole: "advertiser",
+    actorId: input.identity.userId,
+    actorVisitorSessionId: input.identity.visitorSessionId,
+    actorRole: input.identity.kind === "user" ? "advertiser" : "visitor",
     action: "ad.update",
     entityType: "ad",
     entityId: input.publicAdId,
@@ -892,8 +1059,8 @@ export async function updateServerAd(input: {
   return dto;
 }
 
-export async function pauseServerAd(input: { ownerId: number; publicAdId: string; reason?: string }) {
-  const ad = await requireOwnedAd(input.ownerId, input.publicAdId);
+export async function pauseServerAd(input: { identity: ContentIdentity; publicAdId: string; reason?: string }) {
+  const ad = await requireOwnedAd(input.identity, input.publicAdId);
   if (ad.adStatus !== "active" && ad.adStatus !== "pending_review") {
     throw new Error("AD_NOT_PAUSABLE");
   }
@@ -903,12 +1070,15 @@ export async function pauseServerAd(input: { ownerId: number; publicAdId: string
     .update(ads)
     .set({ adStatus: "paused", pausedAt: now })
     .where(eq(ads.id, ad.id));
-  await notifyAdPaused(input.ownerId, input.publicAdId, input.reason || "Paused by owner").catch(
-    () => undefined,
-  );
+  if (input.identity.userId) {
+    await notifyAdPaused(input.identity.userId, input.publicAdId, input.reason || "Paused by owner").catch(
+      () => undefined,
+    );
+  }
   await writeAuditLog({
-    actorId: input.ownerId,
-    actorRole: "advertiser",
+    actorId: input.identity.userId,
+    actorVisitorSessionId: input.identity.visitorSessionId,
+    actorRole: input.identity.kind === "user" ? "advertiser" : "visitor",
     action: "ad.pause",
     entityType: "ad",
     entityId: input.publicAdId,
@@ -917,8 +1087,8 @@ export async function pauseServerAd(input: { ownerId: number; publicAdId: string
   return { ok: true as const };
 }
 
-export async function publishServerAd(input: { ownerId: number; publicAdId: string }) {
-  const ad = await requireOwnedAd(input.ownerId, input.publicAdId);
+export async function publishServerAd(input: { identity: ContentIdentity; publicAdId: string }) {
+  const ad = await requireOwnedAd(input.identity, input.publicAdId);
   if (ad.paymentStatus === "pending") throw new Error("AD_AWAITING_PAYMENT");
   if (ad.moderationStatus === "rejected") throw new Error("AD_MODERATION_REJECTED");
   if (!["paused", "draft", "pending_review", "expired"].includes(ad.adStatus)) {
@@ -945,12 +1115,17 @@ export async function publishServerAd(input: { ownerId: number; publicAdId: stri
         .where(eq(adRevisions.id, ad.currentRevisionId))
         .limit(1)
     : [];
-  await notifyAdPublished(input.ownerId, input.publicAdId, rev[0]?.title ?? input.publicAdId).catch(
-    () => undefined,
-  );
+  if (input.identity.userId) {
+    await notifyAdPublished(
+      input.identity.userId,
+      input.publicAdId,
+      rev[0]?.title ?? input.publicAdId,
+    ).catch(() => undefined);
+  }
   await writeAuditLog({
-    actorId: input.ownerId,
-    actorRole: "advertiser",
+    actorId: input.identity.userId,
+    actorVisitorSessionId: input.identity.visitorSessionId,
+    actorRole: input.identity.kind === "user" ? "advertiser" : "visitor",
     action: "ad.publish",
     entityType: "ad",
     entityId: input.publicAdId,
@@ -958,8 +1133,8 @@ export async function publishServerAd(input: { ownerId: number; publicAdId: stri
   return getFeedAdByPublicId(input.publicAdId);
 }
 
-export async function deleteServerAd(input: { ownerId: number; publicAdId: string }) {
-  const ad = await requireOwnedAd(input.ownerId, input.publicAdId);
+export async function deleteServerAd(input: { identity: ContentIdentity; publicAdId: string }) {
+  const ad = await requireOwnedAd(input.identity, input.publicAdId);
   const db = requireDatabase(await getDb());
   const now = new Date();
   await db
@@ -967,8 +1142,9 @@ export async function deleteServerAd(input: { ownerId: number; publicAdId: strin
     .set({ adStatus: "removed", deletedAt: now, pausedAt: now })
     .where(eq(ads.id, ad.id));
   await writeAuditLog({
-    actorId: input.ownerId,
-    actorRole: "advertiser",
+    actorId: input.identity.userId,
+    actorVisitorSessionId: input.identity.visitorSessionId,
+    actorRole: input.identity.kind === "user" ? "advertiser" : "visitor",
     action: "ad.delete",
     entityType: "ad",
     entityId: input.publicAdId,

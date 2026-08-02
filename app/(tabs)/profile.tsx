@@ -18,6 +18,11 @@ const rows = [
   { key: "brand", icon: "storefront", route: "/account/brand" },
 ] as const;
 
+const guestRows = [
+  { key: "myAds", icon: "campaign", route: "/account/my-ads" },
+  { key: "brand", icon: "storefront", route: "/account/brand" },
+] as const;
+
 export default function Profile() {
   const { user, logout, accountCountry } = useE3lani();
   const { countries } = useCountries();
@@ -56,8 +61,7 @@ export default function Profile() {
           ) : null}
         </View>
 
-        {user
-          ? rows.map((item) => {
+        {(user ? rows : guestRows).map((item) => {
               const label = t(item.key);
               return (
                 <Pressable
@@ -73,8 +77,7 @@ export default function Profile() {
                   <MaterialIcons accessible={false} name="chevron-left" size={23} color={BRAND.muted} />
                 </Pressable>
               );
-            })
-          : null}
+            })}
 
         {staff ? (
           <Pressable
