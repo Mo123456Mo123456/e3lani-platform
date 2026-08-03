@@ -57,10 +57,13 @@ describe("guest-only launch interface", () => {
     "utf8",
   );
 
-  it("creates a signed visitor identity and never redirects publishing to login", () => {
-    expect(gate).toContain("VisitorIdentity");
+  it("creates a signed visitor identity and enters the feed without an onboarding redirect", () => {
+    expect(gate).toContain("VisitorIdentityBoundary");
     expect(gate).toContain("getVisitorToken");
     expect(gate).toContain("setVisitorToken");
+    expect(gate).toContain('completeCountryGate(accountCountry || "SA")');
+    expect(gate).not.toContain("<Redirect");
+    expect(gate).not.toContain("usePathname");
     expect(gate).not.toContain('router.replace("/login"');
   });
 
