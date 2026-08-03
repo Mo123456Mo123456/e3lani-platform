@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: free
     region: frankfurt
-    branch: cursor/global-free-launch-0f65
+    branch: main
     autoDeployTrigger: checksPass
     dockerfilePath: ./Dockerfile
     dockerCommand: node scripts/production-start.mjs
