@@ -16,7 +16,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
-    "db:seed": "node scripts/seed-central-data.mjs",
+    "db:seed": "node scripts/seed-central-data.mjs && node scripts/seed-country-city-links.mjs",
     "db:media-policy": "node scripts/update-media-policy.mjs",
     "db:verify": "node scripts/verify-database-state.mjs",
     "android": "expo start --android",
