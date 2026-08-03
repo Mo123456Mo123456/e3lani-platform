@@ -16,6 +16,7 @@ import {
   mediaAssets,
   moderationCases,
   profileFollows,
+  profilePostEvents,
   profilePostMedia,
   profilePosts,
   reports,
@@ -445,7 +446,7 @@ export async function createProfilePost(input: {
 
   const resultId = await db.transaction(async (tx) => {
     await lockIdentity(tx, input.identity);
-    const duplicate = await findIdempotentAction(tx, input.idempotencyKey, "profile_post");
+    const duplicate = await findIdempotentAction(tx, input.identity, input.idempotencyKey, "profile_post");
     if (duplicate) return duplicate;
     await enforceRollingLimit(tx, {
       identity: input.identity,
@@ -549,13 +550,38 @@ export async function updateProfilePost(
 ) {
   const db = requireDatabase(await getDb());
   const post = await requireOwnedPost(identity, input.id);
+  const title = (input.title ?? post.title).trim().slice(0, 160);
+  const description = (input.description ?? post.description).trim();
+  if (!title || !description) throw new Error("PROFILE_POST_CONTENT_INVALID");
+  const policy = await loadLaunchPolicy();
+  const scan = policy.aiModeration
+    ? scanAdContent({ title, description })
+    : { autoAction: "keep_published" as const, reasons: [], confidence: 0, label: "SAFE" as const };
+  const severe = scan.autoAction === "auto_pause";
+  const wasEnforced = post.postStatus === "paused" && post.moderationStatus === "rejected";
   await db
     .update(profilePosts)
     .set({
-      ...(input.title !== undefined ? { title: input.title.trim().slice(0, 160) } : {}),
-      ...(input.description !== undefined ? { description: input.description.trim() } : {}),
+      title,
+      description,
+      postStatus: severe ? "paused" : post.postStatus,
+      moderationStatus: severe
+        ? "rejected"
+        : wasEnforced || scan.autoAction === "flag_for_admin"
+          ? "queued"
+          : "approved",
     })
     .where(eq(profilePosts.id, post.id));
+  if (scan.autoAction !== "keep_published" || wasEnforced) {
+    await db.insert(moderationCases).values({
+      profilePostId: post.id,
+      status: severe ? "rejected" : "queued",
+      riskScore: Math.round(scan.confidence * 100),
+      automatedSignals: { source: "edited_text", ...scan },
+      decisionReason: scan.reasons.join(", ") || (wasEnforced ? "edited_enforced_post" : null),
+      decidedAt: severe ? new Date() : null,
+    });
+  }
   const rows = await db.select().from(profilePosts).where(eq(profilePosts.id, post.id)).limit(1);
   return (await mapPosts(rows, identity))[0];
 }
@@ -573,14 +599,30 @@ export async function deleteProfilePost(identity: ContentIdentity, publicPostId:
 export async function recordProfilePostEvent(
   publicPostId: string,
   eventType: "view" | "share",
+  dedupeKey: string,
 ) {
   const db = requireDatabase(await getDb());
+  const posts = await db
+    .select({ id: profilePosts.id })
+    .from(profilePosts)
+    .where(and(eq(profilePosts.publicId, publicPostId), eq(profilePosts.postStatus, "active")))
+    .limit(1);
+  if (!posts[0]) throw new Error("PROFILE_POST_NOT_FOUND");
+  try {
+    await db.insert(profilePostEvents).values({
+      profilePostId: posts[0].id,
+      eventType,
+      dedupeKey: dedupeKey.slice(0, 180),
+    });
+  } catch {
+    return { ok: true as const, deduped: true as const };
+  }
   const column = eventType === "view" ? profilePosts.views : profilePosts.shares;
   await db
     .update(profilePosts)
     .set({ [eventType === "view" ? "views" : "shares"]: sql`${column} + 1` })
-    .where(and(eq(profilePosts.publicId, publicPostId), eq(profilePosts.postStatus, "active")));
-  return { ok: true as const };
+    .where(eq(profilePosts.id, posts[0].id));
+  return { ok: true as const, deduped: false as const };
 }
 
 export async function reportProfilePost(input: {
@@ -617,7 +659,7 @@ export async function reportProfilePost(input: {
   const reportPublicId = publicId("rep");
   await db.transaction(async (tx) => {
     await lockIdentity(tx, input.identity);
-    const duplicate = await findIdempotentAction(tx, input.idempotencyKey, "report");
+    const duplicate = await findIdempotentAction(tx, input.identity, input.idempotencyKey, "report");
     if (duplicate) return duplicate;
     await enforceRollingLimit(tx, {
       identity: input.identity,

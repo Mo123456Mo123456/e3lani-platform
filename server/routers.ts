@@ -511,9 +511,19 @@ export const appRouter = router({
           eventType: z.enum(["view", "share"]),
         }),
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         try {
-          return await recordProfilePostEvent(input.id, input.eventType);
+          const actor = ctx.user
+            ? `user:${ctx.user.id}`
+            : ctx.visitor
+              ? `visitor:${ctx.visitor.id}`
+              : `ip:${ctx.req.ip || "unknown"}`;
+          const bucket = Math.floor(Date.now() / (10 * 60 * 1000));
+          return await recordProfilePostEvent(
+            input.id,
+            input.eventType,
+            `${input.id}:${input.eventType}:${actor}:${bucket}`,
+          );
         } catch (error) {
           return mapServiceError(error);
         }

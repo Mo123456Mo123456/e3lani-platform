@@ -78,6 +78,13 @@
       "when": 1785700800000,
       "tag": "0010_guest_profiles_posts_sharing",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1785790800000,
+      "tag": "0011_production_safety_hardening",
+      "breakpoints": true
     }
   ]
 }

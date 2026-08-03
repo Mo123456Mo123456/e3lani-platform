@@ -87,16 +87,27 @@ export async function lockIdentity(
 
 export async function findIdempotentAction(
   tx: any,
+  identity: ContentIdentity,
   idempotencyKey: string,
   actionType: "main_ad" | "profile_post" | "report",
 ) {
+  const ownerCondition =
+    identity.kind === "user"
+      ? eq(identityActionEvents.userId, identity.userId)
+      : eq(identityActionEvents.visitorSessionId, identity.visitorSessionId);
   const rows = await tx
     .select({
       contentPublicId: identityActionEvents.contentPublicId,
       actionType: identityActionEvents.actionType,
     })
     .from(identityActionEvents)
-    .where(eq(identityActionEvents.idempotencyKey, idempotencyKey))
+    .where(
+      and(
+        ownerCondition,
+        eq(identityActionEvents.actionType, actionType),
+        eq(identityActionEvents.idempotencyKey, idempotencyKey),
+      ),
+    )
     .limit(1);
   if (!rows[0]) return null;
   if (rows[0].actionType !== actionType) throw new Error("IDEMPOTENCY_KEY_REUSED");

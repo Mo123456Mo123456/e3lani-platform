@@ -17,6 +17,7 @@ import {
   favorites,
   mediaAssets,
   moderationCases,
+  profilePostMedia,
   reports,
   scopedPricingRules,
   users,
@@ -110,26 +111,28 @@ async function resolveCategoryId(slug: string) {
   return rows[0];
 }
 
-async function resolveCityId(cityCode: string) {
+async function resolveCityId(cityCode: string, countryCode: string) {
   const db = requireDatabase(await getDb());
+  const normalizedCountry = countryCode.trim().toUpperCase();
   const candidates = [cityCode];
   if (cityCode.startsWith("other") && cityCode !== "other") candidates.push("other");
   for (const code of candidates) {
     const rows = await db
       .select({ id: cities.id, code: cities.code })
       .from(cities)
-      .where(and(eq(cities.code, code), eq(cities.isActive, 1)))
+      .innerJoin(countries, eq(cities.countryId, countries.id))
+      .where(
+        and(
+          eq(cities.code, code),
+          eq(cities.isActive, 1),
+          eq(countries.code, normalizedCountry),
+          eq(countries.isActive, 1),
+        ),
+      )
       .limit(1);
     if (rows[0]) return rows[0];
   }
-  const fallback = await db
-    .select({ id: cities.id, code: cities.code })
-    .from(cities)
-    .where(eq(cities.isActive, 1))
-    .orderBy(asc(cities.sortOrder))
-    .limit(1);
-  if (!fallback[0]) throw new Error("CITY_NOT_FOUND");
-  return fallback[0];
+  throw new Error("CITY_NOT_FOUND_FOR_COUNTRY");
 }
 
 function adOwnerCondition(identity: ContentIdentity) {
@@ -237,7 +240,7 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
     : { label: "SAFE" as const, reasons: [], autoAction: "keep_published" as const, confidence: 0 };
 
   const category = await resolveCategoryId(input.categorySlug);
-  const city = await resolveCityId(input.cityCode);
+  const city = await resolveCityId(input.cityCode, input.countryCode);
   const now = new Date();
   const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -273,7 +276,7 @@ export async function createServerAd(input: CreateAdInput): Promise<FeedAdDto> {
 
   const creation = await db.transaction(async (tx) => {
     await lockIdentity(tx, input.identity);
-    const duplicate = await findIdempotentAction(tx, input.idempotencyKey, "main_ad");
+    const duplicate = await findIdempotentAction(tx, input.identity, input.idempotencyKey, "main_ad");
     if (duplicate) return { publicId: duplicate, duplicate: true as const };
     await enforceRollingLimit(tx, {
       identity: input.identity,
@@ -791,7 +794,7 @@ export async function reportAd(input: {
   const reportPublicId = publicId("rep", 32);
   await db.transaction(async (tx) => {
     await lockIdentity(tx, input.identity);
-    const duplicate = await findIdempotentAction(tx, input.idempotencyKey, "report");
+    const duplicate = await findIdempotentAction(tx, input.identity, input.idempotencyKey, "report");
     if (duplicate) return duplicate;
     await enforceRollingLimit(tx, {
       identity: input.identity,
@@ -969,6 +972,9 @@ export async function adminSetAdStatus(input: {
       pausedAt: input.status === "paused" ? now : null,
       deletedAt: input.status === "removed" ? now : null,
       activatedAt: input.status === "active" ? adRows[0].activatedAt ?? now : adRows[0].activatedAt,
+      adminHold: input.status === "active" ? 0 : 1,
+      adminHoldReason: input.status === "active" ? null : input.reason?.trim().slice(0, 500) || "Administrative hold",
+      moderationStatus: input.status === "active" ? "approved" : adRows[0].moderationStatus,
     })
     .where(eq(ads.id, adRows[0].id));
 
@@ -998,8 +1004,8 @@ export async function adminSetAdStatus(input: {
     entityType: "ad",
     entityId: input.publicAdId,
     reason: input.reason ?? null,
-    beforeState: { adStatus: adRows[0].adStatus },
-    afterState: { adStatus: input.status },
+    beforeState: { adStatus: adRows[0].adStatus, adminHold: adRows[0].adminHold },
+    afterState: { adStatus: input.status, adminHold: input.status === "active" ? 0 : 1 },
   }).catch(() => undefined);
 
   return { ok: true as const, reason: input.reason ?? null };
@@ -1040,6 +1046,16 @@ export async function updateServerAd(input: {
   if (title.length < 4) throw new Error("AD_TITLE_INVALID");
   if (description.length < 20) throw new Error("AD_DESCRIPTION_INVALID");
 
+  const policy = await loadLaunchPolicy();
+  const scan = policy.aiModeration
+    ? scanAdContent({ title, description })
+    : { label: "SAFE" as const, reasons: [], autoAction: "keep_published" as const, confidence: 0 };
+  const reviewStatus =
+    scan.autoAction === "auto_pause"
+      ? "rejected"
+      : scan.autoAction === "flag_for_admin"
+        ? "queued"
+        : "approved";
   const now = new Date();
   const insertRev = await db.insert(adRevisions).values({
     adId: ad.id,
@@ -1049,9 +1065,10 @@ export async function updateServerAd(input: {
     customCityName:
       input.customCityName !== undefined ? input.customCityName?.trim() || null : current[0].customCityName,
     audienceScope: current[0].audienceScope,
-    reviewStatus: "approved",
+    reviewStatus,
     submittedAt: now,
-    decidedAt: now,
+    decidedAt: reviewStatus === "approved" || reviewStatus === "rejected" ? now : null,
+    decisionReason: scan.reasons.join(", ") || null,
     createdBy: input.identity.userId,
     createdByVisitorSessionId: input.identity.visitorSessionId,
   });
@@ -1091,7 +1108,35 @@ export async function updateServerAd(input: {
     });
   }
 
-  await db.update(ads).set({ currentRevisionId: revisionId }).where(eq(ads.id, ad.id));
+  const nextAdStatus = scan.autoAction === "auto_pause" ? "paused" : ad.adStatus;
+  const nextModerationStatus =
+    scan.autoAction === "auto_pause"
+      ? "rejected"
+      : scan.autoAction === "flag_for_admin"
+        ? "queued"
+        : ad.adminHold === 1
+          ? ad.moderationStatus
+          : "approved";
+  await db
+    .update(ads)
+    .set({
+      currentRevisionId: revisionId,
+      adStatus: nextAdStatus,
+      moderationStatus: nextModerationStatus,
+      pausedAt: nextAdStatus === "paused" ? ad.pausedAt ?? now : ad.pausedAt,
+    })
+    .where(eq(ads.id, ad.id));
+  if (scan.autoAction !== "keep_published") {
+    await db.insert(moderationCases).values({
+      adId: ad.id,
+      revisionId,
+      status: scan.autoAction === "auto_pause" ? "rejected" : "queued",
+      riskScore: Math.round(scan.confidence * 100),
+      automatedSignals: { source: "edited_text", ...scan },
+      decisionReason: scan.reasons.join(", ") || null,
+      decidedAt: scan.autoAction === "auto_pause" ? now : null,
+    });
+  }
   await writeAuditLog({
     actorId: input.identity.userId,
     actorVisitorSessionId: input.identity.visitorSessionId,
@@ -1138,6 +1183,7 @@ export async function pauseServerAd(input: { identity: ContentIdentity; publicAd
 export async function publishServerAd(input: { identity: ContentIdentity; publicAdId: string }) {
   const ad = await requireOwnedAd(input.identity, input.publicAdId);
   if (ad.paymentStatus === "pending") throw new Error("AD_AWAITING_PAYMENT");
+  if (ad.adminHold === 1) throw new Error("AD_ADMIN_HOLD");
   if (ad.moderationStatus === "rejected") throw new Error("AD_MODERATION_REJECTED");
   if (!["paused", "draft", "pending_review", "expired"].includes(ad.adStatus)) {
     throw new Error("AD_NOT_PUBLISHABLE");
@@ -1211,8 +1257,11 @@ export async function cleanupOrphanMediaAssets(input?: {
   const limit = Math.min(Math.max(input?.limit ?? 50, 1), 200);
   const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
 
-  const linked = await db.select({ mediaAssetId: adMedia.mediaAssetId }).from(adMedia);
-  const linkedIds = [...new Set(linked.map((row) => row.mediaAssetId))];
+  const [adLinks, postLinks] = await Promise.all([
+    db.select({ mediaAssetId: adMedia.mediaAssetId }).from(adMedia),
+    db.select({ mediaAssetId: profilePostMedia.mediaAssetId }).from(profilePostMedia),
+  ]);
+  const linkedIds = [...new Set([...adLinks, ...postLinks].map((row) => row.mediaAssetId))];
 
   const conditions = [lt(mediaAssets.createdAt, cutoff)];
   if (input?.ownerId) conditions.push(eq(mediaAssets.ownerId, input.ownerId));

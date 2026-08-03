@@ -42,6 +42,8 @@ export const ads = mysqlTable("ads", {
   paymentStatus: mysqlEnum("paymentStatus", ["not_required", "unpaid", "pending", "paid", "failed", "refunded", "partially_refunded"]).default("unpaid").notNull(),
   mediaStatus: mysqlEnum("mediaStatus", ["empty", "uploading", "processing", "ready", "failed"]).default("empty").notNull(),
   moderationStatus: mysqlEnum("moderationStatus", ["not_submitted", "queued", "in_review", "approved", "changes_requested", "rejected"]).default("not_submitted").notNull(),
+  adminHold: tinyint("adminHold").default(0).notNull(),
+  adminHoldReason: varchar("adminHoldReason", { length: 500 }),
   activatedAt: timestamp("activatedAt"),
   expiresAt: timestamp("expiresAt"),
   pausedAt: timestamp("pausedAt"),

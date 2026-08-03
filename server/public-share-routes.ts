@@ -173,7 +173,7 @@ export function registerPublicShareRoutes(app: Express) {
     img{width:100%;border-radius:24px}a{display:inline-block;margin-top:18px;padding:14px 22px;border-radius:14px;background:#ffc400;color:#111;text-decoration:none;font-weight:800}
   </style>
 </head>
-<body><main><img src="${html(image)}" alt="${html(ad.title)}"/><h1>${html(ad.title)}</h1><p>${html(description)}</p><a href="e3lani://ad/${html(ad.publicId)}">فتح الإعلان في إعلاني</a></main></body>
+<body><main><img src="${html(image)}" alt="${html(ad.title)}"/><h1>${html(ad.title)}</h1><p>${html(description)}</p><a href="e3lani://ad/${html(ad.publicId)}">فتح في التطبيق</a><a href="${html(origin)}/ad/${html(ad.publicId)}" style="margin-inline-start:10px;background:#fff">فتح في المتصفح</a></main></body>
 </html>`);
     } catch {
       return res.sendStatus(503);

@@ -99,13 +99,25 @@ export const identityActionEvents = mysqlTable("identity_action_events", {
   idempotencyKey: varchar("idempotencyKey", { length: 96 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
-  uniqueIndex("identity_action_idempotency_unique").on(table.idempotencyKey),
+  uniqueIndex("identity_action_user_idempotency_unique").on(table.userId, table.actionType, table.idempotencyKey),
+  uniqueIndex("identity_action_visitor_idempotency_unique").on(table.visitorSessionId, table.actionType, table.idempotencyKey),
   index("identity_action_user_window_idx").on(table.userId, table.actionType, table.createdAt),
   index("identity_action_visitor_window_idx").on(
     table.visitorSessionId,
     table.actionType,
     table.createdAt,
   ),
+]);
+
+export const profilePostEvents = mysqlTable("profile_post_events", {
+  id: int("id").autoincrement().primaryKey(),
+  profilePostId: int("profilePostId").notNull().references(() => profilePosts.id),
+  eventType: mysqlEnum("eventType", ["view", "share"]).notNull(),
+  dedupeKey: varchar("dedupeKey", { length: 180 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("profile_post_events_dedupe_unique").on(table.dedupeKey),
+  index("profile_post_events_rollup_idx").on(table.profilePostId, table.eventType, table.createdAt),
 ]);
 
 export const profileFollows = mysqlTable("profile_follows", {
