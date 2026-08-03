@@ -18,6 +18,7 @@ describe("visitor-first launch policy", () => {
     expect(DEFAULT_LAUNCH_POLICY.manualPreApproval).toBe(false);
     expect(DEFAULT_LAUNCH_POLICY.globalFreeMode).toBe(true);
     expect(DEFAULT_LAUNCH_POLICY.paymentRequired).toBe(false);
+    expect(DEFAULT_LAUNCH_POLICY.paymentsEnabled).toBe(false);
   });
 
   it("uses configurable server limits with safe bounds", () => {
@@ -42,6 +43,35 @@ describe("visitor-first launch policy", () => {
   });
 });
 
+describe("guest-only launch interface", () => {
+  const gate = readFileSync(
+    new URL("../components/e3lani/app-state-gate.tsx", import.meta.url).pathname,
+    "utf8",
+  );
+  const welcome = readFileSync(
+    new URL("../app/welcome.tsx", import.meta.url).pathname,
+    "utf8",
+  );
+  const profile = readFileSync(
+    new URL("../app/(tabs)/profile.tsx", import.meta.url).pathname,
+    "utf8",
+  );
+
+  it("enters the application directly instead of redirecting to login or onboarding", () => {
+    expect(gate).not.toContain("<Redirect");
+    expect(gate).not.toContain('router.replace("/login"');
+    expect(gate).toContain('completeCountryGate(accountCountry || "SA")');
+  });
+
+  it("keeps registration and sign-in actions hidden during the free launch", () => {
+    expect(welcome).not.toContain('pathname: "/login"');
+    expect(welcome).not.toContain("إنشاء حساب معلن");
+    expect(welcome).not.toContain("تسجيل الدخول");
+    expect(profile).not.toContain('router.push("/login"');
+    expect(profile).toContain("النشر مجاني ومباشر الآن");
+  });
+});
+
 describe("guest content migration", () => {
   const migration = readFileSync(
     new URL("../drizzle/0010_guest_profiles_posts_sharing.sql", import.meta.url).pathname,
@@ -63,4 +93,3 @@ describe("guest content migration", () => {
     expect(migration).toContain("CREATE TABLE `advertiser_profiles`");
   });
 });
-
