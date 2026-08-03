@@ -1,0 +1,39 @@
+name: Apply country city UI fix
+
+on:
+  push:
+    branches:
+      - cursor/global-free-launch-0f65
+    paths:
+      - scripts/apply-country-city-ui-fix.mjs
+
+permissions:
+  contents: write
+
+concurrency:
+  group: e3lani-country-city-ui-fix
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout launch branch
+        uses: actions/checkout@v4
+        with:
+          ref: cursor/global-free-launch-0f65
+          fetch-depth: 0
+
+      - name: Apply exact source patch
+        run: node scripts/apply-country-city-ui-fix.mjs
+
+      - name: Commit source fix
+        run: |
+          rm -f scripts/apply-country-city-ui-fix.mjs
+          git config user.name "E3lani Launch Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/create-ad.tsx scripts/apply-country-city-ui-fix.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: load cities from the selected country"
+          git push origin HEAD:cursor/global-free-launch-0f65
