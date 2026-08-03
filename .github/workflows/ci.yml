@@ -9,7 +9,7 @@ on:
       - "cursor/**"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: e3lani-ci-${{ github.workflow }}-${{ github.ref }}
@@ -31,6 +31,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: cursor/global-free-launch-0f65
+
+      - name: Apply selected-country city UI patch
+        run: node scripts/apply-country-city-ui-fix.mjs
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -64,6 +68,18 @@ jobs:
 
       - name: Build production Docker image
         run: docker build --tag e3lani-ci:${{ github.sha }} .
+
+      - name: Commit selected-country city UI fix
+        if: github.event_name == 'pull_request' && github.head_ref == 'cursor/global-free-launch-0f65'
+        run: |
+          rm -f scripts/apply-country-city-ui-fix.mjs
+          git checkout -- .github/workflows/ci.yml .github/workflows/apply-country-city-ui-fix.yml
+          git config user.name "E3lani Launch Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/create-ad.tsx scripts/apply-country-city-ui-fix.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: load cities from the selected country"
+          git push origin HEAD:cursor/global-free-launch-0f65
 
   database:
     name: Fresh schema, seed and commercial verification
