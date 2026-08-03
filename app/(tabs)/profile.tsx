@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
+import { ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { findCountry, formatCountryLabel } from "@/lib/countries";
 import { BRAND } from "@/lib/e3lani-data";
@@ -30,6 +30,12 @@ export default function Profile() {
   const staff = Boolean(user && ["reviewer", "finance", "support", "admin", "owner"].includes(user.role));
   const country = findCountry(countries, user?.countryCode ?? accountCountry);
   const countryLabel = formatCountryLabel(country, locale === "ar" ? "ar" : "en");
+  const displayName = user?.name ?? (locale === "ar" ? "مساحة المعلن" : "Advertiser workspace");
+  const helper = user?.phone ?? (
+    locale === "ar"
+      ? "تصفح وانشر الإعلانات وأنشئ صفحتك مجانًا دون تسجيل."
+      : "Browse, publish ads and build your page for free without signing in."
+  );
 
   return (
     <ScreenContainer className="px-4">
@@ -37,14 +43,14 @@ export default function Profile() {
         <ScreenTitle title={t("account")} />
         <View
           accessible
-          accessibilityLabel={user ? `${user.name}, ${user.phone}` : t("welcome")}
+          accessibilityLabel={`${displayName}, ${helper}`}
           style={styles.card}
         >
           <View accessible={false} style={styles.avatar}>
-            <MaterialIcons accessible={false} name="person" size={39} color={BRAND.black} />
+            <MaterialIcons accessible={false} name="storefront" size={39} color={BRAND.black} />
           </View>
-          <Text style={styles.name}>{user?.name ?? t("welcome")}</Text>
-          <Text style={styles.help}>{user?.phone ?? t("loginHelp")}</Text>
+          <Text style={styles.name}>{displayName}</Text>
+          <Text style={styles.help}>{helper}</Text>
           <Text style={styles.country}>{countryLabel}</Text>
           <Pressable
             onPress={() => router.push("/welcome" as never)}
@@ -55,29 +61,32 @@ export default function Profile() {
             </Text>
           </Pressable>
           {!user ? (
-            <View style={styles.full}>
-              <PrimaryButton label={t("signIn")} icon="login" onPress={() => router.push("/login" as never)} />
+            <View style={styles.freeBadge}>
+              <MaterialIcons name="bolt" size={17} color={BRAND.black} />
+              <Text style={styles.freeBadgeText}>
+                {locale === "ar" ? "النشر مجاني ومباشر الآن" : "Free instant publishing is active"}
+              </Text>
             </View>
           ) : null}
         </View>
 
         {(user ? rows : guestRows).map((item) => {
-              const label = t(item.key);
-              return (
-                <Pressable
-                  accessible
-                  accessibilityRole="link"
-                  accessibilityLabel={label}
-                  key={item.key}
-                  onPress={() => router.push(item.route as never)}
-                  style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
-                >
-                  <MaterialIcons accessible={false} name={item.icon} size={23} color={BRAND.black} />
-                  <Text style={styles.rowText}>{label}</Text>
-                  <MaterialIcons accessible={false} name="chevron-left" size={23} color={BRAND.muted} />
-                </Pressable>
-              );
-            })}
+          const label = t(item.key);
+          return (
+            <Pressable
+              accessible
+              accessibilityRole="link"
+              accessibilityLabel={label}
+              key={item.key}
+              onPress={() => router.push(item.route as never)}
+              style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <MaterialIcons accessible={false} name={item.icon} size={23} color={BRAND.black} />
+              <Text style={styles.rowText}>{label}</Text>
+              <MaterialIcons accessible={false} name="chevron-left" size={23} color={BRAND.muted} />
+            </Pressable>
+          );
+        })}
 
         {staff ? (
           <Pressable
@@ -158,7 +167,22 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textDecorationLine: "underline",
   },
-  full: { width: "100%", marginTop: 17 },
+  freeBadge: {
+    marginTop: 14,
+    minHeight: 38,
+    borderRadius: 19,
+    backgroundColor: BRAND.yellow,
+    paddingHorizontal: 13,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  freeBadgeText: {
+    color: BRAND.black,
+    fontSize: 12,
+    fontWeight: "900",
+  },
   row: {
     minHeight: 58,
     marginTop: 9,
