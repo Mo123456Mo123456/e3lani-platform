@@ -1,5 +1,4 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Redirect, usePathname } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -54,7 +53,7 @@ function VisitorIdentitySync() {
           marketCode: String(store.marketCode),
           forceCountryFilter: store.forceCountryFilter,
           categoryFilter: store.categoryFilter,
-          countryGateCompleted: store.countryGateCompleted,
+          countryGateCompleted: true,
           blockedOwners: store.blockedOwners.slice(0, 500),
         },
         savedAdPublicIds: store.savedIds.slice(0, 200),
@@ -71,7 +70,6 @@ function VisitorIdentitySync() {
     store.marketCode,
     store.forceCountryFilter,
     store.categoryFilter,
-    store.countryGateCompleted,
     store.blockedOwners,
     store.savedIds,
   ]);
@@ -80,9 +78,21 @@ function VisitorIdentitySync() {
 }
 
 export function AppStateGate({ children }: { children: ReactNode }) {
-  const { ready, loadError, retryLoad, continueWithFreshState, countryGateCompleted } = useE3lani();
+  const {
+    ready,
+    loadError,
+    retryLoad,
+    continueWithFreshState,
+    countryGateCompleted,
+    accountCountry,
+    completeCountryGate,
+  } = useE3lani();
   const { locale } = useI18n();
-  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!ready || loadError || countryGateCompleted) return;
+    completeCountryGate(accountCountry || "SA");
+  }, [accountCountry, completeCountryGate, countryGateCompleted, loadError, ready]);
 
   if (!ready) {
     return (
@@ -91,7 +101,7 @@ export function AppStateGate({ children }: { children: ReactNode }) {
           <ActivityIndicator size="large" color={BRAND.yellowDark} />
           <Text style={styles.title}>{locale === "ar" ? "جارٍ تجهيز إعلاني" : "Preparing E3lani"}</Text>
           <Text style={styles.body}>
-            {locale === "ar" ? "نستعيد بياناتك المحفوظة على هذا الجهاز." : "Restoring data saved on this device."}
+            {locale === "ar" ? "ندخلك مباشرة كزائر دون تسجيل." : "Opening E3lani directly as a guest."}
           </Text>
         </View>
       </SafeAreaView>
@@ -130,22 +140,6 @@ export function AppStateGate({ children }: { children: ReactNode }) {
           </Pressable>
         </View>
       </SafeAreaView>
-    );
-  }
-
-  const allowWithoutGate =
-    pathname === "/welcome" ||
-    pathname === "/login" ||
-    pathname?.startsWith("/policies") ||
-    pathname?.startsWith("/oauth");
-
-  if (!countryGateCompleted && !allowWithoutGate) {
-    return (
-      <>
-        <LaunchPolicyHydrator />
-        <VisitorIdentitySync />
-        <Redirect href="/welcome" />
-      </>
     );
   }
 
