@@ -9,7 +9,7 @@ on:
       - "cursor/**"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: e3lani-ci-${{ github.workflow }}-${{ github.ref }}
@@ -31,88 +31,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: cursor/global-free-launch-0f65
-
-      - name: Apply approved critical safety patch
-        run: |
-          node <<'NODE'
-          const fs = require("node:fs");
-          const source = fs.readFileSync("scripts/apply-critical-safety-patch.mjs", "utf8");
-          const marker = 'replaceExactly(\n  ".github/workflows/ci.yml",';
-          const index = source.indexOf(marker);
-          if (index < 0) throw new Error("CI patch marker not found");
-          fs.writeFileSync(
-            "/tmp/apply-critical-safety-patch.mjs",
-            source.slice(0, index) + '\nconsole.log("Critical safety patch applied successfully.");\n',
-          );
-          NODE
-          node /tmp/apply-critical-safety-patch.mjs
-          node <<'NODE'
-          const fs = require("node:fs");
-          for (const path of ["server/ads-service.ts", "server/profile-service.ts"]) {
-            let source = fs.readFileSync(path, "utf8");
-            source = source.replaceAll(
-              "findIdempotentAction(tx, input.idempotencyKey,",
-              "findIdempotentAction(tx, input.identity, input.idempotencyKey,",
-            );
-            fs.writeFileSync(path, source);
-          }
-          const moderationPath = "server/media-moderation-service.ts";
-          let moderation = fs.readFileSync(moderationPath, "utf8");
-          moderation = moderation.replace(
-            '.map((value) => value.trim().toLowerCase())',
-            '.map((value: string) => value.trim().toLowerCase())',
-          );
-          fs.writeFileSync(moderationPath, moderation);
-
-          const dockerPath = "Dockerfile";
-          let docker = fs.readFileSync(dockerPath, "utf8");
-          docker = docker.replace(
-            "COPY package.json pnpm-lock.yaml ./",
-            "COPY package.json pnpm-lock.yaml .npmrc ./",
-          );
-          if (!docker.includes("COPY package.json pnpm-lock.yaml .npmrc ./")) {
-            throw new Error("Docker pnpm configuration copy was not applied");
-          }
-          fs.writeFileSync(dockerPath, docker);
-          NODE
-          cat > tests/critical-production-safety.test.ts <<'TEST'
-          import { readFileSync } from "node:fs";
-          import { dirname, resolve } from "node:path";
-          import { fileURLToPath } from "node:url";
-          import { describe, expect, it } from "vitest";
-
-          const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-          const read = (path: string) => readFileSync(resolve(root, path), "utf8");
-
-          describe("production safety hardening", () => {
-            it("restricts origins and avoids shared parent-domain cookies", () => {
-              const server = read("server/_core/index.ts");
-              const cookies = read("server/_core/cookies.ts");
-              expect(server).toContain("ORIGIN_NOT_ALLOWED");
-              expect(server).toContain("allowedOrigins.has(origin)");
-              expect(cookies).toContain('sameSite: "lax"');
-              expect(cookies).not.toContain("parts.slice(-2)");
-            });
-
-            it("requires schema verification, storage, ffmpeg and Docker production runtime", () => {
-              expect(read("render.yaml")).toContain("runtime: docker");
-              expect(read("Dockerfile")).toContain("ffmpeg");
-              expect(read("Dockerfile")).toContain(".npmrc");
-              expect(read("scripts/production-start.mjs")).toContain("verify-production-schema.mjs");
-              expect(read("scripts/verify-production-schema.mjs")).toContain("MIGRATION_0010_PARTIAL_STATE");
-            });
-
-            it("scopes idempotency and protects admin-held ads", () => {
-              const identity = read("server/content-identity.ts");
-              const ads = read("server/ads-service.ts");
-              expect(identity).toContain("ownerCondition");
-              expect(ads).toContain("AD_ADMIN_HOLD");
-              expect(ads).toContain("CITY_NOT_FOUND_FOR_COUNTRY");
-              expect(ads).toContain('source: "edited_text"');
-            });
-          });
-          TEST
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -146,18 +64,6 @@ jobs:
 
       - name: Build production Docker image
         run: docker build --tag e3lani-ci:${{ github.sha }} .
-
-      - name: Commit verified safety fixes to branch
-        if: github.event_name == 'pull_request' && github.head_ref == 'cursor/global-free-launch-0f65'
-        run: |
-          rm -f scripts/apply-critical-safety-patch.mjs scripts/critical-patch.trigger docs/critical-patch-failure.log
-          git checkout -- .github/workflows/ci.yml .github/workflows/apply-critical-safety-patch.yml
-          git config user.name "E3lani Safety Bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet && exit 0
-          git commit -m "fix: harden production launch safety"
-          git push origin HEAD:cursor/global-free-launch-0f65
 
   database:
     name: Fresh schema, seed and commercial verification
