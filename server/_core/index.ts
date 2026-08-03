@@ -118,12 +118,15 @@ function startServer() {
     const webRoot = path.resolve(process.cwd(), "dist-web");
     const indexFile = path.join(webRoot, "index.html");
     if (fs.existsSync(indexFile)) {
-      app.use(express.static(webRoot, { index: "index.html", maxAge: "1h" }));
+      app.use(express.static(webRoot, { index: false, maxAge: "1h" }));
       app.get("*", (req, res, next) => {
         if (req.path.startsWith("/api/") || req.path.startsWith("/share/") || req.path.startsWith("/manus-storage/")) {
           next();
           return;
         }
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
         res.sendFile(indexFile);
       });
     } else {
