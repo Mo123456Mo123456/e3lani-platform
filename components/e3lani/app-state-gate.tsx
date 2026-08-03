@@ -71,15 +71,26 @@ function VisitorIdentityBoundary({ children }: { children: ReactNode }) {
     if (!store.ready || store.loadError || identityReady || ensure.isPending) return;
 
     let active = true;
-    void (async () => {
-      const current = await getVisitorToken();
-      const result = await ensure.mutateAsync();
-      if (result.token !== current) await setVisitorToken(result.token);
+    const openGuestFallback = setTimeout(() => {
       if (active) setIdentityReady(true);
-    })().catch(() => undefined);
+    }, 2500);
+
+    void (async () => {
+      try {
+        const current = await getVisitorToken();
+        const result = await ensure.mutateAsync();
+        if (result.token !== current) await setVisitorToken(result.token);
+      } catch (error) {
+        console.warn("[Visitor] Identity initialization failed; continuing in browse-only guest mode", error);
+      } finally {
+        clearTimeout(openGuestFallback);
+        if (active) setIdentityReady(true);
+      }
+    })();
 
     return () => {
       active = false;
+      clearTimeout(openGuestFallback);
     };
   }, [ensure, identityReady, store.loadError, store.ready]);
 
