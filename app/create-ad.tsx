@@ -70,6 +70,11 @@ export default function CreateAd() {
   const [cityId, setCityId] = useState("");
   const [customCity, setCustomCity] = useState("");
   const [adCountry, setAdCountry] = useState(store.accountCountry);
+  const countryCitiesQuery = trpc.countries.cities.useQuery(
+    { countryCode: adCountry },
+    { enabled: Boolean(adCountry), staleTime: 30 * 60 * 1000 },
+  );
+  const availableCities = countryCitiesQuery.data;
   const [storeUrl, setStoreUrl] = useState("");
   const [whatsapp, setWhatsapp] = useState("+966");
   const [phone, setPhone] = useState("");
@@ -87,8 +92,8 @@ export default function CreateAd() {
 
   useEffect(() => {
     if (!categoryId && productData.categories[0]) setCategoryId(productData.categories[0].id);
-    if (!cityId && productData.cities[0]) setCityId(productData.cities[0].id);
-  }, [categoryId, cityId, productData.categories, productData.cities]);
+    if (!cityId && availableCities?.[0]) setCityId(availableCities[0].code);
+  }, [availableCities, categoryId, cityId, productData.categories]);
 
   useEffect(() => {
     const post = conversionQuery.data;
@@ -219,7 +224,7 @@ export default function CreateAd() {
     );
   }
 
-  if (productData.isLoading) {
+  if (productData.isLoading || countryCitiesQuery.isLoading) {
     return (
       <ScreenContainer>
         <View style={styles.gate}>
@@ -232,9 +237,10 @@ export default function CreateAd() {
 
   if (
     productData.isError ||
+    countryCitiesQuery.isError ||
     !productData.config ||
     !productData.categories.length ||
-    !productData.cities.length
+    !availableCities?.length
   ) {
     return (
       <ScreenContainer>
@@ -358,8 +364,8 @@ export default function CreateAd() {
         title: title.trim(),
         description: description.trim(),
         categorySlug: categoryId,
-        cityCode: cityId === "other" ? "other" : cityId,
-        customCityName: cityId === "other" ? customCity.trim() || null : null,
+        cityCode: cityId,
+        customCityName: cityId.startsWith("other") ? customCity.trim() || null : null,
         countryCode: adCountry,
         mediaAssetIds,
         contacts,
@@ -393,13 +399,13 @@ export default function CreateAd() {
         vatHalalas: quoteQuery.data?.quote.tax ?? 0,
       }
     : { items: [] as PromotionCode[], totalHalalas: 0, vatHalalas: 0 };
-  const city = productData.cities.find((item) => item.id === cityId);
+  const city = availableCities?.find((item) => item.code === cityId);
   const cityName =
-    cityId === "other"
+    cityId.startsWith("other")
       ? customCity.trim() || (locale === "ar" ? "مدينة أخرى" : "Other city")
       : locale === "ar"
-        ? city?.ar
-        : city?.en;
+        ? city?.nameAr
+        : city?.nameEn;
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -488,27 +494,26 @@ export default function CreateAd() {
                   key={country.code}
                   label={`${country.flag} ${locale === "ar" ? country.nameAr : country.nameEn}`}
                   active={adCountry === country.code}
-                  onPress={() => setAdCountry(country.code)}
+                  onPress={() => {
+                    setAdCountry(country.code);
+                    setCityId("");
+                    setCustomCity("");
+                  }}
                 />
               ))}
             </ScrollView>
             <Text style={styles.label}>{t("city")}</Text>
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
-              {productData.cities.map((item) => (
+              {(availableCities ?? []).map((item) => (
                 <Pill
-                  key={item.id}
-                  label={locale === "ar" ? item.ar : item.en}
-                  active={cityId === item.id}
-                  onPress={() => setCityId(item.id)}
+                  key={item.code}
+                  label={locale === "ar" ? item.nameAr : item.nameEn}
+                  active={cityId === item.code}
+                  onPress={() => setCityId(item.code)}
                 />
               ))}
-              <Pill
-                label={locale === "ar" ? "مدينة أخرى" : "Other city"}
-                active={cityId === "other"}
-                onPress={() => setCityId("other")}
-              />
             </ScrollView>
-            {cityId === "other" ? (
+            {cityId.startsWith("other") ? (
               <Field
                 label={locale === "ar" ? "اسم المدينة" : "City name"}
                 value={customCity}
