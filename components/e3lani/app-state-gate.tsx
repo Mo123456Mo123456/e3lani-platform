@@ -65,10 +65,12 @@ function VisitorIdentityBoundary({ children }: { children: ReactNode }) {
   const { locale } = useI18n();
   const ensure = trpc.visitor.ensure.useMutation();
   const upsert = trpc.visitor.upsert.useMutation();
+  const ensureVisitor = ensure.mutateAsync;
+  const upsertVisitor = upsert.mutate;
   const [identityReady, setIdentityReady] = useState(false);
 
   useEffect(() => {
-    if (!store.ready || store.loadError || identityReady || ensure.isPending) return;
+    if (!store.ready || store.loadError || identityReady) return;
 
     let active = true;
     const openGuestFallback = setTimeout(() => {
@@ -78,7 +80,7 @@ function VisitorIdentityBoundary({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         const current = await getVisitorToken();
-        const result = await ensure.mutateAsync();
+        const result = await ensureVisitor();
         if (result.token !== current) await setVisitorToken(result.token);
       } catch (error) {
         console.warn("[Visitor] Identity initialization failed; continuing in browse-only guest mode", error);
@@ -92,13 +94,13 @@ function VisitorIdentityBoundary({ children }: { children: ReactNode }) {
       active = false;
       clearTimeout(openGuestFallback);
     };
-  }, [ensure, identityReady, store.loadError, store.ready]);
+  }, [ensureVisitor, identityReady, store.loadError, store.ready]);
 
   useEffect(() => {
     if (!store.ready || store.loadError || !identityReady) return;
 
     const timer = setTimeout(() => {
-      upsert.mutate({
+      upsertVisitor({
         prefs: {
           accountCountry: store.accountCountry,
           marketCode: String(store.marketCode),
@@ -122,7 +124,7 @@ function VisitorIdentityBoundary({ children }: { children: ReactNode }) {
     store.marketCode,
     store.ready,
     store.savedIds,
-    upsert,
+    upsertVisitor,
   ]);
 
   if (!identityReady) return <LoadingState locale={locale} />;
