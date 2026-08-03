@@ -25,7 +25,7 @@ services:
       - key: VIDEO_FONT_PATH
         value: /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
       - key: REQUIRE_MEDIA_STORAGE
-        value: "true"
+        value: "false"
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_URL
