@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -9,14 +9,16 @@ import { Field, OutlineButton, Pill, PrimaryButton, ScreenTitle } from "@/compon
 import { ScreenContainer } from "@/components/screen-container";
 import {
   BRAND,
-  isPaymentFlowVisible,
   type AdContact,
   type AdMedia,
   type ContactType,
   type PromotionCode,
 } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
+import { shouldShowPaymentUi } from "@/lib/launch-policy";
 import { useI18n } from "@/lib/i18n";
+import { mapFeedAd } from "@/lib/map-feed-ad";
+import { useCountries } from "@/lib/use-countries";
 import {
   preferredMediaUrl,
   preparePickedMedia,
@@ -40,13 +42,24 @@ type UploadItem = {
 };
 
 export default function CreateAd() {
+  const { sourcePostId } = useLocalSearchParams<{ sourcePostId?: string }>();
   const store = useE3lani();
   const productData = useProductData();
+  const { countries } = useCountries();
   const { locale, isRTL, t } = useI18n();
-  const paymentVisible = isPaymentFlowVisible(
-    store.launchMode,
-    Boolean(productData.config?.paymentEnabled),
+  const createMutation = trpc.ads.create.useMutation();
+  const conversionQuery = trpc.profilePosts.conversionDraft.useQuery(
+    { id: sourcePostId ?? "" },
+    { enabled: Boolean(sourcePostId) },
   );
+  const quoteQuery = trpc.product.quote.useQuery({
+    countryCode: store.accountCountry,
+    categorySlug: undefined,
+    accountType: store.user?.accountType,
+  });
+  const paymentVisible = shouldShowPaymentUi(store.launchPolicy);
+  const serverBlocksPaid =
+    Boolean(quoteQuery.data?.blockPublishReason) && !quoteQuery.data?.globalFreeMode;
   const totalSteps = paymentVisible ? 5 : 4;
   const [step, setStep] = useState(1);
   const [media, setMedia] = useState<AdMedia[]>([]);
@@ -55,6 +68,13 @@ export default function CreateAd() {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [cityId, setCityId] = useState("");
+  const [customCity, setCustomCity] = useState("");
+  const [adCountry, setAdCountry] = useState(store.accountCountry);
+  const countryCitiesQuery = trpc.countries.cities.useQuery(
+    { countryCode: adCountry },
+    { enabled: Boolean(adCountry), staleTime: 30 * 60 * 1000 },
+  );
+  const availableCities = countryCitiesQuery.data;
   const [storeUrl, setStoreUrl] = useState("");
   const [whatsapp, setWhatsapp] = useState("+966");
   const [phone, setPhone] = useState("");
@@ -62,14 +82,46 @@ export default function CreateAd() {
   const [promotions, setPromotions] = useState<PromotionCode[]>([]);
   const uploadControllers = useRef(new Map<string, UploadController>());
   const cancelledUploads = useRef(new Set<string>());
+  const conversionApplied = useRef(false);
+  const idempotencyKey = useRef(
+    `ad_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`,
+  );
   const prepareUploadMutation = trpc.media.prepareUpload.useMutation();
   const completeUploadMutation = trpc.media.completeUpload.useMutation();
   const deleteMediaMutation = trpc.media.delete.useMutation();
 
   useEffect(() => {
     if (!categoryId && productData.categories[0]) setCategoryId(productData.categories[0].id);
-    if (!cityId && productData.cities[0]) setCityId(productData.cities[0].id);
-  }, [categoryId, cityId, productData.categories, productData.cities]);
+    if (!cityId && availableCities?.[0]) setCityId(availableCities[0].code);
+  }, [availableCities, categoryId, cityId, productData.categories]);
+
+  useEffect(() => {
+    const post = conversionQuery.data;
+    if (!post || conversionApplied.current) return;
+    conversionApplied.current = true;
+    setTitle(post.title);
+    setDescription(post.description);
+    setMedia(
+      post.media.map((item) => ({
+        id: `media-${item.mediaAssetId}`,
+        mediaAssetId: item.mediaAssetId,
+        kind: item.kind,
+        uri: item.uri,
+        processingStatus: "ready",
+      })),
+    );
+    setUploads(
+      post.media.map((item) => ({
+        id: `converted-${item.mediaAssetId}`,
+        source: { uri: item.uri, type: item.kind } as ImagePicker.ImagePickerAsset,
+        previewUri: item.uri,
+        kind: item.kind,
+        status: "ready",
+        progress: 1,
+        mediaAssetId: item.mediaAssetId,
+      })),
+    );
+  }, [conversionQuery.data]);
 
   const updateUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
     setUploads((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -160,7 +212,7 @@ export default function CreateAd() {
     [completeUploadMutation, deleteMediaMutation, mediaMessage, prepareUploadMutation, productData.config?.mediaPolicy, updateUpload],
   );
 
-  if (!store.user) {
+  if (store.launchPolicy.authenticationRequired && !store.user) {
     return (
       <ScreenContainer>
         <View style={styles.gate}>
@@ -172,7 +224,7 @@ export default function CreateAd() {
     );
   }
 
-  if (productData.isLoading) {
+  if (productData.isLoading || countryCitiesQuery.isLoading) {
     return (
       <ScreenContainer>
         <View style={styles.gate}>
@@ -185,9 +237,10 @@ export default function CreateAd() {
 
   if (
     productData.isError ||
+    countryCitiesQuery.isError ||
     !productData.config ||
     !productData.categories.length ||
-    !productData.cities.length
+    !availableCities?.length
   ) {
     return (
       <ScreenContainer>
@@ -271,7 +324,7 @@ export default function CreateAd() {
     });
   };
 
-  const next = () => {
+  const next = async () => {
     if (step === 1 && uploads.some((item) => item.status !== "ready")) {
       return Alert.alert(locale === "ar" ? "انتظر اكتمال رفع جميع الوسائط أو أعد محاولة الملفات المتعثرة." : "Wait for all uploads to finish or retry failed files.");
     }
@@ -286,28 +339,73 @@ export default function CreateAd() {
       setStep((current) => current + 1);
       return;
     }
-    const ad = store.createAd({
-      title: title.trim(),
-      description: description.trim(),
-      categoryId,
-      cityId,
-      contacts,
-      promotions: paymentVisible ? promotions : [],
-      media,
-    });
-    if (paymentVisible && ad.status === "awaiting_payment") {
-      router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
-      return;
+    if (serverBlocksPaid) {
+      return Alert.alert(
+        locale === "ar" ? "النشر المدفوع غير جاهز" : "Paid publishing unavailable",
+        locale === "ar"
+          ? "الوضع المدفوع مفعّل لكن مزود الدفع الإنتاجي غير جاهز. لن يُحوَّل الإعلان إلى مجاني تلقائيًا."
+          : "Paid mode is on but the production payment provider is not ready. The ad will not be converted to free automatically.",
+      );
     }
-    Alert.alert(t("success"), t("freePublish"));
-    router.replace("/(tabs)" as never);
+    try {
+      const mediaAssetIds = media
+        .map((item) => item.mediaAssetId)
+        .filter((id): id is number => typeof id === "number");
+      if (!mediaAssetIds.length) {
+        return Alert.alert(
+          locale === "ar" ? "الوسائط مطلوبة" : "Media required",
+          locale === "ar"
+            ? "ارفع الوسائط إلى الخادم قبل النشر."
+            : "Upload media to the server before publishing.",
+        );
+      }
+      const created = await createMutation.mutateAsync({
+        idempotencyKey: idempotencyKey.current,
+        title: title.trim(),
+        description: description.trim(),
+        categorySlug: categoryId,
+        cityCode: cityId,
+        customCityName: cityId.startsWith("other") ? customCity.trim() || null : null,
+        countryCode: adCountry,
+        mediaAssetIds,
+        contacts,
+        sourcePostId,
+      });
+      const ad = mapFeedAd(created);
+      store.upsertServerAd(ad);
+      if (ad.status === "awaiting_payment") {
+        router.push({ pathname: "/checkout/[id]", params: { id: ad.id } } as never);
+        return;
+      }
+      Alert.alert(
+        t("success"),
+        ad.status === "paused"
+          ? locale === "ar"
+            ? "أوقفت المراجعة الآلية الإعلان. يمكنك تقديم استئناف من إعلاناتي."
+            : "AI moderation paused the ad. You can appeal from My ads."
+          : t("freePublish"),
+      );
+      router.replace("/(tabs)" as never);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "PUBLISH_FAILED";
+      Alert.alert(t("error"), message);
+    }
   };
 
   const quote = paymentVisible
-    ? productData.calculateQuote(promotions)
+    ? {
+        items: promotions,
+        totalHalalas: quoteQuery.data?.quote.finalPrice ?? 0,
+        vatHalalas: quoteQuery.data?.quote.tax ?? 0,
+      }
     : { items: [] as PromotionCode[], totalHalalas: 0, vatHalalas: 0 };
-  const city = productData.cities.find((item) => item.id === cityId);
-  const cityName = locale === "ar" ? city?.ar : city?.en;
+  const city = availableCities?.find((item) => item.code === cityId);
+  const cityName =
+    cityId.startsWith("other")
+      ? customCity.trim() || (locale === "ar" ? "مدينة أخرى" : "Other city")
+      : locale === "ar"
+        ? city?.nameAr
+        : city?.nameEn;
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -389,10 +487,40 @@ export default function CreateAd() {
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
               {productData.categories.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={categoryId === item.id} onPress={() => setCategoryId(item.id)} />)}
             </ScrollView>
+            <Text style={styles.label}>{locale === "ar" ? "دولة الإعلان" : "Ad country"}</Text>
+            <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
+              {countries.map((country) => (
+                <Pill
+                  key={country.code}
+                  label={`${country.flag} ${locale === "ar" ? country.nameAr : country.nameEn}`}
+                  active={adCountry === country.code}
+                  onPress={() => {
+                    setAdCountry(country.code);
+                    setCityId("");
+                    setCustomCity("");
+                  }}
+                />
+              ))}
+            </ScrollView>
             <Text style={styles.label}>{t("city")}</Text>
             <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
-              {productData.cities.map((item) => <Pill key={item.id} label={locale === "ar" ? item.ar : item.en} active={cityId === item.id} onPress={() => setCityId(item.id)} />)}
+              {(availableCities ?? []).map((item) => (
+                <Pill
+                  key={item.code}
+                  label={locale === "ar" ? item.nameAr : item.nameEn}
+                  active={cityId === item.code}
+                  onPress={() => setCityId(item.code)}
+                />
+              ))}
             </ScrollView>
+            {cityId.startsWith("other") ? (
+              <Field
+                label={locale === "ar" ? "اسم المدينة" : "City name"}
+                value={customCity}
+                onChangeText={setCustomCity}
+                maxLength={80}
+              />
+            ) : null}
           </View>
         ) : null}
 
@@ -460,7 +588,7 @@ export default function CreateAd() {
             disabled={step === 1 && uploads.some((item) => item.status !== "ready")}
             label={step === totalSteps ? (paymentVisible ? t("pay") : t("publishNow")) : t("next")}
             icon={step === totalSteps ? (paymentVisible ? "payments" : "campaign") : "arrow-back"}
-            onPress={next}
+            onPress={() => void next()}
           />
         </View>
       </View>

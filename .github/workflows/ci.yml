@@ -1,0 +1,134 @@
+name: E3lani CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - "cursor/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e3lani-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: TypeScript, lint, tests and builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      CI: "true"
+      NODE_ENV: test
+      EXPO_NO_TELEMETRY: "1"
+      VITE_APP_ID: e3lani-ci
+      JWT_SECRET: ci-only-secret-not-for-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit and integration tests
+        run: pnpm test
+
+      - name: Build server
+        run: pnpm build
+
+      - name: Export Expo web
+        run: pnpm exec expo export --platform web --output-dir dist-web
+
+      - name: Build production Docker image
+        run: docker build --tag e3lani-ci:${{ github.sha }} .
+
+  database:
+    name: Fresh schema, seed and commercial verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: e3lani
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      CI: "true"
+      NODE_ENV: test
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/e3lani
+      VITE_APP_ID: e3lani-ci
+      JWT_SECRET: ci-only-secret-not-for-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply current Drizzle schema to fresh MySQL
+        run: pnpm exec drizzle-kit push --force
+
+      - name: Seed central product data
+        run: pnpm db:seed
+
+      - name: Verify commercial schema and launch defaults
+        run: node scripts/verify-commercial-schema.mjs
+
+      - name: Verify OTP registration and reuse prevention
+        run: pnpm exec tsx scripts/verify-otp-flow.ts
+
+      - name: Verify cross-account ad publishing flow
+        run: pnpm exec tsx scripts/verify-server-ad-flow.ts
+
+      - name: Export fresh schema baseline
+        run: |
+          mysqldump -h 127.0.0.1 -uroot -proot --no-data --skip-comments --compact --set-gtid-purged=OFF e3lani > fresh-schema.sql
+
+      - name: Upload schema baseline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: e3lani-fresh-schema
+          path: fresh-schema.sql
+          retention-days: 1

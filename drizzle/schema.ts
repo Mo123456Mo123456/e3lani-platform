@@ -1,5 +1,7 @@
 export * from "./schema/accounts";
 export * from "./schema/catalog";
+export * from "./schema/community";
 export * from "./schema/content";
 export * from "./schema/commerce";
+export * from "./schema/countries";
 export * from "./schema/trust";

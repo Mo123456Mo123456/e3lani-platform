@@ -38,6 +38,7 @@ function createContext(role: UserRole, status: UserStatus = "active"): TrpcConte
       status,
       preferredLanguage: "ar",
       cityId: null,
+      countryCode: null,
       phone: null,
       deletedAt: null,
       createdAt: new Date(),

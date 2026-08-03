@@ -51,6 +51,7 @@ export function getApiBaseUrl(): string {
 
 export const SESSION_TOKEN_KEY = "app_session_token";
 export const USER_INFO_KEY = "manus-runtime-user-info";
+export const VISITOR_TOKEN_KEY = "e3lani-visitor-token-v1";
 
 const encodeState = (value: string) => {
   if (typeof globalThis.btoa === "function") {

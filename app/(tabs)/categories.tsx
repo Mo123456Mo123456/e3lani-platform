@@ -16,17 +16,20 @@ import { PrimaryButton, ScreenTitle } from "@/components/e3lani/ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { BRAND } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
-import { getMarket, MARKETS, type MarketCode } from "@/lib/feed/rank";
+import { buildMarkets, getMarket, GLOBAL_MARKET, MY_COUNTRY_MARKET, type MarketCode } from "@/lib/feed/rank";
 import { useI18n } from "@/lib/i18n";
+import { useCountries } from "@/lib/use-countries";
 import { useProductData } from "@/lib/use-product-data";
 
 export default function Categories() {
   const { locale, isRTL, t } = useI18n();
   const productData = useProductData();
+  const { countries } = useCountries();
+  const markets = useMemo(() => buildMarkets(countries), [countries]);
   const { marketCode, setMarket, setCategoryFilter } = useE3lani();
   const [query, setQuery] = useState("");
   const [marketOpen, setMarketOpen] = useState(false);
-  const market = getMarket(marketCode);
+  const market = getMarket(marketCode, markets);
 
   const categories = useMemo(() => {
     const text = query.trim().toLowerCase();
@@ -37,7 +40,7 @@ export default function Categories() {
   }, [productData.categories, query]);
 
   const selectMarket = (code: MarketCode) => {
-    setMarket(code);
+    setMarket(code, code === MY_COUNTRY_MARKET || (code !== GLOBAL_MARKET && code !== "ALL"));
     setMarketOpen(false);
   };
 
@@ -115,9 +118,9 @@ export default function Categories() {
           <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
             <View style={styles.handle} />
             <Text style={styles.sheetTitle}>{locale === "ar" ? "اختر السوق" : "Choose market"}</Text>
-            {MARKETS.map((item) => (
+            {markets.map((item) => (
               <Pressable key={item.code} style={styles.option} onPress={() => selectMarket(item.code)}>
-                <Text style={styles.marketCode}>{item.code}</Text>
+                <Text style={styles.marketCode}>{item.flag} {item.code}</Text>
                 <Text style={styles.optionName}>{locale === "ar" ? item.nameAr : item.nameEn}</Text>
               </Pressable>
             ))}

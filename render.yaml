@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: e3lani-live
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: cursor/global-free-launch-0f65
+    autoDeployTrigger: checksPass
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node scripts/production-start.mjs
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: VITE_APP_ID
+        value: e3lani-live
+      - key: EXPO_PUBLIC_APP_ID
+        value: e3lani-live
+      - key: PUBLIC_APP_URL
+        value: https://e3lani-live.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://e3lani-live.onrender.com
+      - key: FFMPEG_PATH
+        value: /usr/bin/ffmpeg
+      - key: VIDEO_FONT_PATH
+        value: /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+      - key: REQUIRE_MEDIA_STORAGE
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: BUILT_IN_FORGE_API_URL
+        sync: false
+      - key: BUILT_IN_FORGE_API_KEY
+        sync: false
+      - key: MODERATION_PROVIDER_URL
+        sync: false
+      - key: MODERATION_PROVIDER_API_KEY
+        sync: false
+      - key: MODERATION_PROVIDER_HOSTS
+        sync: false

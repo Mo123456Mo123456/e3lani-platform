@@ -1492,9 +1492,10 @@
     };
 
     const markets = {
-      SA: { name: 'السعودية', flag: '🇸🇦', cities: ['الرياض', 'جدة', 'الدمام', 'مكة', 'المدينة', 'الخبر', 'أبها', 'تبوك'] },
-      AE: { name: 'الإمارات', flag: '🇦🇪', cities: ['دبي', 'أبوظبي', 'الشارقة', 'عجمان', 'العين', 'رأس الخيمة', 'الفجيرة'] },
-      EG: { name: 'مصر', flag: '🇪🇬', cities: ['القاهرة', 'الإسكندرية', 'الجيزة', 'المنصورة', 'طنطا', 'شرم الشيخ', 'الغردقة'] }
+      ALL: { name: 'جميع الدول', flag: '🌍', cities: ['مدينة أخرى'] },
+      SA: { name: 'السعودية', flag: '🇸🇦', cities: ['الرياض', 'جدة', 'الدمام', 'مكة', 'المدينة', 'الخبر', 'أبها', 'تبوك', 'مدينة أخرى'] },
+      AE: { name: 'الإمارات', flag: '🇦🇪', cities: ['دبي', 'أبوظبي', 'الشارقة', 'عجمان', 'العين', 'رأس الخيمة', 'الفجيرة', 'مدينة أخرى'] },
+      EG: { name: 'مصر', flag: '🇪🇬', cities: ['القاهرة', 'الإسكندرية', 'الجيزة', 'المنصورة', 'طنطا', 'شرم الشيخ', 'الغردقة', 'مدينة أخرى'] }
     };
 
     const categories = [
@@ -1596,7 +1597,7 @@
       posts: [],
       profile: {},
       notifications: [],
-      market: 'SA',
+      market: 'ALL',
       feedMode: 'forYou',
       currentReportAd: null,
       profileTab: 'ads',
@@ -1664,7 +1665,7 @@
         {
           id: 'n-market',
           title: 'اختر السوق المناسب',
-          body: 'يمكنك التبديل بين السعودية والإمارات ومصر من زر السوق.',
+          body: 'الموجز عالمي افتراضيًا. اختر 🌍 جميع الدول أو دولة محددة من زر السوق.',
           icon: '🌍',
           unread: false,
           createdAt: Date.now() - 1000 * 60 * 60 * 3
@@ -1679,8 +1680,8 @@
       state.posts = readStore(STORAGE.posts, []);
       state.profile = { ...initialProfile(), ...readStore(STORAGE.profile, {}) };
       state.notifications = readStore(STORAGE.notifications, initialNotifications());
-      state.market = readStore(STORAGE.market, 'SA');
-      if (!markets[state.market]) state.market = 'SA';
+      state.market = readStore(STORAGE.market, 'ALL');
+      if (!markets[state.market]) state.market = 'ALL';
       persist();
     }
 
@@ -1744,22 +1745,27 @@
     }
 
     function sortedFeedAds() {
-      const ads = [...state.ads];
+      let ads = [...state.ads];
+      const filterByCountry = state.market !== 'ALL' && state.feedMode === 'nearby';
+      if (filterByCountry) {
+        ads = ads.filter((ad) => ad.country === state.market || ad.scope === 'all');
+      } else if (state.market !== 'ALL' && state.forceCountryFilter) {
+        ads = ads.filter((ad) => ad.country === state.market || ad.scope === 'all');
+      }
       if (state.feedMode === 'latest') {
         return ads.sort((a, b) => b.createdAt - a.createdAt);
       }
       if (state.feedMode === 'nearby') {
-        return ads
-          .filter((ad) => ad.country === state.market || ad.scope === 'all')
-          .sort((a, b) => {
-            const aLocal = a.country === state.market ? 1 : 0;
-            const bLocal = b.country === state.market ? 1 : 0;
-            return bLocal - aLocal || b.createdAt - a.createdAt;
-          });
+        return ads.sort((a, b) => {
+          const aLocal = a.country === state.market ? 1 : 0;
+          const bLocal = b.country === state.market ? 1 : 0;
+          return bLocal - aLocal || b.createdAt - a.createdAt;
+        });
       }
       return ads.sort((a, b) => {
-        const aBoost = (a.country === state.market ? 1500 : 0) + (a.views || 0);
-        const bBoost = (b.country === state.market ? 1500 : 0) + (b.views || 0);
+        const preferred = state.market !== 'ALL' ? state.market : null;
+        const aBoost = (preferred && a.country === preferred ? 1500 : 0) + (a.views || 0);
+        const bBoost = (preferred && b.country === preferred ? 1500 : 0) + (b.views || 0);
         return bBoost - aBoost;
       });
     }
@@ -1848,6 +1854,7 @@
     function setMarket(code) {
       if (!markets[code]) return;
       state.market = code;
+      state.forceCountryFilter = code !== 'ALL';
       writeStore(STORAGE.market, state.market);
       renderMarkets();
       renderCountryCitySelects();
@@ -1870,8 +1877,10 @@
 
     function renderFormOptions() {
       $('#adCategory').innerHTML = categories.map((item) => `<option value="${clean(item.name)}">${item.icon} ${clean(item.name)}</option>`).join('');
-      $('#adCountry').innerHTML = Object.entries(markets).map(([code, market]) => `<option value="${code}">${market.flag} ${clean(market.name)}</option>`).join('');
-      $('#adCountry').value = state.market;
+      $('#adCountry').innerHTML = Object.entries(markets)
+        .filter(([code]) => code !== 'ALL')
+        .map(([code, market]) => `<option value="${code}">${market.flag} ${clean(market.name)}</option>`).join('');
+      $('#adCountry').value = state.market === 'ALL' ? 'SA' : state.market;
       renderCountryCitySelects();
     }
 
@@ -1879,8 +1888,9 @@
       const countrySelect = $('#adCountry');
       const citySelect = $('#adCity');
       if (!countrySelect || !citySelect) return;
-      const country = countrySelect.value || state.market;
-      citySelect.innerHTML = markets[country].cities.map((city) => `<option value="${clean(city)}">${clean(city)}</option>`).join('');
+      const country = countrySelect.value || (state.market === 'ALL' ? 'SA' : state.market);
+      const cities = markets[country]?.cities || markets.SA.cities;
+      citySelect.innerHTML = cities.map((city) => `<option value="${clean(city)}">${clean(city)}</option>`).join('');
     }
 
     function adListMarkup(ads, emptyTitle, emptyText) {

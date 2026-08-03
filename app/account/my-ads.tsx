@@ -1,3 +1,111 @@
-import {router} from "expo-router"; import {FlatList,StyleSheet,Text,View} from "react-native"; import {EmptyState,OutlineButton,ScreenTitle,StatusBadge} from "@/components/e3lani/ui"; import {ScreenContainer} from "@/components/screen-container"; import {BRAND} from "@/lib/e3lani-data"; import {useE3lani} from "@/lib/e3lani-store"; import {useI18n} from "@/lib/i18n";
-export default function MyAds(){const store=useE3lani(),{t}=useI18n(),data=store.ads.filter(a=>a.ownerId===store.user?.id);return <ScreenContainer className="px-4"><ScreenTitle title={t("myAds")}/>{data.length?<FlatList data={data} keyExtractor={a=>a.id} contentContainerStyle={s.list} renderItem={({item})=><View style={s.card}><Text numberOfLines={2} style={s.title}>{item.title}</Text><StatusBadge status={item.status}/><Text style={s.id}>{item.id} · v{item.revision}</Text>{item.status==="active"||item.status==="paused"||item.status==="expired"?<View style={s.actions}>{item.status==="active"?<OutlineButton label={t("pause")} icon="pause" onPress={()=>store.setAdStatus(item.id,"paused")}/>:item.status==="paused"?<OutlineButton label={t("resume")} icon="play-arrow" onPress={()=>store.setAdStatus(item.id,"active")}/>:null}{item.status==="active"||item.status==="paused"?<OutlineButton label={t("extend")} icon="event" onPress={()=>store.extendAd(item.id)}/>:null}{item.status==="expired"?<OutlineButton label={t("republish")} icon="refresh" onPress={()=>store.republishAd(item.id)}/>:null}</View>:null}</View>}/>:<EmptyState icon="campaign" title={t("noAds")} text={t("mediaHelp")} actionLabel={t("create")} onAction={()=>router.push("/create-ad" as never)}/>}</ScreenContainer>}
-const s=StyleSheet.create({list:{paddingTop:16,paddingBottom:30},card:{marginBottom:11,borderWidth:1,borderColor:BRAND.border,borderRadius:20,padding:16,backgroundColor:BRAND.white},title:{color:BRAND.black,fontSize:17,lineHeight:24,fontWeight:"900",textAlign:"right"},id:{marginTop:6,color:BRAND.muted,fontSize:11,lineHeight:16,textAlign:"right"},actions:{marginTop:14,gap:8}})
+import { router } from "expo-router";
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+
+import { EmptyState, OutlineButton, ScreenTitle, StatusBadge } from "@/components/e3lani/ui";
+import { ScreenContainer } from "@/components/screen-container";
+import { BRAND } from "@/lib/e3lani-data";
+import { useE3lani } from "@/lib/e3lani-store";
+import { useI18n } from "@/lib/i18n";
+import { mapFeedAd } from "@/lib/map-feed-ad";
+import { trpc } from "@/lib/trpc";
+
+export default function MyAds() {
+  const store = useE3lani();
+  const { t, locale } = useI18n();
+  const mineQuery = trpc.ads.mine.useQuery();
+  const utils = trpc.useUtils();
+  const refresh = () => void utils.ads.mine.invalidate();
+  const appeal = trpc.ads.appeal.useMutation({ onSuccess: refresh });
+  const pause = trpc.ads.pause.useMutation({ onSuccess: refresh });
+  const publish = trpc.ads.publish.useMutation({ onSuccess: refresh });
+  const remove = trpc.ads.delete.useMutation({ onSuccess: refresh });
+  const data = (mineQuery.data ?? []).map((item) => mapFeedAd(item));
+
+  return (
+    <ScreenContainer className="px-4">
+      <ScreenTitle title={t("myAds")} />
+      {mineQuery.isLoading ? <ActivityIndicator color={BRAND.yellowDark} /> : null}
+      {data.length ? (
+        <FlatList
+          data={data}
+          keyExtractor={(ad) => ad.id}
+          contentContainerStyle={s.list}
+          renderItem={({ item }) => (
+            <View style={s.card}>
+              <Text numberOfLines={2} style={s.title}>
+                {item.title}
+              </Text>
+              <StatusBadge status={item.status} />
+              <Text style={s.id}>
+                {item.id} · v{item.revision}
+                {item.countryCode ? ` · ${item.countryCode}` : ""}
+              </Text>
+              <View style={s.actions}>
+                {item.status === "active" ? (
+                  <OutlineButton
+                    label={locale === "ar" ? "إيقاف" : "Pause"}
+                    icon="pause"
+                    onPress={() => void pause.mutateAsync({ id: item.id })}
+                  />
+                ) : null}
+                {item.status === "paused" || item.status === "expired" || item.status === "draft" ? (
+                  <OutlineButton
+                    label={locale === "ar" ? "نشر" : "Publish"}
+                    icon="publish"
+                    onPress={() => void publish.mutateAsync({ id: item.id })}
+                  />
+                ) : null}
+                {item.status === "paused" && store.user ? (
+                  <OutlineButton
+                    label={locale === "ar" ? "طلب استئناف" : "Request appeal"}
+                    icon="gavel"
+                    onPress={() =>
+                      void appeal.mutateAsync({
+                        id: item.id,
+                        message:
+                          locale === "ar"
+                            ? "أطلب مراجعة قرار الإيقاف الآلي. المحتوى متوافق مع السياسات."
+                            : "Please review the automated pause. The content complies with policy.",
+                      })
+                    }
+                  />
+                ) : null}
+                {item.status !== "removed" ? (
+                  <OutlineButton
+                    label={locale === "ar" ? "حذف" : "Delete"}
+                    icon="delete-outline"
+                    onPress={() => void remove.mutateAsync({ id: item.id })}
+                  />
+                ) : null}
+              </View>
+            </View>
+          )}
+        />
+      ) : !mineQuery.isLoading ? (
+        <EmptyState
+          icon="campaign"
+          title={t("noAds")}
+          text={t("mediaHelp")}
+          actionLabel={t("create")}
+          onAction={() => router.push("/create-ad" as never)}
+        />
+      ) : null}
+    </ScreenContainer>
+  );
+}
+
+const s = StyleSheet.create({
+  list: { paddingTop: 16, paddingBottom: 30 },
+  card: {
+    marginBottom: 11,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: BRAND.white,
+    gap: 8,
+  },
+  title: { color: BRAND.black, fontSize: 17, lineHeight: 24, fontWeight: "900", textAlign: "right" },
+  id: { color: BRAND.muted, fontSize: 11, lineHeight: 16, textAlign: "right" },
+  actions: { gap: 8, marginTop: 4 },
+});

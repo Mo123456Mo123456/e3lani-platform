@@ -82,37 +82,45 @@ export default function RootLayout() {
   }, [initialInsets, initialFrame]);
 
   const content = (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
-          {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
-          {/* in order for ios apps tab switching to work properly, use presentation: "fullScreenModal" for login page, whenever you decide to use presentation: "modal*/}
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="oauth/callback" />
-          </Stack>
-          <StatusBar style="dark" />
-        </QueryClientProvider>
-      </trpc.Provider>
-    </GestureHandlerRootView>
+    <>
+      {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
+      {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="oauth/callback" />
+      </Stack>
+      <StatusBar style="dark" />
+    </>
   );
 
   const shouldOverrideSafeArea = Platform.OS === "web";
 
-  if (shouldOverrideSafeArea) {
-    return (
-      <ThemeProvider>
-        <I18nProvider><E3laniProvider><SafeAreaProvider initialMetrics={providerInitialMetrics}>
-          <SafeAreaFrameContext.Provider value={frame}><SafeAreaInsetsContext.Provider value={insets}><AppStateGate>{content}</AppStateGate></SafeAreaInsetsContext.Provider></SafeAreaFrameContext.Provider>
-        </SafeAreaProvider></E3laniProvider></I18nProvider>
-      </ThemeProvider>
-    );
-  }
+  const app = shouldOverrideSafeArea ? (
+    <SafeAreaProvider initialMetrics={providerInitialMetrics}>
+      <SafeAreaFrameContext.Provider value={frame}>
+        <SafeAreaInsetsContext.Provider value={insets}>
+          <AppStateGate>{content}</AppStateGate>
+        </SafeAreaInsetsContext.Provider>
+      </SafeAreaFrameContext.Provider>
+    </SafeAreaProvider>
+  ) : (
+    <SafeAreaProvider initialMetrics={providerInitialMetrics}>
+      <AppStateGate>{content}</AppStateGate>
+    </SafeAreaProvider>
+  );
 
   return (
-    <ThemeProvider>
-      <I18nProvider><E3laniProvider><SafeAreaProvider initialMetrics={providerInitialMetrics}><AppStateGate>{content}</AppStateGate></SafeAreaProvider></E3laniProvider></I18nProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          {/* AppStateGate uses tRPC hooks, so both data providers must wrap it. */}
+          <ThemeProvider>
+            <I18nProvider>
+              <E3laniProvider>{app}</E3laniProvider>
+            </I18nProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </trpc.Provider>
+    </GestureHandlerRootView>
   );
 }

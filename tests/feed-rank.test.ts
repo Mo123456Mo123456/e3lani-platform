@@ -17,6 +17,7 @@ function makeAd(id: string, overrides: Partial<Ad> = {}): Ad {
     description: "وصف",
     categoryId: "services",
     cityId: "riyadh",
+    countryCode: "SA",
     media: [{ id: `m-${id}`, kind: "image", uri: "asset:poster" }],
     contacts: [{ type: "phone", value: "+966500000000" }],
     status: "active",

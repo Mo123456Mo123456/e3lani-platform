@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { User } from "../../drizzle/schema";
 import type { TrpcContext } from "./context";
+import { contentIdentity } from "../content-identity";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -31,6 +32,22 @@ const requireUser = t.middleware(async (opts) => {
 });
 
 export const protectedProcedure = t.procedure.use(requireUser);
+
+const requireIdentity = t.middleware(async ({ ctx, next }) => {
+  const identity = contentIdentity(ctx.user, ctx.visitor ?? null);
+  if (!identity) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "IDENTITY_REQUIRED" });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      identity,
+    },
+  });
+});
+
+/** Allows either an active account session or a signed, active guest identity. */
+export const identityProcedure = t.procedure.use(requireIdentity);
 
 type UserRole = User["role"];
 

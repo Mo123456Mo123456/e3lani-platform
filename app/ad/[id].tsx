@@ -10,7 +10,10 @@ import { ScreenContainer } from "@/components/screen-container";
 import { BRAND, type ContactType } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { mapFeedAd } from "@/lib/map-feed-ad";
+import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 const urls = (type: ContactType, value: string) =>
   type === "whatsapp"
@@ -21,22 +24,64 @@ const urls = (type: ContactType, value: string) =>
         ? value
         : `https://${value}`;
 
+type ReportReason =
+  | "spam"
+  | "fraud"
+  | "prohibited"
+  | "misleading"
+  | "copyright"
+  | "impersonation"
+  | "sexual"
+  | "weapons"
+  | "drugs"
+  | "other";
+
+const REPORT_REASONS: { id: ReportReason; ar: string; en: string }[] = [
+  { id: "spam", ar: "محتوى مزعج أو متكرر", en: "Spam or repeated content" },
+  { id: "fraud", ar: "احتيال أو طلب مالي مشبوه", en: "Fraud or suspicious payment" },
+  { id: "prohibited", ar: "محتوى غير قانوني", en: "Illegal content" },
+  { id: "misleading", ar: "معلومات مضللة", en: "Misleading information" },
+  { id: "impersonation", ar: "انتحال شركة أو شخص", en: "Impersonation" },
+  { id: "sexual", ar: "محتوى جنسي", en: "Sexual content" },
+  { id: "weapons", ar: "أسلحة", en: "Weapons" },
+  { id: "drugs", ar: "مخدرات", en: "Drugs" },
+  { id: "copyright", ar: "انتهاك حقوق النشر", en: "Copyright violation" },
+  { id: "other", ar: "سبب آخر", en: "Other" },
+];
+
 export default function Detail() {
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const store = useE3lani();
   const productData = useProductData();
   const { locale, isRTL, t } = useI18n();
-  const ad = store.ads.find((item) => item.id === id);
+  const adQuery = trpc.ads.get.useQuery({ id }, { enabled: Boolean(id) });
+  const reportMutation = trpc.ads.report.useMutation();
+  const eventMutation = trpc.ads.recordEvent.useMutation();
+  const saveMutation = trpc.ads.toggleSave.useMutation();
+  const createVideoVariant = trpc.sharing.createVideoVariant.useMutation();
+  const retryVideoVariant = trpc.sharing.retryVideoVariant.useMutation();
+  const ad = adQuery.data ? mapFeedAd(adQuery.data) : store.ads.find((item) => item.id === id);
   const recordedAdId = useRef("");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportSent, setReportSent] = useState(false);
+  const reportKey = useRef(
+    `report_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`,
+  );
+  const shareKey = useRef(
+    `share_${id}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
+  );
 
   useEffect(() => {
     if (ad && recordedAdId.current !== ad.id) {
       recordedAdId.current = ad.id;
       store.recordMetric(ad.id, "views");
+      void eventMutation.mutateAsync({
+        id: ad.id,
+        eventType: "view",
+        dedupeSuffix: `detail-${ad.id}`,
+      }).catch(() => undefined);
     }
-  }, [ad, store]);
+  }, [ad, store, eventMutation]);
 
   if (!ad) {
     return (
@@ -53,8 +98,43 @@ export default function Detail() {
   const saved = store.savedIds.includes(ad.id);
 
   const share = async () => {
+    const apiBase = getApiBaseUrl().replace(/\/$/, "");
+    let publicUrl = apiBase ? `${apiBase}/share/ad/${ad.id}` : `e3lani://ad/${ad.id}`;
+    if (ad.media.some((item) => item.kind === "video")) {
+      const variant = await createVideoVariant
+        .mutateAsync({ adId: ad.id, idempotencyKey: shareKey.current })
+        .catch(() => null);
+      if (!variant) return Alert.alert(t("error"));
+      if (variant.status === "failed" && variant.id) {
+        return Alert.alert(
+          locale === "ar" ? "تعذرت معالجة الفيديو" : "Video processing failed",
+          locale === "ar" ? "لم يتم تعديل الملف الأصلي. يمكنك إعادة المحاولة." : "The original was not modified. You can retry.",
+          [
+            { text: t("close"), style: "cancel" },
+            {
+              text: t("retry"),
+              onPress: () =>
+                void retryVideoVariant.mutateAsync({ id: variant.id! }).then((value) => {
+                  if (value.status === "ready" && value.url) {
+                    const url = value.url.startsWith("http") ? value.url : `${apiBase}${value.url}`;
+                    void Share.share({ message: `${ad.title}\n${url}`, url });
+                  }
+                }),
+            },
+          ],
+        );
+      }
+      if (variant.status !== "ready" || !variant.url) return;
+      publicUrl = variant.url.startsWith("http") ? variant.url : `${apiBase}${variant.url}`;
+    }
+    const result = await Share.share({ message: `${ad.title}\n${publicUrl}`, url: publicUrl });
+    if (result.action !== Share.sharedAction) return;
     store.recordMetric(ad.id, "shares");
-    await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
+    await eventMutation.mutateAsync({
+      id: ad.id,
+      eventType: "share",
+      dedupeSuffix: `detail-share-${Date.now()}`,
+    }).catch(() => undefined);
   };
 
   const contact = async (type: ContactType, value: string) => {
@@ -71,10 +151,18 @@ export default function Detail() {
     setReportOpen((current) => !current);
   };
 
-  const submitReport = (reason: "misleading" | "prohibited") => {
-    store.submitReport(ad.id, reason);
-    setReportOpen(false);
-    setReportSent(true);
+  const submitReport = async (reason: ReportReason) => {
+    try {
+      await reportMutation.mutateAsync({
+        id: ad.id,
+        reason,
+        idempotencyKey: reportKey.current,
+      });
+      setReportOpen(false);
+      setReportSent(true);
+    } catch (error) {
+      Alert.alert(t("error"), error instanceof Error ? error.message : undefined);
+    }
   };
 
   return (
@@ -114,20 +202,31 @@ export default function Detail() {
             />
 
             <View style={s.copy}>
-              <View style={[s.brand, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+              <Pressable
+                onPress={() =>
+                  ad.advertiser?.username
+                    ? router.push({
+                        pathname: "/advertiser/[username]",
+                        params: { username: ad.advertiser.username },
+                      } as never)
+                    : undefined
+                }
+                style={[s.brand, { flexDirection: isRTL ? "row-reverse" : "row" }]}
+              >
                 <View style={s.avatar}>
                   <Text style={s.avatarText}>{store.brand?.name.slice(0, 1) ?? "إ"}</Text>
                 </View>
                 <View style={s.brandCopy}>
                   <View style={[s.brandNameRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-                    <Text style={s.brandName}>{store.brand?.name}</Text>
-                    {ad.verified ? (
+                    <Text style={s.brandName}>{ad.advertiser?.displayName ?? store.brand?.name}</Text>
+                    {store.launchPolicy.brandVerificationEnabled && ad.verified ? (
                       <MaterialIcons name="verified" size={19} color={BRAND.yellowDark} />
                     ) : null}
                   </View>
                   <Text style={s.muted}>{locale === "ar" ? "المعلن" : "Advertiser"}</Text>
                 </View>
-              </View>
+                  {ad.advertiser?.username ? <Text style={s.muted}>@{ad.advertiser.username}</Text> : null}
+              </Pressable>
 
               <Text style={[s.title, { textAlign: isRTL ? "right" : "left" }]}>{ad.title}</Text>
               <Text style={[s.description, { textAlign: isRTL ? "right" : "left" }]}>
@@ -173,7 +272,10 @@ export default function Detail() {
                 <OutlineButton
                   label={saved ? t("savedDone") : t("save")}
                   icon={saved ? "bookmark" : "bookmark-border"}
-                  onPress={() => store.toggleSave(ad.id)}
+                  onPress={() => {
+                    store.toggleSave(ad.id);
+                    void saveMutation.mutateAsync({ id: ad.id }).catch(() => store.toggleSave(ad.id));
+                  }}
                 />
                 <OutlineButton label={t("report")} icon="flag" onPress={toggleReportForm} />
                 <OutlineButton
@@ -194,28 +296,18 @@ export default function Detail() {
                       : "Choose the best reason and it will be sent to the review team."}
                   </Text>
                   <View style={s.reportOptions}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={locale === "ar" ? "الإبلاغ عن محتوى مضلل" : "Report misleading content"}
-                      onPress={() => submitReport("misleading")}
-                      style={({ pressed }) => [s.reportChoice, pressed && s.pressed]}
-                    >
-                      <MaterialIcons accessible={false} name="report-problem" size={21} color={BRAND.error} />
-                      <Text style={s.reportChoiceText}>
-                        {locale === "ar" ? "محتوى مضلل" : "Misleading content"}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={locale === "ar" ? "الإبلاغ عن محتوى محظور" : "Report prohibited content"}
-                      onPress={() => submitReport("prohibited")}
-                      style={({ pressed }) => [s.reportChoice, pressed && s.pressed]}
-                    >
-                      <MaterialIcons accessible={false} name="gpp-bad" size={21} color={BRAND.error} />
-                      <Text style={s.reportChoiceText}>
-                        {locale === "ar" ? "محتوى محظور" : "Prohibited content"}
-                      </Text>
-                    </Pressable>
+                    {REPORT_REASONS.map((reason) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={locale === "ar" ? reason.ar : reason.en}
+                        key={reason.id}
+                        onPress={() => void submitReport(reason.id)}
+                        style={({ pressed }) => [s.reportChoice, pressed && s.pressed]}
+                      >
+                        <MaterialIcons accessible={false} name="report-problem" size={21} color={BRAND.error} />
+                        <Text style={s.reportChoiceText}>{locale === "ar" ? reason.ar : reason.en}</Text>
+                      </Pressable>
+                    ))}
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={t("close")}

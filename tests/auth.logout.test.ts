@@ -12,7 +12,7 @@ type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
 function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] } {
   const clearedCookies: CookieCall[] = [];
-  
+
   const user: AuthenticatedUser = {
     id: 1,
     openId: "sample-user",
@@ -28,9 +28,10 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
     status: "active",
     preferredLanguage: "ar",
     cityId: null,
+    countryCode: null,
     deletedAt: null,
   };
-  
+
   const ctx: TrpcContext = {
     user,
     req: {
@@ -44,12 +45,12 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
       },
     } as TrpcContext["res"],
   };
-  
+
   return { ctx, clearedCookies };
 }
 
 describe("auth.logout", () => {
-  it("clears the session cookie and reports success", async () => {
+  it("clears the session cookie with host-scoped secure defaults", async () => {
     const { ctx, clearedCookies } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
@@ -61,9 +62,10 @@ describe("auth.logout", () => {
     expect(clearedCookies[0]?.options).toMatchObject({
       maxAge: -1,
       secure: true,
-      sameSite: "none",
+      sameSite: "lax",
       httpOnly: true,
       path: "/",
     });
+    expect(clearedCookies[0]?.options.domain).toBeUndefined();
   });
 });

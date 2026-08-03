@@ -15,6 +15,8 @@ export const regions = mysqlTable("regions", {
 export const cities = mysqlTable("cities", {
   id: int("id").autoincrement().primaryKey(),
   regionId: int("regionId").notNull().references(() => regions.id),
+  /** FK enforced in SQL migration 0009; kept untyped here to avoid schema cycles. */
+  countryId: int("countryId"),
   code: varchar("code", { length: 32 }).notNull(),
   nameAr: varchar("nameAr", { length: 120 }).notNull(),
   nameEn: varchar("nameEn", { length: 120 }).notNull(),
@@ -26,6 +28,7 @@ export const cities = mysqlTable("cities", {
 }, (table) => [
   uniqueIndex("cities_code_unique").on(table.code),
   index("cities_region_idx").on(table.regionId),
+  index("cities_country_idx").on(table.countryId),
 ]);
 
 export const categories = mysqlTable("categories", {

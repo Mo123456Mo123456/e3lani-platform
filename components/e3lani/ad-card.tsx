@@ -2,8 +2,9 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
+  Alert,
   Pressable,
   Share,
   StyleSheet,
@@ -15,7 +16,9 @@ import {
 import { BRAND, type Ad, type AdMedia } from "@/lib/e3lani-data";
 import { useE3lani } from "@/lib/e3lani-store";
 import { useI18n } from "@/lib/i18n";
+import { trpc } from "@/lib/trpc";
 import { useProductData } from "@/lib/use-product-data";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 const localAssets = {
   poster: require("@/assets/images/e3lani-poster.png"),
@@ -90,8 +93,15 @@ export function AdCard({
   fullscreen?: boolean;
 }) {
   const { locale, isRTL, t } = useI18n();
-  const { brand, savedIds, toggleSave, recordMetric, metrics } = useE3lani();
+  const { brand, savedIds, toggleSave, recordMetric, metrics, launchPolicy } = useE3lani();
   const productData = useProductData();
+  const saveMutation = trpc.ads.toggleSave.useMutation();
+  const eventMutation = trpc.ads.recordEvent.useMutation();
+  const createVideoVariant = trpc.sharing.createVideoVariant.useMutation();
+  const retryVideoVariant = trpc.sharing.retryVideoVariant.useMutation();
+  const shareIdempotencyKey = useRef(
+    `share_${ad.id}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
+  );
   const city = productData.cities.find((item) => item.id === ad.cityId);
   const category = productData.categories.find((item) => item.id === ad.categoryId);
   const saved = savedIds.includes(ad.id);
@@ -99,7 +109,7 @@ export function AdCard({
   const saves = metric?.saves?.toLocaleString() ?? "0";
   const shares = metric?.shares?.toLocaleString() ?? "0";
   const views = metric?.views?.toLocaleString() ?? "0";
-  const ownerName = brand?.name ?? "إعلاني";
+  const ownerName = ad.advertiser?.displayName ?? brand?.name ?? "إعلاني";
   const contact = ad.contacts[0];
   const ctaLabel =
     contact?.type === "whatsapp"
@@ -123,12 +133,61 @@ export function AdCard({
   const save = (event: GestureResponderEvent) => {
     event.stopPropagation();
     toggleSave(ad.id);
+    void saveMutation.mutateAsync({ id: ad.id }).catch(() => {
+      // The next saved-ids synchronization corrects an optimistic mismatch.
+    });
   };
 
   const share = async (event: GestureResponderEvent) => {
     event.stopPropagation();
+    const apiBase = getApiBaseUrl().replace(/\/$/, "");
+    let shareUrl = apiBase ? `${apiBase}/share/ad/${ad.id}` : `e3lani://ad/${ad.id}`;
+    const video = ad.media.find((item) => item.kind === "video");
+    if (video) {
+      const variant = await createVideoVariant
+        .mutateAsync({ adId: ad.id, idempotencyKey: shareIdempotencyKey.current })
+        .catch(() => null);
+      if (!variant) {
+        Alert.alert(
+          locale === "ar" ? "تعذرت معالجة الفيديو" : "Video processing failed",
+          locale === "ar" ? "يمكنك إعادة المحاولة." : "You can retry.",
+        );
+        return;
+      }
+      if (variant.status === "failed" && variant.id) {
+        Alert.alert(
+          locale === "ar" ? "تعذرت معالجة الفيديو" : "Video processing failed",
+          locale === "ar" ? "لم يتم إنشاء نسخة مشاركة. أعد المحاولة." : "No share copy was created. Try again.",
+          [
+            { text: locale === "ar" ? "إلغاء" : "Cancel", style: "cancel" },
+            {
+              text: locale === "ar" ? "إعادة المحاولة" : "Retry",
+              onPress: () => {
+                void retryVideoVariant.mutateAsync({ id: variant.id! }).then((retried) => {
+                  if (retried.status === "ready" && retried.url) {
+                    const url = retried.url.startsWith("http") ? retried.url : `${apiBase}${retried.url}`;
+                    void Share.share({ message: `${ad.title}\n${url}`, url });
+                  }
+                });
+              },
+            },
+          ],
+        );
+        return;
+      }
+      if (variant.status !== "ready" || !variant.url) return;
+      shareUrl = variant.url.startsWith("http") ? variant.url : `${apiBase}${variant.url}`;
+    }
+    const result = await Share.share({ message: `${ad.title}\n${shareUrl}`, url: shareUrl });
+    if (result.action !== Share.sharedAction) return;
     recordMetric(ad.id, "shares");
-    await Share.share({ message: `${ad.title}\ne3lani://ad/${ad.id}` });
+    void eventMutation
+      .mutateAsync({
+        id: ad.id,
+        eventType: "share",
+        dedupeSuffix: `share-${Date.now()}`,
+      })
+      .catch(() => undefined);
   };
 
   const openDetails = () => router.push({ pathname: "/ad/[id]", params: { id: ad.id } } as never);
@@ -171,7 +230,13 @@ export function AdCard({
       {fullscreen ? (
         <View style={styles.mediaLabel}>
           <Text style={styles.mediaLabelText}>
-            {ad.media[0]?.kind === "video" ? (locale === "ar" ? "فيديو" : "Video") : locale === "ar" ? "صورة" : "Photo"}
+            {ad.media[0]?.kind === "video"
+              ? locale === "ar"
+                ? "فيديو"
+                : "Video"
+              : locale === "ar"
+                ? "صورة"
+                : "Photo"}
           </Text>
         </View>
       ) : null}
@@ -247,7 +312,7 @@ export function AdCard({
               <Text numberOfLines={1} style={styles.brandName}>
                 {ownerName}
               </Text>
-              {ad.verified ? (
+              {launchPolicy.brandVerificationEnabled && ad.verified ? (
                 <MaterialIcons accessible={false} name="verified" size={18} color={BRAND.yellow} />
               ) : null}
             </View>

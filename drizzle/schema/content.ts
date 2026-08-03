@@ -4,7 +4,9 @@ import { categories, cities } from "./catalog";
 
 export const mediaAssets = mysqlTable("media_assets", {
   id: int("id").autoincrement().primaryKey(),
-  ownerId: int("ownerId").notNull().references(() => users.id),
+  ownerId: int("ownerId").references(() => users.id),
+  /** FK to visitor_sessions is applied in migration 0010 to avoid schema cycles. */
+  ownerVisitorSessionId: int("ownerVisitorSessionId"),
   storageKey: varchar("storageKey", { length: 768 }).notNull(),
   originalUrl: varchar("originalUrl", { length: 1024 }).notNull(),
   mediaType: mysqlEnum("mediaType", ["image", "video"]).notNull(),
@@ -25,16 +27,23 @@ export const mediaAssets = mysqlTable("media_assets", {
 export const ads = mysqlTable("ads", {
   id: int("id").autoincrement().primaryKey(),
   publicId: varchar("publicId", { length: 24 }).notNull(),
-  ownerId: int("ownerId").notNull().references(() => users.id),
+  ownerId: int("ownerId").references(() => users.id),
+  /** Signed guest identity owner; never returned by public APIs. */
+  ownerVisitorSessionId: int("ownerVisitorSessionId"),
+  /** FK to advertiser_profiles is applied in migration 0010. */
+  advertiserProfileId: int("advertiserProfileId"),
   businessProfileId: int("businessProfileId").references(() => businessProfiles.id),
   categoryId: int("categoryId").notNull().references(() => categories.id),
   cityId: int("cityId").notNull().references(() => cities.id),
+  countryCode: varchar("countryCode", { length: 2 }).default("SA").notNull(),
   currentRevisionId: int("currentRevisionId"),
   pendingRevisionId: int("pendingRevisionId"),
   adStatus: mysqlEnum("adStatus", ["draft", "awaiting_payment", "pending_review", "changes_requested", "active", "paused", "rejected", "expired", "removed"]).default("draft").notNull(),
   paymentStatus: mysqlEnum("paymentStatus", ["not_required", "unpaid", "pending", "paid", "failed", "refunded", "partially_refunded"]).default("unpaid").notNull(),
   mediaStatus: mysqlEnum("mediaStatus", ["empty", "uploading", "processing", "ready", "failed"]).default("empty").notNull(),
   moderationStatus: mysqlEnum("moderationStatus", ["not_submitted", "queued", "in_review", "approved", "changes_requested", "rejected"]).default("not_submitted").notNull(),
+  adminHold: tinyint("adminHold").default(0).notNull(),
+  adminHoldReason: varchar("adminHoldReason", { length: 500 }),
   activatedAt: timestamp("activatedAt"),
   expiresAt: timestamp("expiresAt"),
   pausedAt: timestamp("pausedAt"),
@@ -45,7 +54,10 @@ export const ads = mysqlTable("ads", {
 }, (table) => [
   uniqueIndex("ads_publicId_unique").on(table.publicId),
   index("ads_feed_idx").on(table.adStatus, table.cityId, table.categoryId, table.activatedAt),
+  index("ads_country_feed_idx").on(table.adStatus, table.countryCode, table.activatedAt),
   index("ads_owner_idx").on(table.ownerId, table.adStatus),
+  index("ads_visitor_owner_idx").on(table.ownerVisitorSessionId, table.adStatus),
+  index("ads_advertiser_profile_idx").on(table.advertiserProfileId, table.adStatus),
 ]);
 
 export const adRevisions = mysqlTable("ad_revisions", {
@@ -54,12 +66,14 @@ export const adRevisions = mysqlTable("ad_revisions", {
   version: int("version").notNull(),
   title: varchar("title", { length: 120 }).notNull(),
   description: text("description").notNull(),
+  customCityName: varchar("customCityName", { length: 120 }),
   audienceScope: mysqlEnum("audienceScope", ["city", "region", "kingdom"]).default("city").notNull(),
   reviewStatus: mysqlEnum("reviewStatus", ["draft", "queued", "in_review", "approved", "changes_requested", "rejected"]).default("draft").notNull(),
   submittedAt: timestamp("submittedAt"),
   decidedAt: timestamp("decidedAt"),
   decisionReason: text("decisionReason"),
-  createdBy: int("createdBy").notNull().references(() => users.id),
+  createdBy: int("createdBy").references(() => users.id),
+  createdByVisitorSessionId: int("createdByVisitorSessionId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [

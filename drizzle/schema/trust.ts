@@ -15,8 +15,10 @@ export const appSettings = mysqlTable("app_settings", {
 
 export const moderationCases = mysqlTable("moderation_cases", {
   id: int("id").autoincrement().primaryKey(),
-  adId: int("adId").notNull().references(() => ads.id),
-  revisionId: int("revisionId").notNull().references(() => adRevisions.id),
+  adId: int("adId").references(() => ads.id),
+  revisionId: int("revisionId").references(() => adRevisions.id),
+  /** FK to profile_posts is applied in migration 0010. */
+  profilePostId: int("profilePostId"),
   status: mysqlEnum("status", ["queued", "in_review", "approved", "changes_requested", "rejected", "appealed"]).default("queued").notNull(),
   riskScore: int("riskScore").default(0).notNull(),
   automatedSignals: json("automatedSignals"),
@@ -50,6 +52,7 @@ export const appeals = mysqlTable("appeals", {
 export const auditLogs = mysqlTable("audit_logs", {
   id: int("id").autoincrement().primaryKey(),
   actorId: int("actorId").references(() => users.id),
+  actorVisitorSessionId: int("actorVisitorSessionId"),
   actorRole: varchar("actorRole", { length: 64 }),
   action: varchar("action", { length: 120 }).notNull(),
   entityType: varchar("entityType", { length: 64 }).notNull(),
@@ -86,19 +89,34 @@ export const consentRecords = mysqlTable("consent_records", {
 
 export const favorites = mysqlTable("favorites", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().references(() => users.id),
+  userId: int("userId").references(() => users.id),
+  visitorSessionId: int("visitorSessionId"),
   adId: int("adId").notNull().references(() => ads.id),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("favorite_user_ad_uq").on(table.userId, table.adId),
+  uniqueIndex("favorite_visitor_ad_uq").on(table.visitorSessionId, table.adId),
 ]);
 
 export const reports = mysqlTable("reports", {
   id: int("id").autoincrement().primaryKey(),
   publicId: varchar("publicId", { length: 32 }).notNull(),
   reporterId: int("reporterId").references(() => users.id),
-  adId: int("adId").notNull().references(() => ads.id),
-  reason: mysqlEnum("reason", ["spam", "fraud", "prohibited", "misleading", "copyright", "other"]).notNull(),
+  reporterVisitorSessionId: int("reporterVisitorSessionId"),
+  adId: int("adId").references(() => ads.id),
+  profilePostId: int("profilePostId"),
+  reason: mysqlEnum("reason", [
+    "spam",
+    "fraud",
+    "prohibited",
+    "misleading",
+    "copyright",
+    "impersonation",
+    "sexual",
+    "weapons",
+    "drugs",
+    "other",
+  ]).notNull(),
   details: text("details"),
   status: mysqlEnum("status", ["open", "assigned", "resolved", "dismissed"]).default("open").notNull(),
   assignedTo: int("assignedTo").references(() => users.id),
@@ -113,7 +131,17 @@ export const reportActions = mysqlTable("report_actions", {
   id: int("id").autoincrement().primaryKey(),
   reportId: int("reportId").notNull().references(() => reports.id),
   actorId: int("actorId").notNull().references(() => users.id),
-  action: mysqlEnum("action", ["assign", "dismiss", "remove_ad", "suspend_user", "restore_ad", "resolve"]).notNull(),
+  action: mysqlEnum("action", [
+    "assign",
+    "dismiss",
+    "remove_ad",
+    "remove_post",
+    "suspend_user",
+    "suspend_visitor",
+    "restore_ad",
+    "restore_post",
+    "resolve",
+  ]).notNull(),
   reason: text("reason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
