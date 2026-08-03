@@ -150,38 +150,8 @@ jobs:
       - name: Commit verified safety fixes to branch
         if: github.event_name == 'pull_request' && github.head_ref == 'cursor/global-free-launch-0f65'
         run: |
-          node <<'NODE'
-          const fs = require("node:fs");
-          const path = ".github/workflows/ci.yml";
-          let source = fs.readFileSync(path, "utf8");
-          source = source.replace(
-            "permissions:\n  contents: write",
-            "permissions:\n  contents: read",
-          );
-          source = source.replace(
-            "with:\n          fetch-depth: 0\n          ref: cursor/global-free-launch-0f65",
-            "with:\n          fetch-depth: 0",
-          );
-          source = source.replace(
-            /\n      - name: Apply approved critical safety patch[\s\S]*?\n      - name: Install pnpm/,
-            "\n      - name: Install pnpm",
-          );
-          source = source.replace(
-            /\n      - name: Commit verified safety fixes to branch[\s\S]*?\n\n  database:/,
-            "\n\n  database:",
-          );
-          if (source.includes("apply-critical-safety-patch.mjs")) {
-            throw new Error("Temporary patch step remained in permanent CI");
-          }
-          if (source.includes("contents: write")) {
-            throw new Error("Permanent CI retained write permissions");
-          }
-          if (source.includes("ref: cursor/global-free-launch-0f65")) {
-            throw new Error("Permanent CI retained the temporary branch checkout");
-          }
-          fs.writeFileSync(path, source);
-          NODE
-          rm -f scripts/apply-critical-safety-patch.mjs scripts/critical-patch.trigger .github/workflows/apply-critical-safety-patch.yml docs/critical-patch-failure.log
+          rm -f scripts/apply-critical-safety-patch.mjs scripts/critical-patch.trigger docs/critical-patch-failure.log
+          git checkout -- .github/workflows/ci.yml .github/workflows/apply-critical-safety-patch.yml
           git config user.name "E3lani Safety Bot"
           git config user.email "actions@users.noreply.github.com"
           git add -A
