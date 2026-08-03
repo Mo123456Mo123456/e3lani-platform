@@ -52,16 +52,16 @@ export default function Welcome() {
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5">
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <ScreenTitle
-          title={locale === "ar" ? "إعلاني | E3lani" : "E3lani"}
+          title={locale === "ar" ? "اختر دولتك" : "Choose your country"}
           subtitle={
             locale === "ar"
-              ? "اختر دولتك مع العلم. الموجز يبقى عالميًا بعد المتابعة."
-              : "Choose your country with its flag. The feed stays global after you continue."
+              ? "لا يلزم تسجيل أو رقم جوال. يمكنك التصفح والنشر مباشرة، وسيبقى الموجز عالميًا."
+              : "No account or phone number is required. Browse and publish immediately while the feed stays global."
           }
         />
 
         <Text style={styles.section}>
-          {locale === "ar" ? "دولة الحساب / الزائر" : "Account / visitor country"}
+          {locale === "ar" ? "دولة الزائر" : "Visitor country"}
         </Text>
         {!fromDatabase && !isLoading ? (
           <Pressable onPress={retry} style={styles.fallbackNotice}>
@@ -136,27 +136,16 @@ export default function Welcome() {
         )}
 
         <PrimaryButton
-          label={locale === "ar" ? "متابعة كزائر" : "Continue as guest"}
+          label={locale === "ar" ? "دخول إلى إعلاني" : "Enter E3lani"}
           icon="travel-explore"
           onPress={continueAsGuest}
         />
-        <PrimaryButton
-          label={locale === "ar" ? "إنشاء حساب معلن" : "Create advertiser account"}
-          icon="campaign"
-          onPress={() => {
-            completeCountryGate(selected);
-            router.push({ pathname: "/login", params: { mode: "register" } } as never);
-          }}
-        />
-        <Pressable
-          onPress={() => {
-            completeCountryGate(selected);
-            router.push({ pathname: "/login", params: { mode: "login" } } as never);
-          }}
-          style={styles.linkBtn}
-        >
-          <Text style={styles.link}>{locale === "ar" ? "تسجيل الدخول" : "Sign in"}</Text>
-        </Pressable>
+        <Text style={styles.launchNote}>
+          {locale === "ar"
+            ? "الإطلاق مجاني الآن. التسجيل والدفع محفوظان للمرحلة اللاحقة وغير ظاهرين للمستخدم."
+            : "Launch access is free. Registration and payments are reserved for a later stage and hidden from users."
+          }
+        </Text>
       </ScrollView>
     </ScreenContainer>
   );
@@ -218,11 +207,10 @@ const styles = StyleSheet.create({
   countryMeta: { marginTop: 3, color: BRAND.muted, fontSize: 11, textAlign: "right" },
   empty: { alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 28 },
   emptyText: { color: BRAND.muted, fontSize: 13, fontWeight: "700", textAlign: "center" },
-  linkBtn: { alignItems: "center", paddingVertical: 10 },
-  link: {
-    color: BRAND.yellowDark,
-    fontSize: 15,
-    fontWeight: "900",
-    textDecorationLine: "underline",
+  launchNote: {
+    color: BRAND.muted,
+    fontSize: 12,
+    lineHeight: 19,
+    textAlign: "center",
   },
 });
