@@ -57,10 +57,11 @@ describe("guest-only launch interface", () => {
     "utf8",
   );
 
-  it("enters the application directly instead of redirecting to login or onboarding", () => {
-    expect(gate).not.toContain("<Redirect");
+  it("creates a signed visitor identity and never redirects publishing to login", () => {
+    expect(gate).toContain("VisitorIdentity");
+    expect(gate).toContain("getVisitorToken");
+    expect(gate).toContain("setVisitorToken");
     expect(gate).not.toContain('router.replace("/login"');
-    expect(gate).toContain('completeCountryGate(accountCountry || "SA")');
   });
 
   it("keeps registration and sign-in actions hidden during the free launch", () => {
