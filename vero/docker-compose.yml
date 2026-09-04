@@ -1,0 +1,98 @@
+# VERO — كل زيارة لها إثبات.
+# نسخة مستقلة بالكامل: قاعدة بيانات + API + لوحة إدارة على سيرفر الشركة.
+# التشغيل:  docker compose up -d
+
+name: vero
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: vero-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vero}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD مطلوب في ملف .env}
+      POSTGRES_DB: ${POSTGRES_DB:-vero}
+      # ترتيب وفرز مناسب للنصوص العربية
+      LANG: C.UTF-8
+    volumes:
+      - vero_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-vero} -d ${POSTGRES_DB:-vero}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # قاعدة البيانات غير منشورة للخارج افتراضيًا.
+    # لفتحها للصيانة أزل التعليق (ويفضّل تقييدها بـ 127.0.0.1 فقط):
+    # ports:
+    #   - '127.0.0.1:5432:5432'
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vero-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://${POSTGRES_USER:-vero}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vero}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET مطلوب — ولّده بأمر openssl rand -hex 32}
+      QR_SIGNING_KEY: ${QR_SIGNING_KEY:?QR_SIGNING_KEY مطلوب — ولّده بأمر openssl rand -hex 32}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:4000}
+      ADMIN_ORIGIN: ${ADMIN_ORIGIN:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      STORAGE_DIR: /data/storage
+      BACKUP_DIR: /data/storage/backups
+      MAX_GPS_ACCURACY_M: ${MAX_GPS_ACCURACY_M:-100}
+      MAX_PLAUSIBLE_SPEED_MPS: ${MAX_PLAUSIBLE_SPEED_MPS:-45}
+      MAX_ROUTE_DEVIATION_M: ${MAX_ROUTE_DEVIATION_M:-500}
+      AUTO_BACKUP_ENABLED: ${AUTO_BACKUP_ENABLED:-1}
+      AUTO_BACKUP_INTERVAL_HOURS: ${AUTO_BACKUP_INTERVAL_HOURS:-24}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
+    volumes:
+      - vero_storage:/data/storage
+    ports:
+      - '${API_PORT:-4000}:4000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 20s
+      timeout: 6s
+      retries: 5
+      start_period: 40s
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+      args:
+        # يُخبز داخل حزمة المتصفح وقت البناء، فلا بد من تمريره هنا
+        NEXT_PUBLIC_API_URL: ${PUBLIC_BASE_URL:-http://localhost:4000}
+        NEXT_PUBLIC_MAP_STYLE: ${MAP_STYLE_URL:-}
+    container_name: vero-admin
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - '${ADMIN_PORT:-3000}:3000'
+
+volumes:
+  vero_db:
+    name: vero_db
+  vero_storage:
+    name: vero_storage

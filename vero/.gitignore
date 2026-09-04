@@ -1,0 +1,15 @@
+# أسرار التشغيل — لا تُرفع أبدًا
+.env
+
+node_modules/
+dist/
+.next/
+.expo/
+out/
+
+# بيانات محلية ومخرجات مؤقتة
+.test-storage/
+.demo-storage/
+storage/
+*.log
+*.tsbuildinfo

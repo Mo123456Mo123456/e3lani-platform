@@ -1,0 +1,20 @@
+{
+  "cli": { "version": ">= 12.0.0" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "VERO_API_URL": "http://10.0.2.2:4000" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": { "VERO_API_URL": "https://vero.company.example" }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": { "VERO_API_URL": "https://vero.company.example" }
+    }
+  },
+  "submit": { "production": {} }
+}
